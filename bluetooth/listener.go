@@ -11,13 +11,13 @@ import (
 
 // // Explicitly link libbluetooth and other libraries as "go build" cannot
 // // figure out these dependencies..
-// #cgo LDFLAGS: -lbluetooth -ldbus-1 -lusb-1.0 -lusb -lexpat
+// #cgo LDFLAGS: -lbluetooth
 // #include <stdlib.h>
 // #include <unistd.h>
 // #include "bt.h"
 import "C"
 
-// listener waits for incoming RFCOMM connections on the providee socket.
+// listener waits for incoming RFCOMM connections on the provided socket.
 // It implements the net.Listener interface.
 type listener struct {
 	localAddr *addr

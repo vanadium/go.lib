@@ -18,7 +18,7 @@ import (
 
 // // Explicitly link libbluetooth and other libraries as "go build" cannot
 // // figure out these dependencies..
-// #cgo LDFLAGS: -lbluetooth -ldbus-1 -lusb-1.0 -lusb -lexpat
+// #cgo LDFLAGS: -lbluetooth
 // #include <bluetooth/bluetooth.h>
 // #include <bluetooth/hci.h>
 // #include <bluetooth/hci_lib.h>
