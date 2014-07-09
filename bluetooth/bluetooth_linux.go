@@ -1,7 +1,5 @@
 // +build linux
 
-// Package bluetooth provides methods for interacting with attached bluetooth
-// devices.
 package bluetooth
 
 import (
@@ -35,9 +33,9 @@ var (
 	// https://www.bluetooth.org/en-us/specification/adopted-specifications
 	MaxLEAdvertisingPayloadSize = int(C.kMaxLEPayloadSize)
 
-	// MaxPort represents the highest bluetooth port that can be used
+	// MaxChannel represents the highest channel id that can be used
 	// for establishing RFCOMM connections.
-	MaxPort = int(C.kMaxPort)
+	MaxChannel = int(C.kMaxChannel)
 
 	// maxDevices denotes a maximum number of local devices to scan over
 	// when a particular device isn't explicitly specified (e.g.,
@@ -84,9 +82,9 @@ func OpenFirstAvailableDevice() (*Device, error) {
 }
 
 // Listen creates a new listener for RFCOMM connections on the provided
-// local address, specified in the <MAC/Port> format (e.g.,
-// "01:23:45:67:89:AB/1").  Port number 0 means pick the first available
-// port.  Empty MAC address means pick the first available bluetooth device.
+// local address, specified in the <MAC-Channel> format (e.g.,
+// "01:23:45:67:89:AB-1").  Channel number 0 means pick the first available
+// channel.  Empty MAC address means pick the first available bluetooth device.
 // Error is returned if a listener cannot be created.
 // Note that the returned net.Listener won't use the runtime network poller
 // and hence a new OS thread will be created for every outstanding connection.
@@ -95,8 +93,8 @@ func Listen(localAddr string) (net.Listener, error) {
 	if err != nil {
 		return nil, fmt.Errorf("listen error: invalid local address format %s, error: %s", localAddr, err)
 	}
-	if local.port > MaxPort {
-		return nil, fmt.Errorf("listen error: port %d too large - max: %d", local.port, MaxPort)
+	if local.channel > MaxChannel {
+		return nil, fmt.Errorf("listen error: channel %d too large - max: %d", local.channel, MaxChannel)
 	}
 
 	// Open a new local bluetooth socket.
@@ -111,17 +109,18 @@ func Listen(localAddr string) (net.Listener, error) {
 		localMAC = C.CString(local.mac.String())
 	}
 	defer C.free(unsafe.Pointer(localMAC))
-	localPort := C.int(local.port)
-	if es := C.bt_bind(socket, &localMAC, &localPort); es != nil {
+	localChannel := C.int(local.channel)
+	if es := C.bt_bind(socket, &localMAC, &localChannel); es != nil {
 		defer C.free(unsafe.Pointer(es))
 		syscall.Close(int(socket))
 		return nil, fmt.Errorf("listen error: %v", C.GoString(es))
 	}
 	// Re-parse the address as it may have changed.
 	if local.mac, err = net.ParseMAC(C.GoString(localMAC)); err != nil {
+		syscall.Close(int(socket))
 		return nil, fmt.Errorf("listen error: invalid local MAC address: %s, err: %v", C.GoString(localMAC), err)
 	}
-	local.port = int(localPort)
+	local.channel = int(localChannel)
 
 	// Create a listener for incoming connections.
 	const maxPendingConnections = 100
@@ -137,7 +136,7 @@ func Listen(localAddr string) (net.Listener, error) {
 }
 
 // Dial creates a new RFCOMM connection with the remote address, specified in
-// the <MAC/Port> format (e.g., "01:23:45:67:89:AB/1").  It returns an error
+// the <MAC/Channel> format (e.g., "01:23:45:67:89:AB-1").  It returns an error
 // if the connection cannot be established.
 // Note that the returned net.Conn won't use the runtime network poller and
 // hence a new OS thread will be created for every outstanding connection.
@@ -149,8 +148,8 @@ func Dial(remoteAddr string) (net.Conn, error) {
 	if remote.isAnyMAC() {
 		return nil, fmt.Errorf("dial error: must specify remote MAC address: %s", remoteAddr)
 	}
-	if remote.port > MaxPort {
-		return nil, fmt.Errorf("dial error: port %d too large - max: %d", remote.port, MaxPort)
+	if remote.channel > MaxChannel {
+		return nil, fmt.Errorf("dial error: channel %d too large - max: %d", remote.channel, MaxChannel)
 	}
 
 	// Open a new local bluetooth socket.
@@ -160,9 +159,9 @@ func Dial(remoteAddr string) (net.Conn, error) {
 	}
 
 	// Bind to the local socket.
-	var localMAC *C.char  // bind to first available device
-	localPort := C.int(0) // bind to first available port
-	if es := C.bt_bind(socket, &localMAC, &localPort); es != nil {
+	var localMAC *C.char     // bind to first available device
+	localChannel := C.int(0) // bind to first available channel
+	if es := C.bt_bind(socket, &localMAC, &localChannel); es != nil {
 		defer C.free(unsafe.Pointer(es))
 		syscall.Close(int(socket))
 		return nil, fmt.Errorf("dial error: %v", C.GoString(es))
@@ -173,13 +172,13 @@ func Dial(remoteAddr string) (net.Conn, error) {
 	if local.mac, err = net.ParseMAC(C.GoString(localMAC)); err != nil {
 		return nil, fmt.Errorf("dial error: invalid local MAC address: %s, err: %s", C.GoString(localMAC), err)
 	}
-	local.port = int(localPort)
+	local.channel = int(localChannel)
 
 	// Connect to the remote address.
 	remoteMAC := C.CString(remote.mac.String())
 	defer C.free(unsafe.Pointer(remoteMAC))
-	remotePort := C.int(remote.port)
-	if es := C.bt_connect(socket, remoteMAC, remotePort); es != nil {
+	remoteChannel := C.int(remote.channel)
+	if es := C.bt_connect(socket, remoteMAC, remoteChannel); es != nil {
 		defer C.free(unsafe.Pointer(es))
 		return nil, fmt.Errorf("dial error: error connecting to remote address: %s, error: %s", remoteAddr, C.GoString(es))
 	}

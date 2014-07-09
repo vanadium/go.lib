@@ -6,9 +6,9 @@
 // Bluetooth LE payload structure:
 //   https://www.bluetooth.org/en-us/specification/adopted-specifications
 const int kMaxLEPayloadSize;
-// The highest bluetooth port that can be used for establishing RFCOMM
+// The highest bluetooth channel that can be used for establishing RFCOMM
 // connections.
-const int kMaxPort;
+const int kMaxChannel;
 
 // Maximum number of local devices to scan over when a particular device isn't
 // explicitly specified.
@@ -29,17 +29,17 @@ char* bt_open_device(int dev_id, int* dd, char** name, char** local_address);
 // string is returned, the caller must free it.
 char* bt_close_device(int dd);
 
-// Binds the given socket to the provided MAC address/port.  If '*local_address'
+// Binds the given socket to the provided MAC address/channel.  If '*local_address'
 // is NULL, it will bind to the first available bluetooth device and overwrite
-// '*local_address' to contain that device's MAC address.  If '*port' is zero,
-// it will bind to the first available port on a given device and overwrite
-// '*port' to contain that port value.  (If both of the above are true, we will
-// find the first device/port pair that works and overwrite both values.)
+// '*local_address' to contain that device's MAC address.  If '*channel' is zero,
+// it will bind to the first available channel on a given device and overwrite
+// '*channel' to contain that channel value.  (If both of the above are true, we will
+// find the first device/channel pair that works and overwrite both values.)
 // Returns an error string if any error is encoutered.  If a non-NULL error
 // string is returned, the caller must free it.
 // The caller must free '*local_address' string whenever a NULL value was passed
 // in and a NULL error string is returned.
-char* bt_bind(int sock, char** local_address, int* port);
+char* bt_bind(int sock, char** local_address, int* channel);
 
 // Accepts the next connection on the provided socket.  Stores the file
 // descriptor for the newly established connection into 'fd', and the MAC
@@ -50,10 +50,10 @@ char* bt_bind(int sock, char** local_address, int* port);
 // is returned.
 char* bt_accept(int sock, int* fd, char** remote_address);
 
-// Connects to the remote address/port pair, using the provided local socket.
+// Connects to the remote address/channel pair, using the provided local socket.
 // Returns an error string if any error is encountered.  If a non-NULL error
 // string is returned, the caller must free it.
-char* bt_connect(int sock, const char* remote_address, int remote_port);
+char* bt_connect(int sock, const char* remote_address, int remote_channel);
 
 // Starts bluetooth LE advertising on the provided device descriptor, sending
 // one advertising packet every 'adv_interval_ms' milliseconds.

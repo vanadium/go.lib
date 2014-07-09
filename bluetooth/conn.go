@@ -9,6 +9,9 @@ import (
 
 // conn represents one RFCOMM connection between two bluetooth devices.
 // It implements the net.Conn interface.
+//
+// TODO(ashankar,spetrovic): net.Conn implementations are supposed to be safe
+// for concurrent method invocations. This implementation is not. Fix.
 type conn struct {
 	fd                    int
 	localAddr, remoteAddr *addr
@@ -20,14 +23,24 @@ func (c *conn) String() string {
 	return fmt.Sprintf("Bluetooth (%s) <--> (%s)", c.localAddr, c.remoteAddr)
 }
 
+// helper method for Read and Write that ensures:
+// - the returned 'n' is always >= 0, as per guidelines for the io.Reader and
+//   io.Writer interfaces.
+func (c *conn) rw(n int, err error) (int, error) {
+	if n < 0 {
+		n = 0
+	}
+	return n, err
+}
+
 // Implements the net.Conn interface.
 func (c *conn) Read(p []byte) (n int, err error) {
-	return syscall.Read(c.fd, p)
+	return c.rw(syscall.Read(c.fd, p))
 }
 
 // Implements the net.Conn interface.
 func (c *conn) Write(p []byte) (n int, err error) {
-	return syscall.Write(c.fd, p)
+	return c.rw(syscall.Write(c.fd, p))
 }
 
 // Implements the net.Conn interface.

@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <sys/select.h>
@@ -31,7 +32,7 @@ static const int kTimeoutMs = 1000;
 static const int kMaxAddrStrSize = 18;
 
 const int kMaxLEPayloadSize = 26;
-const int kMaxPort = 30;
+const int kMaxChannel = 30;
 const int kMaxDevices = 5;
 
 char* bt_open_device(int dev_id, int* dd, char** name, char** local_address) {
@@ -48,14 +49,14 @@ char* bt_open_device(int dev_id, int* dd, char** name, char** local_address) {
 
   // Open HCI socket.
   if ((sock = socket(AF_BLUETOOTH, SOCK_RAW, BTPROTO_HCI)) < 0) {
-    asprintf(&err, "can't open HCI socket, error: %d", errno);
+    asprintf(&err, "can't open HCI socket:%d[%s]", errno, strerror(errno));
     return err;
   }
 
   // Get device's name.
   di.dev_id = dev_id;
   if (ioctl(sock, HCIGETDEVINFO, (void *)&di) < 0) {
-    asprintf(&err, "can't get device info, error: %d", errno);
+    asprintf(&err, "can't get device info:%d[%s]", errno, strerror(errno));
     close(sock);
     return err;
   }
@@ -66,7 +67,7 @@ char* bt_open_device(int dev_id, int* dd, char** name, char** local_address) {
   ioctl(sock, HCIDEVUP, dev_id);
   *dd = hci_open_dev(dev_id);
   if (*dd < 0) {
-    asprintf(&err, "can't open device %d. error: %d", dev_id, errno);
+    asprintf(&err, "can't open device %d:%d[%s]", dev_id, errno, strerror(errno));
     close(sock);
     return err;
   }
@@ -83,7 +84,7 @@ char* bt_open_device(int dev_id, int* dd, char** name, char** local_address) {
   return NULL;
 }
 
-char* bt_bind(int sock, char** local_address, int* port) {
+char* bt_bind(int sock, char** local_address, int* channel) {
   char* err = NULL;
   int dev_id, dd;
   struct sockaddr_rc addr = { 0 };
@@ -98,7 +99,7 @@ char* bt_bind(int sock, char** local_address, int* port) {
       }
       bt_close_device(dd);
       assert(*local_address != NULL);
-      if ((err = bt_bind(sock, local_address, port)) != NULL) {
+      if ((err = bt_bind(sock, local_address, channel)) != NULL) {
         free(err);
         free(*local_address);
         continue;
@@ -107,24 +108,24 @@ char* bt_bind(int sock, char** local_address, int* port) {
     }
     asprintf(&err, "can't find an available bluetooth device");
     return err;
-  } else if (*port == 0) {
-    // Find the first available port.
-    for (*port = 1; *port < kMaxPort; (*port)++) {
-      if ((err = bt_bind(sock, local_address, port)) != NULL) {
+  } else if (*channel == 0) {
+    // Find the first available channel.
+    for (*channel = 1; *channel < kMaxChannel; (*channel)++) {
+      if ((err = bt_bind(sock, local_address, channel)) != NULL) {
         free(err);
         continue;
       }
       return NULL;
     }
-    asprintf(&err, "can't find an available bluetooth port");
+    asprintf(&err, "can't find an available bluetooth channel");
     return err;
-  } else {  // *local_address != NULL && *port > 0
+  } else {  // *local_address != NULL && *channel > 0
     addr.rc_family = AF_BLUETOOTH;
     str2ba(*local_address, &addr.rc_bdaddr);
-    addr.rc_channel = (uint8_t) *port;
+    addr.rc_channel = (uint8_t) *channel;
     if (bind(sock, (struct sockaddr*) &addr, sizeof(addr)) < 0) {
-      asprintf(&err, "can't bind to socket %d, addr %s, port %d, error: %d",
-               sock, *local_address, *port, errno);
+      asprintf(&err, "can't bind to socket %d, addr %s, channel %d, error: %d[%s]",
+               sock, *local_address, *channel, errno, strerror(errno));
       return err;
     }
     return NULL;
@@ -137,8 +138,8 @@ char* bt_accept(int sock, int* fd, char** remote_address) {
   socklen_t opt = sizeof(remote_addr);
 
   if ((*fd = accept(sock, (struct sockaddr *)&remote_addr, &opt)) < 0) {
-    asprintf(&err, "error accepting connection on socket %d, error: %d",
-             sock, errno);
+    asprintf(&err, "error accepting connection on socket %d, error: %d[%s]",
+             sock, errno, strerror(errno));
     return err;
   }
   *remote_address = (char*) malloc(kMaxAddrStrSize * sizeof(char));
@@ -147,17 +148,17 @@ char* bt_accept(int sock, int* fd, char** remote_address) {
   return NULL;
 }
 
-char* bt_connect(int sock, const char* remote_address, int remote_port) {
+char* bt_connect(int sock, const char* remote_address, int remote_channel) {
   char* err = NULL;
   struct sockaddr_rc remote_addr = { 0 };
 
   remote_addr.rc_family = AF_BLUETOOTH;
   str2ba(remote_address, &remote_addr.rc_bdaddr);
-  remote_addr.rc_channel = (uint8_t) remote_port;
+  remote_addr.rc_channel = (uint8_t) remote_channel;
   if (connect(sock, (struct sockaddr*) &remote_addr, sizeof(remote_addr)) < 0) {
-    asprintf(&err, "can't connect to remote address %s and port %d "
-             "on socket %d, error: %d", remote_address, remote_port,
-             sock, errno);
+    asprintf(&err, "can't connect to remote address %s and channel %d "
+             "on socket %d: %d[%s]", remote_address, remote_channel,
+             sock, errno, strerror(errno));
     return err;
   }
   return NULL;
@@ -166,7 +167,7 @@ char* bt_connect(int sock, const char* remote_address, int remote_port) {
 char* bt_close_device(int dd) {
   char* err = NULL;
   if (hci_close_dev(dd) < 0) {
-    asprintf(&err, "can't close device with dd: %d, error: %d", dd, errno);
+    asprintf(&err, "can't close device with dd: %d, error: %d[%s]", dd, errno, strerror(errno));
     return err;
   }
   return NULL;

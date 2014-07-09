@@ -40,8 +40,8 @@ func (l *listener) Accept() (net.Conn, error) {
 	if remote.mac, err = net.ParseMAC(C.GoString(remoteMAC)); err != nil {
 		return nil, fmt.Errorf("invalid remote MAC address: %s, err: %s", C.GoString(remoteMAC), err)
 	}
-	// There's no way to get accurate remote port number, so use 0.
-	remote.port = 0
+	// There's no way to get accurate remote channel number, so use 0.
+	remote.channel = 0
 
 	return &conn{
 		fd:         int(fd),
