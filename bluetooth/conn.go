@@ -1,3 +1,5 @@
+// +build linux
+
 package bluetooth
 
 import (
@@ -9,56 +11,34 @@ import (
 
 // conn represents one RFCOMM connection between two bluetooth devices.
 // It implements the net.Conn interface.
-//
-// TODO(ashankar,spetrovic): net.Conn implementations are supposed to be safe
-// for concurrent method invocations. This implementation is not. Fix.
 type conn struct {
-	fd                    int
-	localAddr, remoteAddr *addr
+	fd                    *fd
+	localAddr, remoteAddr net.Addr
 	readDeadline          time.Time
 	writeDeadline         time.Time
+}
+
+func newConn(sockfd int, local, remote net.Addr) (net.Conn, error) {
+	fd, err := newFD(sockfd)
+	if err != nil {
+		syscall.Close(sockfd)
+		return nil, err
+	}
+	return &conn{fd: fd, localAddr: local, remoteAddr: remote}, nil
 }
 
 func (c *conn) String() string {
 	return fmt.Sprintf("Bluetooth (%s) <--> (%s)", c.localAddr, c.remoteAddr)
 }
 
-// helper method for Read and Write that ensures:
-// - the returned 'n' is always >= 0, as per guidelines for the io.Reader and
-//   io.Writer interfaces.
-func (c *conn) rw(n int, err error) (int, error) {
-	if n < 0 {
-		n = 0
-	}
-	return n, err
-}
-
-// Implements the net.Conn interface.
-func (c *conn) Read(p []byte) (n int, err error) {
-	return c.rw(syscall.Read(c.fd, p))
-}
-
-// Implements the net.Conn interface.
-func (c *conn) Write(p []byte) (n int, err error) {
-	return c.rw(syscall.Write(c.fd, p))
-}
-
-// Implements the net.Conn interface.
-func (c *conn) Close() error {
-	return syscall.Close(c.fd)
-}
-
-// Implements the net.Conn interface.
-func (c *conn) LocalAddr() net.Addr {
-	return c.localAddr
-}
-
-// Implements the net.Conn interface.
-func (c *conn) RemoteAddr() net.Addr {
-	return c.remoteAddr
-}
-
-// Implements the net.Conn interface.
+// net.Conn interface methods
+func (c *conn) Read(p []byte) (n int, err error)   { return c.fd.Read(p) }
+func (c *conn) Write(p []byte) (n int, err error)  { return c.fd.Write(p) }
+func (c *conn) Close() error                       { return c.fd.Close() }
+func (c *conn) LocalAddr() net.Addr                { return c.localAddr }
+func (c *conn) RemoteAddr() net.Addr               { return c.remoteAddr }
+func (c *conn) SetReadDeadline(t time.Time) error  { return c.setSockoptTimeval(t, syscall.SO_RCVTIMEO) }
+func (c *conn) SetWriteDeadline(t time.Time) error { return c.setSockoptTimeval(t, syscall.SO_SNDTIMEO) }
 func (c *conn) SetDeadline(t time.Time) error {
 	if err := c.SetReadDeadline(t); err != nil {
 		return err
@@ -69,18 +49,14 @@ func (c *conn) SetDeadline(t time.Time) error {
 	return nil
 }
 
-// Implements the net.Conn interface.
-func (c *conn) SetReadDeadline(t time.Time) error {
-	if timeout := getTimeout(t); timeout != nil {
-		return syscall.SetsockoptTimeval(c.fd, syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, timeout)
+func (c *conn) setSockoptTimeval(t time.Time, opt int) error {
+	fd, err := c.fd.Reference()
+	if err != nil {
+		return err
 	}
-	return nil
-}
-
-// Implements the net.Conn interface.
-func (c *conn) SetWriteDeadline(t time.Time) error {
+	defer c.fd.ReleaseReference()
 	if timeout := getTimeout(t); timeout != nil {
-		return syscall.SetsockoptTimeval(c.fd, syscall.SOL_SOCKET, syscall.SO_SNDTIMEO, timeout)
+		return syscall.SetsockoptTimeval(fd, syscall.SOL_SOCKET, opt, timeout)
 	}
 	return nil
 }
