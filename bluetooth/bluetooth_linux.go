@@ -128,11 +128,7 @@ func Listen(localAddr string) (net.Listener, error) {
 		syscall.Close(int(socket))
 		return nil, fmt.Errorf("listen error: %v", err)
 	}
-
-	return &listener{
-		localAddr: local,
-		socket:    int(socket),
-	}, nil
+	return newListener(int(socket), local)
 }
 
 // Dial creates a new RFCOMM connection with the remote address, specified in
@@ -182,11 +178,7 @@ func Dial(remoteAddr string) (net.Conn, error) {
 		defer C.free(unsafe.Pointer(es))
 		return nil, fmt.Errorf("dial error: error connecting to remote address: %s, error: %s", remoteAddr, C.GoString(es))
 	}
-	return &conn{
-		fd:         int(socket),
-		localAddr:  &local,
-		remoteAddr: remote,
-	}, nil
+	return newConn(int(socket), &local, remote)
 }
 
 // Device is a struct representing an opened Bluetooth device.  It consists of
