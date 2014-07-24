@@ -23,3 +23,16 @@ type ScanReading struct {
 	// Time is the time the advertisement packed was received/scanned.
 	Time time.Time
 }
+
+// Device is a struct representing an opened Bluetooth device.  It consists of
+// a device name, MAC address, id (e.g., 0 for hci0, 1 for hci1 etc.) and a
+// device descriptor.
+// It is not safe to invoke this type's methods concurrently from multiple
+// goroutines.
+type Device struct {
+	Name       string
+	MAC        net.HardwareAddr
+	id         int
+	descriptor int
+	leScanChan chan ScanReading
+}

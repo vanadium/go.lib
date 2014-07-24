@@ -10,12 +10,6 @@ import (
 
 var errNotSupported = errors.New("bluetooth is not supported on this platform")
 
-// Device is a struct representing an opened Bluetooth device.
-//
-// However, bluetooth is not supported on this platform so all methods on a device
-// will fail.
-type Device struct{}
-
 func (d *Device) StartScan(scanInterval, scanWindow time.Duration) (<-chan ScanReading, error) {
 	return nil, errNotSupported
 }

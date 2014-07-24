@@ -66,7 +66,7 @@ func OpenDevice(deviceID int) (*Device, error) {
 		Name:       C.GoString(name),
 		MAC:        mac,
 		id:         deviceID,
-		descriptor: descriptor,
+		descriptor: int(descriptor),
 	}, nil
 }
 
@@ -181,19 +181,6 @@ func Dial(remoteAddr string) (net.Conn, error) {
 	return newConn(int(socket), &local, remote)
 }
 
-// Device is a struct representing an opened Bluetooth device.  It consists of
-// a device name, MAC address, id (e.g., 0 for hci0, 1 for hci1 etc.) and a
-// device descriptor.
-// It is not safe to invoke this type's methods concurrently from multiple
-// goroutines.
-type Device struct {
-	Name       string
-	MAC        net.HardwareAddr
-	id         int
-	descriptor C.int
-	leScanChan chan ScanReading
-}
-
 func (d *Device) String() string {
 	return fmt.Sprintf("BT_DEVICE(%s, %v)", d.Name, d.MAC)
 }
@@ -205,7 +192,7 @@ func (d *Device) String() string {
 // This method may be called again even if advertising is currently enabled,
 // in order to adjust the advertising interval.
 func (d *Device) StartAdvertising(interval time.Duration) error {
-	if es := C.bt_start_le_advertising(d.descriptor, C.int(int64(interval/time.Millisecond))); es != nil {
+	if es := C.bt_start_le_advertising(C.int(d.descriptor), C.int(int64(interval/time.Millisecond))); es != nil {
 		defer C.free(unsafe.Pointer(es))
 		return fmt.Errorf("error starting LE advertising on device: %v, error: %s", d, C.GoString(es))
 	}
@@ -216,7 +203,7 @@ func (d *Device) StartAdvertising(interval time.Duration) error {
 // advertising packet.  This function may be called at any time to adjust the
 // payload that is currently being advertised.
 func (d *Device) SetAdvertisingPayload(payload string) error {
-	if es := C.bt_set_le_advertising_payload(d.descriptor, C.CString(payload)); es != nil {
+	if es := C.bt_set_le_advertising_payload(C.int(d.descriptor), C.CString(payload)); es != nil {
 		defer C.free(unsafe.Pointer(es))
 		return fmt.Errorf("error setting advertising payload on device: %v, error: %s", d, C.GoString(es))
 	}
@@ -226,7 +213,7 @@ func (d *Device) SetAdvertisingPayload(payload string) error {
 // StopAdvertising stops LE advertising on the Bluetooth device.  If the
 // device is not advertising, this function will be a noop.
 func (d *Device) StopAdvertising() error {
-	if es := C.bt_stop_le_advertising(d.descriptor); es != nil {
+	if es := C.bt_stop_le_advertising(C.int(d.descriptor)); es != nil {
 		defer C.free(unsafe.Pointer(es))
 		return fmt.Errorf("error stopping LE advertising on device: %v, error: %s", d, C.GoString(es))
 	}
@@ -249,7 +236,7 @@ func (d *Device) StartScan(scanInterval, scanWindow time.Duration) (<-chan ScanR
 		acceptAllPackets = 0x00
 		timeoutMS        = 1000
 	)
-	if ret, err := C.hci_le_set_scan_parameters(d.descriptor, passiveScan, C.uint16_t(scanInterval/time.Millisecond), C.uint16_t(scanWindow/time.Millisecond), publicAddress, acceptAllPackets, timeoutMS); ret < 0 {
+	if ret, err := C.hci_le_set_scan_parameters(C.int(d.descriptor), passiveScan, C.uint16_t(scanInterval/time.Millisecond), C.uint16_t(scanWindow/time.Millisecond), publicAddress, acceptAllPackets, timeoutMS); ret < 0 {
 		return nil, fmt.Errorf("error setting LE scan parameters: %v", err)
 	}
 	// Enable scan.
@@ -257,7 +244,7 @@ func (d *Device) StartScan(scanInterval, scanWindow time.Duration) (<-chan ScanR
 		scanEnabled               = 0x01
 		disableDuplicateFiltering = 0x00
 	)
-	if ret, err := C.hci_le_set_scan_enable(d.descriptor, scanEnabled, disableDuplicateFiltering, timeoutMS); ret < 0 {
+	if ret, err := C.hci_le_set_scan_enable(C.int(d.descriptor), scanEnabled, disableDuplicateFiltering, timeoutMS); ret < 0 {
 		return nil, fmt.Errorf("error enabling LE scan: %v", err)
 	}
 	// Set the event filter options.  We're only interested in LE meta
@@ -266,7 +253,7 @@ func (d *Device) StartScan(scanInterval, scanWindow time.Duration) (<-chan ScanR
 	C.hci_filter_clear(&fopts)
 	C.hci_filter_set_ptype(C.HCI_EVENT_PKT, &fopts)
 	C.hci_filter_set_event(C.EVT_LE_META_EVENT, &fopts)
-	if ret, err := C.setsockopt(d.descriptor, C.SOL_HCI, C.HCI_FILTER, unsafe.Pointer(&fopts), C.socklen_t(unsafe.Sizeof(fopts))); ret < 0 {
+	if ret, err := C.setsockopt(C.int(d.descriptor), C.SOL_HCI, C.HCI_FILTER, unsafe.Pointer(&fopts), C.socklen_t(unsafe.Sizeof(fopts))); ret < 0 {
 		return nil, fmt.Errorf("couldn't set filter options on socket: %v", err)
 	}
 
@@ -281,7 +268,7 @@ func (d *Device) leScanLoop() {
 	buf := make([]byte, C.HCI_MAX_EVENT_SIZE)
 	for {
 		// Read one advertising meta event.
-		n, err := syscall.Read(int(d.descriptor), buf)
+		n, err := syscall.Read(int(C.int(d.descriptor)), buf)
 		if err != nil || n < 0 {
 			vlog.Errorf("error getting scan readings: %v", err)
 			return
@@ -323,7 +310,7 @@ func (d *Device) StopScan() error {
 		disableDuplicateFiltering = 0x00
 		timeoutMS                 = 1000
 	)
-	if ret, err := C.hci_le_set_scan_enable(d.descriptor, scanDisabled, disableDuplicateFiltering, timeoutMS); ret < 0 {
+	if ret, err := C.hci_le_set_scan_enable(C.int(d.descriptor), scanDisabled, disableDuplicateFiltering, timeoutMS); ret < 0 {
 		return fmt.Errorf("error disabling LE scan: %v", err)
 	}
 
@@ -335,7 +322,7 @@ func (d *Device) StopScan() error {
 // stop any operations in progress on the device (e.g., LE advertising) - it
 // simply closes the handle to it.
 func (d *Device) Close() error {
-	if es := C.bt_close_device(d.descriptor); es != nil {
+	if es := C.bt_close_device(C.int(d.descriptor)); es != nil {
 		defer C.free(unsafe.Pointer(es))
 		return fmt.Errorf("error closing device %v, error: %s", d, C.GoString(es))
 	}
