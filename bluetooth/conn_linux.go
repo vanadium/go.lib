@@ -1,4 +1,4 @@
-// +build linux
+// +build veyronbluetooth,!android
 
 package bluetooth
 

@@ -1,6 +1,6 @@
-// +build linux,!android
+// +build veyronbluetooth,!android
 
-#include "bt.h"
+#include "bt_linux.h"
 
 #include <assert.h>
 #include <errno.h>

@@ -1,4 +1,4 @@
-// +build linux,!android
+// +build veyronbluetooth,!android
 
 package bluetooth
 
@@ -22,7 +22,7 @@ import (
 // #include <bluetooth/hci_lib.h>
 // #include <stdlib.h>
 // #include <unistd.h>
-// #include "bt.h"
+// #include "bt_linux.h"
 import "C"
 
 var (

@@ -1,3 +1,5 @@
+// +build veyronbluetooth,!android
+
 package bluetooth
 
 import (
@@ -7,9 +9,6 @@ import (
 	"strconv"
 	"strings"
 )
-
-// Network string for net.Addr implementations used by the bluetooth package.
-const Network = "bluetooth"
 
 // addr represents an RFCOMM over bluetooth address in the <MAC-channelID>
 // format, where channelID denotes one of the available RFCOMM channels.

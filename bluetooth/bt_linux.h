@@ -1,4 +1,4 @@
-// +build linux,!android
+// +build veyronbluetooth,!android
 
 #include <stdlib.h>
 

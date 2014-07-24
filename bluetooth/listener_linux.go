@@ -1,4 +1,4 @@
-// +build linux,!android
+// +build veyronbluetooth,!android
 
 package bluetooth
 
@@ -13,7 +13,7 @@ import (
 // #cgo LDFLAGS: -lbluetooth
 // #include <stdlib.h>
 // #include <unistd.h>
-// #include "bt.h"
+// #include "bt_linux.h"
 import "C"
 
 // listener waits for incoming RFCOMM connections on the provided socket.

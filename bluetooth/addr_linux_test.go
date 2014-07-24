@@ -1,3 +1,5 @@
+// +build veyronbluetooth,!android
+
 package bluetooth
 
 import "testing"
