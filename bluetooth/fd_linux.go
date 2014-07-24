@@ -36,7 +36,11 @@ package bluetooth
 //	// TODO(ashankar): Should EINTR be handled by a retry?
 //	// See "Select Law" section of "man 2 select_tut".
 //	int nready = select(nfds, &readfds, writefdsp, NULL, NULL);
-//	return nready >= 0 && (FD_ISSET(readfd, &readfds) || FD_ISSET(writefd, &writefds));
+//	if (nready < 0) {
+//	  return nready;
+//	}
+//	return (readfd >= 0 && FD_ISSET(readfd, &readfds)) ||
+//	       (writefd >= 0 && FD_ISSET(writefd, &writefds));
 // }
 import "C"
 
