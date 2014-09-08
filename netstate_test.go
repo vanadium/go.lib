@@ -1,9 +1,7 @@
 package netstate_test
 
 import (
-	"fmt"
 	"net"
-	"os"
 	"reflect"
 	"testing"
 
@@ -15,6 +13,7 @@ func TestGet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
+	all = all.Map(netstate.ConvertToIPHost)
 	accessible, err := netstate.GetAccessibleIPs()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
@@ -33,7 +32,6 @@ func TestGet(t *testing.T) {
 
 func mkAddr(n, a string) net.Addr {
 	ip := net.ParseIP(a)
-	fmt.Fprintf(os.Stderr, "%s -> %d\n", a, len(ip))
 	return netstate.AsAddr(n, ip)
 }
 

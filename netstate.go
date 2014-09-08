@@ -2,7 +2,7 @@
 // of network addresess, for determining changes to those addresses and for
 // selecting from amongst them according to some set of policies that are
 // implemented by applying simple predicates (functions with names of the form
-// Is<condition> to filter or find the first matching address from a list
+// Is<condition>) to filter or find the first matching address from a list
 // of addresses. The intent is to make it easy to create policies that do
 // things like 'find the first IPv4 unicast address that is globally routable,
 // failing that use a private IPv4 address, and failing that, an IPv6 address'.
@@ -10,7 +10,7 @@
 // A typical usage would be:
 //
 //   state, _ := netstate.GetAccessibleIPs()
-//   first := netstate.First(netstate.IsPublicIPv4)
+//   first := state.First(netstate.IsPublicIPv4)
 //   // first will contain the first public IPv4 address or be nil.
 //
 // The example policy described above would be implemented using a
@@ -25,7 +25,7 @@
 // The term 'public' is used to refer to any globally routable IP address.
 //
 // All IPv6 addresses are intended to be 'public', but any starting with
-// fc00::/7 are (RFC4193) are reserved for private use, but the go
+// fc00::/7 (RFC4193) are reserved for private use, but the go
 // net libraries do not appear to recognise this. Similarly fe80::/10
 // (RFC 4291) are reserved for 'site-local' usage, but again this is not
 // implemented in the go libraries. Any developer who needs to distinguish
@@ -57,6 +57,14 @@ func (al AddrList) String() string {
 	return strings.TrimRight(r, " ")
 }
 
+func FromIPAddr(a []*net.IPAddr) AddrList {
+	var al AddrList
+	for _, a := range a {
+		al = append(al, a)
+	}
+	return al
+}
+
 // GetAll gets all of the available addresses on the device, including
 // loopback addresses.
 func GetAll() (AddrList, error) {
@@ -77,12 +85,13 @@ func GetAll() (AddrList, error) {
 
 // GetAccessibleIPs returns all of the IP addresses on the device that are
 // accessible to other devices - i.e. excluding loopback etc.
+// The IP addresses returned will be host addresses.
 func GetAccessibleIPs() (AddrList, error) {
 	all, err := GetAll()
 	if err != nil {
 		return nil, err
 	}
-	return all.Filter(IsAccessibleIP), nil
+	return all.Filter(IsAccessibleIP).Map(ConvertToIPHost), nil
 }
 
 type Predicate func(a net.Addr) bool
@@ -109,7 +118,30 @@ func (al AddrList) First(predicate Predicate) net.Addr {
 	return nil
 }
 
-func IsIPNetwork(n string) bool {
+type Mapper func(a net.Addr) net.Addr
+
+// Map will apply the Mapper function to all of the items in its receiver
+// and return a new AddrList containing all of the non-nil results from
+// said calls.
+func (al AddrList) Map(mapper Mapper) AddrList {
+	var ral AddrList
+	for _, a := range al {
+		if na := mapper(a); na != nil {
+			ral = append(ral, na)
+		}
+	}
+	return ral
+}
+
+// Convert the net.Addr argument into an instance of net.Addr that contains
+// an IP host address (as opposed to a network CIDR for example).
+func ConvertToIPHost(a net.Addr) net.Addr {
+	return AsIPAddr(a)
+}
+
+// IsIPProtocol returns true if its parameter is one of the allowed
+// network/protocol values for IP.
+func IsIPProtocol(n string) bool {
 	switch n {
 	case "ip+net", "tcp", "tcp4", "tcp6", "udp":
 		return true
@@ -119,22 +151,30 @@ func IsIPNetwork(n string) bool {
 	}
 }
 
-// AsIP returns its argument as a net.IP if that's possible.
-func AsIP(a net.Addr) net.IP {
-	ipn, ok := a.(*net.IPNet)
-	if ok {
-		return ipn.IP
+// AsIPAddr returns its argument as a net.IPAddr if that's possible.
+func AsIPAddr(a net.Addr) *net.IPAddr {
+	if v, ok := a.(*net.IPAddr); ok {
+		return v
 	}
-	ipa, ok := a.(*net.IPAddr)
-	if ok {
-		return ipa.IP
+	if ipn, ok := a.(*net.IPNet); ok {
+		return &net.IPAddr{IP: ipn.IP}
 	}
 	switch a.Network() {
-	default:
-		return nil
 	case "ip+net", "tcp", "tcp4", "tcp6", "udp":
+		if r := net.ParseIP(a.String()); r != nil {
+			return &net.IPAddr{IP: r}
+		}
 	}
-	return net.ParseIP(a.String())
+	return nil
+}
+
+// AsIP returns its argument as a net.IP if that's possible.
+func AsIP(a net.Addr) net.IP {
+	ipAddr := AsIPAddr(a)
+	if ipAddr == nil {
+		return nil
+	}
+	return ipAddr.IP
 }
 
 // IsUnspecified returns true if its argument is an unspecified IP address
