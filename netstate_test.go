@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"veyron/lib/netstate"
+	"veyron.io/veyron/veyron/lib/netstate"
 )
 
 func TestGet(t *testing.T) {
