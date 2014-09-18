@@ -9,7 +9,7 @@ import (
 	"veyron.io/veyron/veyron2/vom"
 )
 
-var ErrKeyNotFound = verror.NotFoundf("config key not found")
+var ErrKeyNotFound = verror.NoExistf("config key not found")
 
 // TODO(caprita): Move the interface to veyron2 and integrate with
 // veyron/services/config.
