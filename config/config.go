@@ -5,8 +5,8 @@ import (
 	"strings"
 	"sync"
 
-	"veyron2/verror"
-	"veyron2/vom"
+	"veyron.io/veyron/veyron2/verror"
+	"veyron.io/veyron/veyron2/vom"
 )
 
 var ErrKeyNotFound = verror.NotFoundf("config key not found")
