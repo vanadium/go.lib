@@ -369,3 +369,30 @@ func FindAdded(a, b AddrList) AddrList {
 func FindRemoved(a, b AddrList) AddrList {
 	return diffAB(a, b)
 }
+
+// SameMachine returns true if the provided addr is on the node
+// executing this function.
+func SameMachine(addr net.Addr) (bool, error) {
+	// The available interfaces may change between calls.
+	addrs, err := GetAll()
+	if err != nil {
+		return false, err
+	}
+
+	ips := make(map[string]struct{})
+	for _, a := range addrs {
+		ip, _, err := net.ParseCIDR(a.Address().String())
+		if err != nil {
+			return false, err
+		}
+		ips[ip.String()] = struct{}{}
+	}
+
+	client, _, err := net.SplitHostPort(addr.String())
+	if err != nil {
+		return false, err
+	}
+
+	_, islocal := ips[client]
+	return islocal, nil
+}

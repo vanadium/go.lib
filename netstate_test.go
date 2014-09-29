@@ -369,3 +369,80 @@ func TestAdded(t *testing.T) {
 		t.Errorf("got %s, want %s", got, want)
 	}
 }
+
+// buildNonLocalhostTestAddress constructs a selection of test addresses
+// that are local.
+func buildNonLocalhostTestAddress(t *testing.T) []string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		t.Errorf("InterfaceAddrs() failed: %v\n", err)
+	}
+
+	ips := make([]string, 0, len(addrs))
+	for _, a := range addrs {
+		ip, _, err := net.ParseCIDR(a.String())
+		if err != nil {
+			t.Errorf("ParseCIDR() failed: %v\n", err)
+		}
+		ips = append(ips, net.JoinHostPort(ip.String(), "111"))
+	}
+	return ips
+}
+
+func TestSameMachine(t *testing.T) {
+	cases := []struct {
+		Addr *ma
+		Same bool
+		Err  error
+	}{
+		{
+			Addr: &ma{
+				n: "tcp",
+				a: "batman.com:4444",
+			},
+			Same: false,
+			Err:  nil,
+		},
+		{
+			Addr: &ma{
+				n: "tcp",
+				a: "127.0.0.1:1000",
+			},
+			Same: true,
+			Err:  nil,
+		},
+		{
+			Addr: &ma{
+				n: "tcp",
+				a: "::1/128",
+			},
+			Same: false,
+			Err:  &net.AddrError{Err: "too many colons in address", Addr: "::1/128"},
+		},
+	}
+
+	for _, a := range buildNonLocalhostTestAddress(t) {
+		cases = append(cases, struct {
+			Addr *ma
+			Same bool
+			Err  error
+		}{
+			Addr: &ma{
+				n: "tcp",
+				a: a,
+			},
+			Same: true,
+			Err:  nil,
+		})
+	}
+
+	for _, v := range cases {
+		issame, err := netstate.SameMachine(v.Addr)
+		if !reflect.DeepEqual(err, v.Err) {
+			t.Errorf("Bad error: got %#v, expected %#v\n", err, v.Err)
+		}
+		if issame != v.Same {
+			t.Errorf("for Endpoint address %v: got %v, expected %v\n", v.Addr.a, issame, v.Same)
+		}
+	}
+}
