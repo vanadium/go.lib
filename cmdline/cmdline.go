@@ -15,7 +15,6 @@
 package cmdline
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -23,9 +22,17 @@ import (
 	"strings"
 )
 
+// ErrExitCode may be returned by the Run function of a Command to cause the
+// program to exit with a specific error code.
+type ErrExitCode int
+
+func (x ErrExitCode) Error() string {
+	return fmt.Sprintf("exit code %d", x)
+}
+
 // ErrUsage is returned to indicate an error in command usage; e.g. unknown
-// flags, subcommands or args.
-var ErrUsage = errors.New("usage error")
+// flags, subcommands or args.  It corresponds to exit code 1.
+const ErrUsage = ErrExitCode(1)
 
 // Command represents a single command in a command-line program.  A program
 // with subcommands is represented as a root Command with children representing
@@ -46,7 +53,8 @@ type Command struct {
 
 	// Run is a function that runs cmd with args.  If both Children and Run are
 	// specified, Run will only be called if none of the children match.  It is an
-	// error if neither is specified.
+	// error if neither is specified.  The special ErrExitCode error may be
+	// returned to indicate the command should exit with a specific exit code.
 	Run func(cmd *Command, args []string) error
 
 	// parent holds the parent of this Command, or nil if this is the root.
@@ -107,8 +115,10 @@ func (cmd *Command) Stderr() io.Writer {
 	return cmd.stderr
 }
 
-// Errorf should be called to signal an invalid usage of the command.
-func (cmd *Command) Errorf(format string, v ...interface{}) error {
+// UsageErrorf prints the error message represented by the printf-style format
+// string and args, followed by the usage description of cmd.  Returns ErrUsage
+// to make it easy to use from within the cmd.Run function.
+func (cmd *Command) UsageErrorf(format string, v ...interface{}) error {
 	fmt.Fprint(cmd.stderr, "ERROR: ")
 	fmt.Fprintf(cmd.stderr, format, v...)
 	fmt.Fprint(cmd.stderr, "\n\n")
@@ -236,7 +246,7 @@ func runHelp(cmd *Command, args []string, style style) error {
 			return runHelp(child, subArgs, style)
 		}
 	}
-	return cmd.Errorf("%s: unknown command %q", cmd.Name, subName)
+	return cmd.UsageErrorf("%s: unknown command %q", cmd.Name, subName)
 }
 
 // recursiveHelp prints help recursively via DFS from this cmd onward.
@@ -328,20 +338,20 @@ func (cmd *Command) Execute(args []string) error {
 	if cmd.Run != nil {
 		if cmd.ArgsName == "" && len(args) > 0 {
 			if len(cmd.Children) > 0 {
-				return cmd.Errorf("%s: unknown command %q", cmd.Name, args[0])
+				return cmd.UsageErrorf("%s: unknown command %q", cmd.Name, args[0])
 			} else {
-				return cmd.Errorf("%s doesn't take any arguments", cmd.Name)
+				return cmd.UsageErrorf("%s doesn't take any arguments", cmd.Name)
 			}
 		}
 		return cmd.Run(cmd, args)
 	}
 	switch {
 	case len(cmd.Children) == 0:
-		return cmd.Errorf("%s: neither Children nor Run is specified", cmd.Name)
+		return cmd.UsageErrorf("%s: neither Children nor Run is specified", cmd.Name)
 	case len(args) > 0:
-		return cmd.Errorf("%s: unknown command %q", cmd.Name, args[0])
+		return cmd.UsageErrorf("%s: unknown command %q", cmd.Name, args[0])
 	default:
-		return cmd.Errorf("%s: no command specified", cmd.Name)
+		return cmd.UsageErrorf("%s: no command specified", cmd.Name)
 	}
 }
 
@@ -352,8 +362,8 @@ func (cmd *Command) Execute(args []string) error {
 func (cmd *Command) Main() {
 	cmd.Init(nil, os.Stdout, os.Stderr)
 	if err := cmd.Execute(os.Args[1:]); err != nil {
-		if err == ErrUsage {
-			os.Exit(1)
+		if code, ok := err.(ErrExitCode); ok {
+			os.Exit(int(code))
 		} else {
 			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 			os.Exit(2)

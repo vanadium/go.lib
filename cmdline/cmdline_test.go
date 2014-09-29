@@ -25,7 +25,7 @@ func runEcho(cmd *Command, args []string) error {
 		if args[0] == "error" {
 			return errEcho
 		} else if args[0] == "bad_arg" {
-			return cmd.Errorf("Invalid argument %v", args[0])
+			return cmd.UsageErrorf("Invalid argument %v", args[0])
 		}
 	}
 	if flagExtra {
