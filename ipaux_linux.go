@@ -369,3 +369,72 @@ func (w *rtnetlinkWatcher) watcher() {
 	}
 	w.Unlock()
 }
+func toIP(a []byte) (net.IP, error) {
+	switch len(a) {
+	case 4:
+		return net.IPv4(a[0], a[1], a[2], a[3]), nil
+	case 16:
+		return net.IP(a), nil
+	}
+	return net.IPv6unspecified, errors.New("unknown ip address len")
+}
+
+// IPRoutes returns all kernel known routes.  If defaultOnly is set, only default routes
+// are returned.
+func GetIPRoutes(defaultOnly bool) []*IPRoute {
+	var x []*IPRoute
+	rib, err := syscall.NetlinkRIB(syscall.RTM_GETROUTE, syscall.AF_UNSPEC)
+	if err != nil {
+		vlog.Infof("Couldn't read: %s", err)
+		return x
+	}
+	msgs, err := syscall.ParseNetlinkMessage(rib)
+	if err != nil {
+		vlog.Infof("Couldn't parse: %s", err)
+		return x
+	}
+L:
+	for _, m := range msgs {
+		if m.Header.Type != syscall.RTM_NEWROUTE {
+			continue
+		}
+		attrs, err := syscall.ParseNetlinkRouteAttr(&m)
+		if err != nil {
+			continue
+		}
+		r := new(IPRoute)
+		r.Net.IP = net.IPv4zero
+		for _, a := range attrs {
+			switch a.Attr.Type {
+			case syscall.RTA_DST:
+				if r.Net.IP, err = toIP(a.Value[:]); err != nil {
+					continue L
+				}
+			case syscall.RTA_GATEWAY:
+				if r.Gateway, err = toIP(a.Value[:]); err != nil {
+					continue L
+				}
+			case syscall.RTA_OIF:
+				r.IfcIndex = int(a.Value[0])
+			case syscall.RTA_PREFSRC:
+				if r.PreferredSource, err = toIP(a.Value[:]); err != nil {
+					continue L
+				}
+			}
+		}
+		b := m.Data[:syscall.SizeofRtMsg]
+		a := (*syscall.RtMsg)(unsafe.Pointer(&b[0]))
+		len := 128
+		if r.Net.IP.To4() != nil {
+			len = 32
+		}
+		if int(a.Dst_len) > len {
+			continue
+		}
+		r.Net.Mask = net.CIDRMask(int(a.Dst_len), len)
+		if !defaultOnly || IsDefaultIPRoute(r) {
+			x = append(x, r)
+		}
+	}
+	return x
+}

@@ -9,6 +9,8 @@ package netconfig
 // we need to do is look for message types.
 
 import (
+	"errors"
+	"net"
 	"sync"
 	"syscall"
 	"time"
@@ -117,4 +119,72 @@ func (w *bsdNetConfigWatcher) watcher() {
 		w.t.Stop()
 	}
 	w.Unlock()
+}
+
+func toIP(sa syscall.Sockaddr) (net.IP, error) {
+	switch v := sa.(type) {
+	case *syscall.SockaddrInet4:
+		return net.IPv4(v.Addr[0], v.Addr[1], v.Addr[2], v.Addr[3]), nil
+	case *syscall.SockaddrInet6:
+		return net.IP(v.Addr[:]), nil
+	}
+	return net.IPv6zero, errors.New("unknown sockaddr ip")
+}
+
+func toIPNet(sa syscall.Sockaddr, msa syscall.Sockaddr) (net.IPNet, error) {
+	var x net.IPNet
+	var err error
+	x.IP, err = toIP(sa)
+	if err != nil {
+		return x, err
+	}
+	switch v := msa.(type) {
+	case *syscall.SockaddrInet4:
+		x.Mask = net.IPv4Mask(v.Addr[0], v.Addr[1], v.Addr[2], v.Addr[3])
+		return x, nil
+	case *syscall.SockaddrInet6:
+		x.Mask = net.IPMask(v.Addr[:])
+		return x, nil
+	}
+	return x, errors.New("unknown sockaddr ipnet")
+}
+
+// IPRoutes returns all kernel known routes.  If defaultOnly is set, only default routes
+// are returned.
+func GetIPRoutes(defaultOnly bool) []*IPRoute {
+	var x []*IPRoute
+	rib, err := syscall.RouteRIB(syscall.NET_RT_DUMP, 0)
+	if err != nil {
+		vlog.Infof("Couldn't read: %s", err)
+		return x
+	}
+	msgs, err := syscall.ParseRoutingMessage(rib)
+	if err != nil {
+		vlog.Infof("Couldn't parse: %s", err)
+		return x
+	}
+	for _, m := range msgs {
+		switch v := m.(type) {
+		case *syscall.RouteMessage:
+			addrs, err := syscall.ParseRoutingSockaddr(m)
+			if err != nil {
+				return x
+			}
+			if addrs[0] == nil || addrs[1] == nil || addrs[2] == nil {
+				continue
+			}
+			r := new(IPRoute)
+			if r.Gateway, err = toIP(addrs[1]); err != nil {
+				continue
+			}
+			if r.Net, err = toIPNet(addrs[0], addrs[2]); err != nil {
+				continue
+			}
+			r.IfcIndex = int(v.Header.Index)
+			if !defaultOnly || IsDefaultIPRoute(r) {
+				x = append(x, r)
+			}
+		}
+	}
+	return x
 }
