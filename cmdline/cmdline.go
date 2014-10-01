@@ -60,7 +60,7 @@ type Command struct {
 	// parent holds the parent of this Command, or nil if this is the root.
 	parent *Command
 
-	// Stdout and stderr are set through Init.
+	// stdout and stderr are set through Init.
 	stdout, stderr io.Writer
 
 	// parseFlags holds the merged flags used for parsing.  Each command starts
@@ -68,7 +68,8 @@ type Command struct {
 	// specified in both sets, the command's own flag wins.
 	parseFlags *flag.FlagSet
 
-	// Is this the default help command provided by the framework?
+	// isDefaultHelp indicates whether this is the the default help command
+	// provided by the framework.
 	isDefaultHelp bool
 
 	// TODO(toddw): If necessary we can add alias support, e.g. for abbreviations.
