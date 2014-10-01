@@ -4,9 +4,7 @@
 
 package netconfig
 
-import (
-	"net"
-)
+import "net"
 
 func isZeroSlice(a []byte) bool {
 	for _, i := range a {
@@ -23,4 +21,20 @@ func IsDefaultIPRoute(r *IPRoute) bool {
 		return false
 	}
 	return isZeroSlice(r.Net.Mask[:])
+}
+
+// IsDefaultIPv4Route returns true if r is a default IPv4 route.
+func IsDefaultIPv4Route(r *IPRoute) bool {
+	if !r.Net.IP.Equal(net.IPv4zero) && !r.Net.IP.Equal(net.IPv6zero) {
+		return false
+	}
+	return len(r.Net.Mask) == 4 && isZeroSlice(r.Net.Mask[:])
+}
+
+// IsDefaultIPv6Route returns true if r is a default IPv6 route.
+func IsDefaultIPv6Route(r *IPRoute) bool {
+	if !r.Net.IP.Equal(net.IPv4zero) && !r.Net.IP.Equal(net.IPv6zero) {
+		return false
+	}
+	return len(r.Net.Mask) == 16 && isZeroSlice(r.Net.Mask[:])
 }
