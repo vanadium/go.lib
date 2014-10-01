@@ -68,6 +68,9 @@ type Command struct {
 	// specified in both sets, the command's own flag wins.
 	parseFlags *flag.FlagSet
 
+	// Is this the default help command provided by the framework?
+	isDefaultHelp bool
+
 	// TODO(toddw): If necessary we can add alias support, e.g. for abbreviations.
 	//   Alias map[string]string
 }
@@ -171,6 +174,9 @@ func (cmd *Command) usage(w io.Writer, style style, firstCall bool) {
 	if len(cmd.Children) > 0 {
 		fmt.Fprintf(w, "\nThe %s commands are:\n", cmd.Name)
 		for _, child := range cmd.Children {
+			if !firstCall && child.isDefaultHelp {
+				continue // don't repeatedly list default help command
+			}
 			fmt.Fprintf(w, "   %-11s %s\n", child.Name, child.Short)
 		}
 	}
@@ -211,16 +217,16 @@ func newDefaultHelp() *Command {
 Help displays usage descriptions for this command, or usage descriptions for
 sub-commands.
 `,
-		ArgsName: "<command>",
+		ArgsName: "[command ...]",
 		ArgsLong: `
-<command> is an optional sequence of commands to display detailed per-command
-usage.  The special-case "help ..." recursively displays help for this command
-and all sub-commands.
+[command ...] is an optional sequence of commands to display detailed usage.
+The special-case "help ..." recursively displays help for all commands.
 `,
 		Run: func(cmd *Command, args []string) error {
 			// Help applies to its parent - e.g. "foo help" applies to the foo command.
 			return runHelp(cmd.parent, args, helpStyle)
 		},
+		isDefaultHelp: true,
 	}
 	help.Flags.Var(&helpStyle, "style", `The formatting style for help output, either "text" or "godoc".`)
 	return help
@@ -259,6 +265,9 @@ func recursiveHelp(cmd *Command, style style, firstCall bool) {
 		fmt.Fprintln(cmd.stdout)
 	}
 	for _, child := range cmd.Children {
+		if !firstCall && child.isDefaultHelp {
+			continue // don't repeatedly print default help command
+		}
 		recursiveHelp(child, style, false)
 	}
 }

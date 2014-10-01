@@ -239,11 +239,10 @@ The global flags are:
 sub-commands.
 
 Usage:
-   onecmd help [flags] <command>
+   onecmd help [flags] [command ...]
 
-<command> is an optional sequence of commands to display detailed per-command
-usage.  The special-case "help ..." recursively displays help for this command
-and all sub-commands.
+[command ...] is an optional sequence of commands to display detailed usage.
+The special-case "help ..." recursively displays help for all commands.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
@@ -279,11 +278,10 @@ Help displays usage descriptions for this command, or usage descriptions for
 sub-commands.
 
 Usage:
-   onecmd help [flags] <command>
+   onecmd help [flags] [command ...]
 
-<command> is an optional sequence of commands to display detailed per-command
-usage.  The special-case "help ..." recursively displays help for this command
-and all sub-commands.
+[command ...] is an optional sequence of commands to display detailed usage.
+The special-case "help ..." recursively displays help for all commands.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
@@ -455,11 +453,10 @@ Help displays usage descriptions for this command, or usage descriptions for
 sub-commands.
 
 Usage:
-   multi help [flags] <command>
+   multi help [flags] [command ...]
 
-<command> is an optional sequence of commands to display detailed per-command
-usage.  The special-case "help ..." recursively displays help for this command
-and all sub-commands.
+[command ...] is an optional sequence of commands to display detailed usage.
+The special-case "help ..." recursively displays help for all commands.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
@@ -730,7 +727,6 @@ Usage:
 The echoprog commands are:
    echo        Print strings on stdout
    echoopt     Print strings on stdout, with opts
-   help        Display help for commands
 
 The echoprog flags are:
    -extra=false: Print an extra arg
@@ -752,19 +748,6 @@ Usage:
 The echoopt flags are:
    -n=false: Do not output trailing newline
 ================================================================================
-Help displays usage descriptions for this command, or usage descriptions for
-sub-commands.
-
-Usage:
-   toplevelprog echoprog help [flags] <command>
-
-<command> is an optional sequence of commands to display detailed per-command
-usage.  The special-case "help ..." recursively displays help for this command
-and all sub-commands.
-
-The help flags are:
-   -style=text: The formatting style for help output, either "text" or "godoc".
-================================================================================
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
@@ -776,11 +759,10 @@ Help displays usage descriptions for this command, or usage descriptions for
 sub-commands.
 
 Usage:
-   toplevelprog help [flags] <command>
+   toplevelprog help [flags] [command ...]
 
-<command> is an optional sequence of commands to display detailed per-command
-usage.  The special-case "help ..." recursively displays help for this command
-and all sub-commands.
+[command ...] is an optional sequence of commands to display detailed usage.
+The special-case "help ..." recursively displays help for all commands.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
@@ -847,11 +829,10 @@ Help displays usage descriptions for this command, or usage descriptions for
 sub-commands.
 
 Usage:
-   toplevelprog echoprog help [flags] <command>
+   toplevelprog echoprog help [flags] [command ...]
 
-<command> is an optional sequence of commands to display detailed per-command
-usage.  The special-case "help ..." recursively displays help for this command
-and all sub-commands.
+[command ...] is an optional sequence of commands to display detailed usage.
+The special-case "help ..." recursively displays help for all commands.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
@@ -1158,7 +1139,6 @@ The prog2 commands are:
    hello21     Print strings on stdout preceded by "Hello"
    prog3       Set of hello commands
    hello22     Print strings on stdout preceded by "Hello"
-   help        Display help for commands
 ================================================================================
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1175,7 +1155,6 @@ Usage:
 The prog3 commands are:
    hello31     Print strings on stdout preceded by "Hello"
    hello32     Print strings on stdout preceded by "Hello"
-   help        Display help for commands
 ================================================================================
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1191,19 +1170,6 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Help displays usage descriptions for this command, or usage descriptions for
-sub-commands.
-
-Usage:
-   prog1 prog2 prog3 help [flags] <command>
-
-<command> is an optional sequence of commands to display detailed per-command
-usage.  The special-case "help ..." recursively displays help for this command
-and all sub-commands.
-
-The help flags are:
-   -style=text: The formatting style for help output, either "text" or "godoc".
-================================================================================
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
@@ -1215,24 +1181,10 @@ Help displays usage descriptions for this command, or usage descriptions for
 sub-commands.
 
 Usage:
-   prog1 prog2 help [flags] <command>
+   prog1 help [flags] [command ...]
 
-<command> is an optional sequence of commands to display detailed per-command
-usage.  The special-case "help ..." recursively displays help for this command
-and all sub-commands.
-
-The help flags are:
-   -style=text: The formatting style for help output, either "text" or "godoc".
-================================================================================
-Help displays usage descriptions for this command, or usage descriptions for
-sub-commands.
-
-Usage:
-   prog1 help [flags] <command>
-
-<command> is an optional sequence of commands to display detailed per-command
-usage.  The special-case "help ..." recursively displays help for this command
-and all sub-commands.
+[command ...] is an optional sequence of commands to display detailed usage.
+The special-case "help ..." recursively displays help for all commands.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
@@ -1271,7 +1223,6 @@ Usage:
 The prog3 commands are:
    hello31     Print strings on stdout preceded by "Hello"
    hello32     Print strings on stdout preceded by "Hello"
-   help        Display help for commands
 ================================================================================
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1287,19 +1238,6 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Help displays usage descriptions for this command, or usage descriptions for
-sub-commands.
-
-Usage:
-   prog1 prog2 prog3 help [flags] <command>
-
-<command> is an optional sequence of commands to display detailed per-command
-usage.  The special-case "help ..." recursively displays help for this command
-and all sub-commands.
-
-The help flags are:
-   -style=text: The formatting style for help output, either "text" or "godoc".
-================================================================================
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
@@ -1311,11 +1249,10 @@ Help displays usage descriptions for this command, or usage descriptions for
 sub-commands.
 
 Usage:
-   prog1 prog2 help [flags] <command>
+   prog1 prog2 help [flags] [command ...]
 
-<command> is an optional sequence of commands to display detailed per-command
-usage.  The special-case "help ..." recursively displays help for this command
-and all sub-commands.
+[command ...] is an optional sequence of commands to display detailed usage.
+The special-case "help ..." recursively displays help for all commands.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
@@ -1356,11 +1293,10 @@ Help displays usage descriptions for this command, or usage descriptions for
 sub-commands.
 
 Usage:
-   prog1 prog2 prog3 help [flags] <command>
+   prog1 prog2 prog3 help [flags] [command ...]
 
-<command> is an optional sequence of commands to display detailed per-command
-usage.  The special-case "help ..." recursively displays help for this command
-and all sub-commands.
+[command ...] is an optional sequence of commands to display detailed usage.
+The special-case "help ..." recursively displays help for all commands.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
@@ -1401,11 +1337,10 @@ Help displays usage descriptions for this command, or usage descriptions for
 sub-commands.
 
 Usage:
-   prog1 prog2 prog3 help [flags] <command>
+   prog1 prog2 prog3 help [flags] [command ...]
 
-<command> is an optional sequence of commands to display detailed per-command
-usage.  The special-case "help ..." recursively displays help for this command
-and all sub-commands.
+[command ...] is an optional sequence of commands to display detailed usage.
+The special-case "help ..." recursively displays help for all commands.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
@@ -1458,7 +1393,6 @@ The prog2 commands are:
    hello21     Print strings on stdout preceded by "Hello"
    prog3       Set of hello commands
    hello22     Print strings on stdout preceded by "Hello"
-   help        Display help for commands
 
 Prog1 Prog2 Hello21
 
@@ -1479,7 +1413,6 @@ Usage:
 The prog3 commands are:
    hello31     Print strings on stdout preceded by "Hello"
    hello32     Print strings on stdout preceded by "Hello"
-   help        Display help for commands
 
 Prog1 Prog2 Prog3 Hello31
 
@@ -1499,21 +1432,6 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 
-Prog1 Prog2 Prog3 Help
-
-Help displays usage descriptions for this command, or usage descriptions for
-sub-commands.
-
-Usage:
-   prog1 prog2 prog3 help [flags] <command>
-
-<command> is an optional sequence of commands to display detailed per-command
-usage.  The special-case "help ..." recursively displays help for this command
-and all sub-commands.
-
-The help flags are:
-   -style=text: The formatting style for help output, either "text" or "godoc".
-
 Prog1 Prog2 Hello22
 
 Hello prints any strings passed in to stdout preceded by "Hello".
@@ -1523,32 +1441,16 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 
-Prog1 Prog2 Help
-
-Help displays usage descriptions for this command, or usage descriptions for
-sub-commands.
-
-Usage:
-   prog1 prog2 help [flags] <command>
-
-<command> is an optional sequence of commands to display detailed per-command
-usage.  The special-case "help ..." recursively displays help for this command
-and all sub-commands.
-
-The help flags are:
-   -style=text: The formatting style for help output, either "text" or "godoc".
-
 Prog1 Help
 
 Help displays usage descriptions for this command, or usage descriptions for
 sub-commands.
 
 Usage:
-   prog1 help [flags] <command>
+   prog1 help [flags] [command ...]
 
-<command> is an optional sequence of commands to display detailed per-command
-usage.  The special-case "help ..." recursively displays help for this command
-and all sub-commands.
+[command ...] is an optional sequence of commands to display detailed usage.
+The special-case "help ..." recursively displays help for all commands.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
@@ -1653,11 +1555,10 @@ Help displays usage descriptions for this command, or usage descriptions for
 sub-commands.
 
 Usage:
-   cmdargs help [flags] <command>
+   cmdargs help [flags] [command ...]
 
-<command> is an optional sequence of commands to display detailed per-command
-usage.  The special-case "help ..." recursively displays help for this command
-and all sub-commands.
+[command ...] is an optional sequence of commands to display detailed usage.
+The special-case "help ..." recursively displays help for all commands.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
@@ -1818,11 +1719,10 @@ Help displays usage descriptions for this command, or usage descriptions for
 sub-commands.
 
 Usage:
-   cmdrun help [flags] <command>
+   cmdrun help [flags] [command ...]
 
-<command> is an optional sequence of commands to display detailed per-command
-usage.  The special-case "help ..." recursively displays help for this command
-and all sub-commands.
+[command ...] is an optional sequence of commands to display detailed usage.
+The special-case "help ..." recursively displays help for all commands.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
