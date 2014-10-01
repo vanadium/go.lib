@@ -7,14 +7,20 @@
 // things like 'find the first IPv4 unicast address that is globally routable,
 // failing that use a private IPv4 address, and failing that, an IPv6 address'.
 //
-// A typical usage would be:
+// A simple usage would be:
 //
 //   state, _ := netstate.GetAccessibleIPs()
-//   first := state.First(netstate.IsPublicIPv4)
-//   // first will contain the first public IPv4 address or be nil.
+//   ipv4 := state.Filter(netstate.IsPublicIPv4)
+//   // ipv4 will contain all of the public IPv4 addresses, if any.
 //
 // The example policy described above would be implemented using a
-// series of calls to First with appropriate predicates.
+// series of calls to Filter with appropriate predicates.
+//
+// In some cases, it may be necessary to take IP routing information
+// into account and hence interface hosting the address. The interface
+// hosting each address is provided in the AddrIfc structure used to represent
+// addresses and the IP routing information is provided by the GetAccessibleIPs
+// function which will typically be used to obtain the available IP addresses.
 //
 // Although most commercial networking hardware supports IPv6, some consumer
 // devices and more importantly many ISPs do not, so routines are provided
@@ -45,9 +51,68 @@ import (
 	"fmt"
 	"net"
 	"strings"
+
+	"veyron.io/veyron/veyron2/ipc"
+
+	"veyron.io/veyron/veyron/lib/netconfig"
 )
 
-type AddrList []net.Addr
+// AddrIfc represents a network address and the network interface that
+// hosts it.
+type AddrIfc struct {
+	// Network address
+	Addr net.Addr
+
+	// The name of the network interface this address is hosted on, empty
+	// if this information is not available.
+	Name string
+
+	// The IPRoutes of the network interface this address is hosted on,
+	// nil if this information is not available.
+	IPRoutes []*netconfig.IPRoute
+}
+
+func (a *AddrIfc) String() string {
+	if a.IPRoutes != nil {
+		r := fmt.Sprintf("%s: %s[", a.Addr, a.Name)
+		for _, rt := range a.IPRoutes {
+			src := ""
+			if rt.PreferredSource != nil {
+				src = ", src: " + rt.PreferredSource.String()
+			}
+			r += fmt.Sprintf("{%d: net: %s, gw: %s%s}, ", rt.IfcIndex, rt.Net, rt.Gateway, src)
+		}
+		r = strings.TrimSuffix(r, ", ")
+		r += "]"
+		return r
+	}
+	return a.Addr.String()
+}
+
+func (a *AddrIfc) Address() net.Addr {
+	return a.Addr
+}
+
+func (a *AddrIfc) InterfaceIndex() int {
+	if len(a.IPRoutes) == 0 {
+		return -1
+	}
+	return a.IPRoutes[0].IfcIndex
+}
+
+func (a *AddrIfc) InterfaceName() string {
+	return a.Name
+}
+
+func (a *AddrIfc) Networks() []net.Addr {
+	nets := []net.Addr{}
+	for _, r := range a.IPRoutes {
+		nets = append(nets, &r.Net)
+	}
+	return nets
+}
+
+type AddrList []ipc.Address
 
 func (al AddrList) String() string {
 	r := ""
@@ -57,20 +122,17 @@ func (al AddrList) String() string {
 	return strings.TrimRight(r, " ")
 }
 
-func FromIPAddr(a []*net.IPAddr) AddrList {
-	var al AddrList
-	for _, a := range a {
-		al = append(al, a)
-	}
-	return al
-}
-
 // GetAll gets all of the available addresses on the device, including
-// loopback addresses.
+// loopback addresses, non-IP protocols etc.
 func GetAll() (AddrList, error) {
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		return nil, err
+	}
+	routes := netconfig.GetIPRoutes(false)
+	routeTable := make(map[int][]*netconfig.IPRoute)
+	for _, r := range routes {
+		routeTable[r.IfcIndex] = append(routeTable[r.IfcIndex], r)
 	}
 	var all AddrList
 	for _, ifc := range interfaces {
@@ -78,27 +140,47 @@ func GetAll() (AddrList, error) {
 		if err != nil {
 			continue
 		}
-		all = append(all, addrs...)
+		for _, a := range addrs {
+			all = append(all, &AddrIfc{a, ifc.Name, routeTable[ifc.Index]})
+		}
 	}
 	return all, nil
 }
 
-// GetAccessibleIPs returns all of the IP addresses on the device that are
-// accessible to other devices - i.e. excluding loopback etc.
+// GetAccessibleIPs returns all of the accessible IP addresses on the device
+// - i.e. excluding loopback and unspecified addresses.
 // The IP addresses returned will be host addresses.
 func GetAccessibleIPs() (AddrList, error) {
 	all, err := GetAll()
 	if err != nil {
 		return nil, err
 	}
-	return all.Filter(IsAccessibleIP).Map(ConvertToIPHost), nil
+	return all.Map(accessibleIPHost), nil
 }
 
-type Predicate func(a net.Addr) bool
+func accessibleIPHost(a ipc.Address) ipc.Address {
+	if !IsAccessibleIP(a) {
+		return nil
+	}
+	aifc, ok := a.(*AddrIfc)
+	if !ok {
+		return nil
+	}
+	ip := AsIPAddr(aifc.Addr)
+	if ip == nil {
+		return aifc
+	}
+	aifc.Addr = ip
+	return aifc
+}
+
+// AddressPredicate defines the function signature for predicate functions
+// to be used with AddrList
+type AddressPredicate func(a ipc.Address) bool
 
 // Filter returns all of the addresses for which the predicate
 // function is true.
-func (al AddrList) Filter(predicate Predicate) AddrList {
+func (al AddrList) Filter(predicate AddressPredicate) AddrList {
 	r := AddrList{}
 	for _, a := range al {
 		if predicate(a) {
@@ -108,17 +190,7 @@ func (al AddrList) Filter(predicate Predicate) AddrList {
 	return r
 }
 
-// Filter returns the first address for which the predicate function is true.
-func (al AddrList) First(predicate Predicate) net.Addr {
-	for _, a := range al {
-		if predicate(a) {
-			return a
-		}
-	}
-	return nil
-}
-
-type Mapper func(a net.Addr) net.Addr
+type Mapper func(a ipc.Address) ipc.Address
 
 // Map will apply the Mapper function to all of the items in its receiver
 // and return a new AddrList containing all of the non-nil results from
@@ -133,17 +205,23 @@ func (al AddrList) Map(mapper Mapper) AddrList {
 	return ral
 }
 
-// Convert the net.Addr argument into an instance of net.Addr that contains
-// an IP host address (as opposed to a network CIDR for example).
-func ConvertToIPHost(a net.Addr) net.Addr {
-	return AsIPAddr(a)
+// Convert the network address component of an ipc.Address into an instance
+// with a net.Addr that contains an IP host address (as opposed to a
+// network CIDR for example).
+func ConvertToIPHost(a ipc.Address) ipc.Address {
+	aifc, ok := a.(*AddrIfc)
+	if !ok {
+		return nil
+	}
+	aifc.Addr = AsIPAddr(aifc.Addr)
+	return aifc
 }
 
 // IsIPProtocol returns true if its parameter is one of the allowed
 // network/protocol values for IP.
 func IsIPProtocol(n string) bool {
 	switch n {
-	case "ip+net", "tcp", "tcp4", "tcp6", "udp":
+	case "ip+net", "ip", "tcp", "tcp4", "tcp6", "udp":
 		return true
 	default:
 		return false
@@ -159,8 +237,7 @@ func AsIPAddr(a net.Addr) *net.IPAddr {
 	if ipn, ok := a.(*net.IPNet); ok {
 		return &net.IPAddr{IP: ipn.IP}
 	}
-	switch a.Network() {
-	case "ip+net", "tcp", "tcp4", "tcp6", "udp":
+	if IsIPProtocol(a.Network()) {
 		if r := net.ParseIP(a.String()); r != nil {
 			return &net.IPAddr{IP: r}
 		}
@@ -178,16 +255,16 @@ func AsIP(a net.Addr) net.IP {
 }
 
 // IsUnspecified returns true if its argument is an unspecified IP address
-func IsUnspecifiedIP(a net.Addr) bool {
-	if ip := AsIP(a); ip != nil {
+func IsUnspecifiedIP(a ipc.Address) bool {
+	if ip := AsIP(a.Address()); ip != nil {
 		return ip.IsUnspecified()
 	}
 	return false
 }
 
 // IsLoopback returns true if its argument is a loopback IP address
-func IsLoopbackIP(a net.Addr) bool {
-	if ip := AsIP(a); ip != nil && !ip.IsUnspecified() {
+func IsLoopbackIP(a ipc.Address) bool {
+	if ip := AsIP(a.Address()); ip != nil && !ip.IsUnspecified() {
 		return ip.IsLoopback()
 	}
 	return false
@@ -195,33 +272,16 @@ func IsLoopbackIP(a net.Addr) bool {
 
 // IsAccessible returns true if its argument is an accessible (non-loopback)
 // IP address.
-func IsAccessibleIP(a net.Addr) bool {
-	if ip := AsIP(a); ip != nil && !ip.IsUnspecified() {
+func IsAccessibleIP(a ipc.Address) bool {
+	if ip := AsIP(a.Address()); ip != nil && !ip.IsUnspecified() {
 		return !ip.IsLoopback()
 	}
 	return false
 }
 
-type ma struct {
-	n, a string
-}
-
-func (a *ma) Network() string {
-	return a.n
-}
-
-func (a *ma) String() string {
-	return a.a
-}
-
-// AsAddr returns its argument as a net.Addr.
-func AsAddr(network string, a net.IP) net.Addr {
-	return &ma{n: network, a: a.String()}
-}
-
 // IsUnicastIP returns true if its argument is a unicast IP address.
-func IsUnicastIP(a net.Addr) bool {
-	if ip := AsIP(a); ip != nil && !ip.IsUnspecified() {
+func IsUnicastIP(a ipc.Address) bool {
+	if ip := AsIP(a.Address()); ip != nil && !ip.IsUnspecified() {
 		// ipv4 or v6
 		return !(ip.IsMulticast() || ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast())
 	}
@@ -229,8 +289,8 @@ func IsUnicastIP(a net.Addr) bool {
 }
 
 // IsUnicastIPv4 returns true if its argument is a unicast IP4 address
-func IsUnicastIPv4(a net.Addr) bool {
-	if ip := AsIP(a); ip != nil && ip.To4() != nil && !ip.IsMulticast() {
+func IsUnicastIPv4(a ipc.Address) bool {
+	if ip := AsIP(a.Address()); ip != nil && ip.To4() != nil {
 		return !ip.IsUnspecified() && !ip.IsMulticast()
 	}
 	return false
@@ -238,8 +298,8 @@ func IsUnicastIPv4(a net.Addr) bool {
 
 // IsPublicUnicastIPv4 returns true if its argument is a globally routable,
 // public IPv4 unicast address.
-func IsPublicUnicastIPv4(a net.Addr) bool {
-	if ip := AsIP(a); ip != nil && !ip.IsUnspecified() {
+func IsPublicUnicastIPv4(a ipc.Address) bool {
+	if ip := AsIP(a.Address()); ip != nil && !ip.IsUnspecified() {
 		if t := ip.To4(); t != nil && IsGloballyRoutableIP(t) {
 			return !ip.IsMulticast()
 		}
@@ -248,16 +308,17 @@ func IsPublicUnicastIPv4(a net.Addr) bool {
 }
 
 // IsUnicastIPv6 returns true if its argument is a unicast IPv6 address
-func IsUnicastIPv6(a net.Addr) bool {
-	if ip := AsIP(a); ip != nil && ip.To4() == nil {
+func IsUnicastIPv6(a ipc.Address) bool {
+	if ip := AsIP(a.Address()); ip != nil && ip.To4() == nil {
 		return !ip.IsUnspecified() && !(ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast())
 	}
 	return false
 }
 
-// IsUnicastIPv6 returns true if its argument is a globally routable IP6 address
-func IsPublicUnicastIPv6(a net.Addr) bool {
-	if ip := AsIP(a); ip != nil && ip.To4() == nil {
+// IsUnicastIPv6 returns true if its argument is a globally routable IP6
+// address
+func IsPublicUnicastIPv6(a ipc.Address) bool {
+	if ip := AsIP(a.Address()); ip != nil && ip.To4() == nil {
 		if t := ip.To16(); t != nil && IsGloballyRoutableIP(t) {
 			return true
 		}
@@ -265,10 +326,10 @@ func IsPublicUnicastIPv6(a net.Addr) bool {
 	return false
 }
 
-// IsPublicUnicastIP returns true if its argument is a global routable IPv4 or 6
-// address.
-func IsPublicUnicastIP(a net.Addr) bool {
-	if ip := AsIP(a); ip != nil {
+// IsPublicUnicastIP returns true if its argument is a global routable IPv4
+// or 6 address.
+func IsPublicUnicastIP(a ipc.Address) bool {
+	if ip := AsIP(a.Address()); ip != nil {
 		if t := ip.To4(); t != nil && IsGloballyRoutableIP(t) {
 			return true
 		}
@@ -284,8 +345,8 @@ func diffAB(a, b AddrList) AddrList {
 	for _, av := range a {
 		found := false
 		for _, bv := range b {
-			if av.Network() == bv.Network() &&
-				av.String() == bv.String() {
+			if av.Address().Network() == bv.Address().Network() &&
+				av.Address().String() == bv.Address().String() {
 				found = true
 				break
 			}
@@ -297,14 +358,14 @@ func diffAB(a, b AddrList) AddrList {
 	return diff
 }
 
-// FindAdded returns the set of interfaces and/or addresses that are
-// present in b, but not in a - i.e. have been added.
+// FindAdded returns the set addresses that are present in b, but not
+// in a - i.e. have been added.
 func FindAdded(a, b AddrList) AddrList {
 	return diffAB(b, a)
 }
 
-// FindRemoved returns the set of interfaces and/or addresses that
-// are present in a, but not in b - i.e. have been removed.
+// FindRemoved returns the set of addresses that are present in a, but not
+// in b - i.e. have been removed.
 func FindRemoved(a, b AddrList) AddrList {
 	return diffAB(a, b)
 }

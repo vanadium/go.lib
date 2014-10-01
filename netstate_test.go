@@ -5,10 +5,15 @@ import (
 	"reflect"
 	"testing"
 
+	"veyron.io/veyron/veyron2/ipc"
+
+	"veyron.io/veyron/veyron/lib/netconfig"
 	"veyron.io/veyron/veyron/lib/netstate"
 )
 
 func TestGet(t *testing.T) {
+	// We assume that this machine running this test has at least
+	// one non-loopback interface.
 	all, err := netstate.GetAll()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
@@ -30,9 +35,21 @@ func TestGet(t *testing.T) {
 	}
 }
 
+type ma struct {
+	n, a string
+}
+
+func (a *ma) Network() string {
+	return a.n
+}
+
+func (a *ma) String() string {
+	return a.a
+}
+
 func mkAddr(n, a string) net.Addr {
 	ip := net.ParseIP(a)
-	return netstate.AsAddr(n, ip)
+	return &ma{n: n, a: ip.String()}
 }
 
 func TestAsIP(t *testing.T) {
@@ -43,8 +60,45 @@ func TestAsIP(t *testing.T) {
 	if got, want := netstate.AsIP(&net.IPNet{IP: lh}), "127.0.0.1"; got == nil || got.String() != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
-	if got, want := netstate.AsIP(netstate.AsAddr("tcp", lh)), "127.0.0.1"; got == nil || got.String() != want {
+	if got, want := netstate.AsIP(&ma{"tcp", lh.String()}), "127.0.0.1"; got == nil || got.String() != want {
 		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestRoutes(t *testing.T) {
+	accessible, err := netstate.GetAccessibleIPs()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	ifcl, err := netstate.GetInterfaces()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if len(ifcl) == 0 || len(accessible) == 0 {
+		t.Errorf("expected non zero lengths, not %d and %d", len(ifcl), len(accessible))
+	}
+
+	routes := netstate.GetRoutes()
+	// Make sure that the routes refer to valid interfaces
+	for _, r := range routes {
+		found := false
+		for _, ifc := range ifcl {
+			if r.IfcIndex == ifc.Index {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("failed to find ifc index %d", r.IfcIndex)
+		}
+	}
+}
+
+func mkAddrIfc(n, a string) *netstate.AddrIfc {
+	ip := net.ParseIP(a)
+	return &netstate.AddrIfc{
+		Addr: &ma{n: n, a: ip.String()},
 	}
 }
 
@@ -54,13 +108,13 @@ func (*hw) Network() string { return "mac" }
 func (*hw) String() string  { return "01:23:45:67:89:ab:cd:ef" }
 
 func TestPredicates(t *testing.T) {
-	if got, want := netstate.IsUnicastIP(&hw{}), false; got != want {
+	hwifc := &netstate.AddrIfc{Addr: &hw{}}
+	if got, want := netstate.IsUnicastIP(hwifc), false; got != want {
 		t.Errorf("got %t, want %t", got, want)
 
 	}
-
 	cases := []struct {
-		f func(a net.Addr) bool
+		f func(a ipc.Address) bool
 		a string
 		r bool
 	}{
@@ -155,21 +209,88 @@ func TestPredicates(t *testing.T) {
 	}
 	for i, c := range cases {
 		net := "tcp"
-		if got, want := c.f(mkAddr(net, c.a)), c.r; got != want {
+		if got, want := c.f(mkAddrIfc(net, c.a)), c.r; got != want {
 			t.Errorf("#%d: %s %s: got %t, want %t", i+1, net, c.a, got, want)
 		}
 	}
 }
 
+func TestRoutePredicate(t *testing.T) {
+	net1_ip, net1, _ := net.ParseCIDR("192.168.1.10/24")
+	net2_ip, net2, _ := net.ParseCIDR("172.16.1.11/24")
+	net3_ip, net3, _ := net.ParseCIDR("172.16.2.12/24")
+	// net4 and net5 are on the same interface.
+	net4_ip, net4, _ := net.ParseCIDR("172.19.39.142/23")
+	net5_ip, net5, _ := net.ParseCIDR("2620::1000:5e01:56e4:3aff:fef1:1383/64")
+
+	rt1 := []*netconfig.IPRoute{{*net1, net.ParseIP("192.168.1.1"), nil, 1}}
+	rt2 := []*netconfig.IPRoute{{*net2, net.ParseIP("172.16.1.1"), nil, 2}}
+	rt3 := []*netconfig.IPRoute{{*net3, net.ParseIP("172.16.2.1"), nil, 3}}
+	rt4_0 := &netconfig.IPRoute{*net4, net.ParseIP("172.19.39.142"), nil, 6}
+	rt4_1 := &netconfig.IPRoute{*net5, net.ParseIP("fe80::5:73ff:fea0:fb"), nil, 6}
+	rt4 := []*netconfig.IPRoute{rt4_0, rt4_1}
+
+	net1_addr := &netstate.AddrIfc{&net.IPAddr{IP: net1_ip}, "eth0", rt1}
+	net2_addr := &netstate.AddrIfc{&net.IPAddr{IP: net2_ip}, "eth1", rt2}
+	net3_addr := &netstate.AddrIfc{&net.IPAddr{IP: net3_ip}, "eth2", rt3}
+	net4_addr := &netstate.AddrIfc{&net.IPAddr{IP: net4_ip}, "wn0", rt4}
+	net5_addr := &netstate.AddrIfc{&net.IPAddr{IP: net5_ip}, "wn0", rt4}
+
+	al := netstate.AddrList{}
+	if got, want := al.Filter(netstate.IsOnDefaultRoute), (netstate.AddrList{}); !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	al = netstate.AddrList{net1_addr, net2_addr, net3_addr, net4_addr, net5_addr}
+	if got, want := al.Filter(netstate.IsOnDefaultRoute), (netstate.AddrList{}); !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	defaultRoute := net.IPNet{net.IPv4zero, make([]byte, net.IPv4len)}
+	// Make eth1 a default route.
+	rt2[0].Net = defaultRoute
+	if got, want := al.Filter(netstate.IsOnDefaultRoute), (netstate.AddrList{net2_addr}); !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	// Make wn0 a default route also.
+	rt3[0].Net = defaultRoute
+	if got, want := al.Filter(netstate.IsOnDefaultRoute), (netstate.AddrList{net2_addr, net3_addr}); !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	// Restore the original route.
+	rt2[0].Net = *net2
+	rt4_0.Net = defaultRoute
+	if got, want := al.Filter(netstate.IsOnDefaultRoute), (netstate.AddrList{net3_addr, net4_addr}); !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	// Shouldn't return the IPv6 default route so long as al doesn't
+	// contain any IPv6 default routes.
+	rt4_0.Net = *net4
+	rt4_1.Net = defaultRoute
+	if got, want := al.Filter(netstate.IsOnDefaultRoute), (netstate.AddrList{net3_addr}); !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	// Now that we have an IPv6 default route that matches an IPv6 gateway
+	// we can expect to find the IPv6 host address
+	rt4_1.Net = net.IPNet{net.IPv6zero, make([]byte, net.IPv6len)}
+	if got, want := al.Filter(netstate.IsOnDefaultRoute), (netstate.AddrList{net3_addr, net5_addr}); !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
 var (
-	a  = mkAddr("tcp4", "1.2.3.4")
-	b  = mkAddr("tcp4", "1.2.3.5")
-	c  = mkAddr("tcp4", "1.2.3.6")
-	d  = mkAddr("tcp4", "1.2.3.7")
-	a6 = mkAddr("tcp6", "2001:4860:0:2001::68")
-	b6 = mkAddr("tcp6", "2001:4860:0:2001::69")
-	c6 = mkAddr("tcp6", "2001:4860:0:2001::70")
-	d6 = mkAddr("tcp6", "2001:4860:0:2001::71")
+	a  = mkAddrIfc("tcp4", "1.2.3.4")
+	b  = mkAddrIfc("tcp4", "1.2.3.5")
+	c  = mkAddrIfc("tcp4", "1.2.3.6")
+	d  = mkAddrIfc("tcp4", "1.2.3.7")
+	a6 = mkAddrIfc("tcp6", "2001:4860:0:2001::68")
+	b6 = mkAddrIfc("tcp6", "2001:4860:0:2001::69")
+	c6 = mkAddrIfc("tcp6", "2001:4860:0:2001::70")
+	d6 = mkAddrIfc("tcp6", "2001:4860:0:2001::71")
 )
 
 func TestRemoved(t *testing.T) {
