@@ -177,7 +177,8 @@ Usage:
 
 The onecmd commands are:
    echo        Print strings on stdout
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "onecmd help [command]" for command usage.
 
 The global flags are:
    -global1=: global test flag 1
@@ -196,7 +197,8 @@ Usage:
 
 The onecmd commands are:
    echo        Print strings on stdout
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "onecmd help [command]" for command usage.
 
 The global flags are:
    -global1=: global test flag 1
@@ -212,7 +214,8 @@ Usage:
 
 The onecmd commands are:
    echo        Print strings on stdout
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "onecmd help [command]" for command usage.
 
 The global flags are:
    -global1=: global test flag 1
@@ -235,14 +238,14 @@ The global flags are:
 		},
 		{
 			Args: []string{"help", "help"},
-			Stdout: `Help displays usage descriptions for this command, or usage descriptions for
-sub-commands.
+			Stdout: `Help with no args displays the usage of the parent command.
+Help with args displays the usage of the specified sub-command or help topic.
+"help ..." recursively displays help for all commands and topics.
 
 Usage:
-   onecmd help [flags] [command ...]
+   onecmd help [flags] [command/topic ...]
 
-[command ...] is an optional sequence of commands to display detailed usage.
-The special-case "help ..." recursively displays help for all commands.
+[command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
@@ -261,12 +264,15 @@ Usage:
 
 The onecmd commands are:
    echo        Print strings on stdout
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "onecmd help [command]" for command usage.
 
 The global flags are:
    -global1=: global test flag 1
    -global2=0: global test flag 2
 ================================================================================
+Onecmd Echo
+
 Echo prints any strings passed in to stdout.
 
 Usage:
@@ -274,24 +280,25 @@ Usage:
 
 [strings] are arbitrary strings that will be echoed.
 ================================================================================
-Help displays usage descriptions for this command, or usage descriptions for
-sub-commands.
+Onecmd Help
+
+Help with no args displays the usage of the parent command.
+Help with args displays the usage of the specified sub-command or help topic.
+"help ..." recursively displays help for all commands and topics.
 
 Usage:
-   onecmd help [flags] [command ...]
+   onecmd help [flags] [command/topic ...]
 
-[command ...] is an optional sequence of commands to display detailed usage.
-The special-case "help ..." recursively displays help for all commands.
+[command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
-================================================================================
 `,
 		},
 		{
 			Args: []string{"help", "foo"},
 			Err:  ErrUsage,
-			Stderr: `ERROR: onecmd: unknown command "foo"
+			Stderr: `ERROR: onecmd: unknown command or topic "foo"
 
 Onecmd only has the echo command.
 
@@ -300,7 +307,8 @@ Usage:
 
 The onecmd commands are:
    echo        Print strings on stdout
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "onecmd help [command]" for command usage.
 
 The global flags are:
    -global1=: global test flag 1
@@ -383,7 +391,8 @@ Usage:
 The multi commands are:
    echo        Print strings on stdout
    echoopt     Print strings on stdout, with opts
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "multi help [command]" for command usage.
 
 The multi flags are:
    -extra=false: Print an extra arg
@@ -403,7 +412,8 @@ Usage:
 The multi commands are:
    echo        Print strings on stdout
    echoopt     Print strings on stdout, with opts
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "multi help [command]" for command usage.
 
 The multi flags are:
    -extra=false: Print an extra arg
@@ -423,7 +433,8 @@ Usage:
 The multi commands are:
    echo        Print strings on stdout
    echoopt     Print strings on stdout, with opts
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "multi help [command]" for command usage.
 
 The multi flags are:
    -extra=false: Print an extra arg
@@ -432,6 +443,8 @@ The global flags are:
    -global1=: global test flag 1
    -global2=0: global test flag 2
 ================================================================================
+Multi Echo
+
 Echo prints any strings passed in to stdout.
 
 Usage:
@@ -439,6 +452,8 @@ Usage:
 
 [strings] are arbitrary strings that will be echoed.
 ================================================================================
+Multi Echoopt
+
 Echoopt prints any args passed in to stdout.
 
 Usage:
@@ -449,18 +464,19 @@ Usage:
 The echoopt flags are:
    -n=false: Do not output trailing newline
 ================================================================================
-Help displays usage descriptions for this command, or usage descriptions for
-sub-commands.
+Multi Help
+
+Help with no args displays the usage of the parent command.
+Help with args displays the usage of the specified sub-command or help topic.
+"help ..." recursively displays help for all commands and topics.
 
 Usage:
-   multi help [flags] [command ...]
+   multi help [flags] [command/topic ...]
 
-[command ...] is an optional sequence of commands to display detailed usage.
-The special-case "help ..." recursively displays help for all commands.
+[command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
-================================================================================
 `,
 		},
 		{
@@ -497,7 +513,7 @@ The global flags are:
 		{
 			Args: []string{"help", "foo"},
 			Err:  ErrUsage,
-			Stderr: `ERROR: multi: unknown command "foo"
+			Stderr: `ERROR: multi: unknown command or topic "foo"
 
 Multi has two variants of echo.
 
@@ -507,7 +523,8 @@ Usage:
 The multi commands are:
    echo        Print strings on stdout
    echoopt     Print strings on stdout, with opts
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "multi help [command]" for command usage.
 
 The multi flags are:
    -extra=false: Print an extra arg
@@ -569,6 +586,7 @@ The global flags are:
 			Args: []string{"echo", "-n", "foo", "bar"},
 			Err:  ErrUsage,
 			Stderr: `ERROR: flag provided but not defined: -n
+
 Echo prints any strings passed in to stdout.
 
 Usage:
@@ -585,6 +603,7 @@ The global flags are:
 			Args: []string{"-nosuchflag", "echo", "foo", "bar"},
 			Err:  ErrUsage,
 			Stderr: `ERROR: flag provided but not defined: -nosuchflag
+
 Multi has two variants of echo.
 
 Usage:
@@ -593,7 +612,8 @@ Usage:
 The multi commands are:
    echo        Print strings on stdout
    echoopt     Print strings on stdout, with opts
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "multi help [command]" for command usage.
 
 The multi flags are:
    -extra=false: Print an extra arg
@@ -646,6 +666,9 @@ Hello prints any strings passed in to stdout preceded by "Hello".
 		Short:    "Set of echo commands",
 		Long:     "Echoprog has two variants of echo.",
 		Children: []*Command{cmdEcho, cmdEchoOpt},
+		Topics: []Topic{
+			{Name: "topic3", Short: "Help topic 3 short", Long: "Help topic 3 long."},
+		},
 	}
 	echoProg.Flags.BoolVar(&flagExtra, "extra", false, "Print an extra arg")
 	prog := &Command{
@@ -653,6 +676,10 @@ Hello prints any strings passed in to stdout preceded by "Hello".
 		Short:    "Top level prog",
 		Long:     "Toplevelprog has the echo subprogram and the hello command.",
 		Children: []*Command{echoProg, cmdHello},
+		Topics: []Topic{
+			{Name: "topic1", Short: "Help topic 1 short", Long: "Help topic 1 long."},
+			{Name: "topic2", Short: "Help topic 2 short", Long: "Help topic 2 long."},
+		},
 	}
 	prog.Flags.BoolVar(&flagTopLevelExtra, "tlextra", false, "Print an extra arg for all commands")
 
@@ -670,7 +697,13 @@ Usage:
 The toplevelprog commands are:
    echoprog    Set of echo commands
    hello       Print strings on stdout preceded by "Hello"
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "toplevelprog help [command]" for command usage.
+
+The toplevelprog additional help topics are:
+   topic1      Help topic 1 short
+   topic2      Help topic 2 short
+Run "toplevelprog help [topic]" for topic details.
 
 The toplevelprog flags are:
    -tlextra=false: Print an extra arg for all commands
@@ -690,7 +723,13 @@ Usage:
 The toplevelprog commands are:
    echoprog    Set of echo commands
    hello       Print strings on stdout preceded by "Hello"
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "toplevelprog help [command]" for command usage.
+
+The toplevelprog additional help topics are:
+   topic1      Help topic 1 short
+   topic2      Help topic 2 short
+Run "toplevelprog help [topic]" for topic details.
 
 The toplevelprog flags are:
    -tlextra=false: Print an extra arg for all commands
@@ -710,7 +749,13 @@ Usage:
 The toplevelprog commands are:
    echoprog    Set of echo commands
    hello       Print strings on stdout preceded by "Hello"
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "toplevelprog help [command]" for command usage.
+
+The toplevelprog additional help topics are:
+   topic1      Help topic 1 short
+   topic2      Help topic 2 short
+Run "toplevelprog help [topic]" for topic details.
 
 The toplevelprog flags are:
    -tlextra=false: Print an extra arg for all commands
@@ -719,6 +764,8 @@ The global flags are:
    -global1=: global test flag 1
    -global2=0: global test flag 2
 ================================================================================
+Toplevelprog Echoprog
+
 Echoprog has two variants of echo.
 
 Usage:
@@ -728,9 +775,14 @@ The echoprog commands are:
    echo        Print strings on stdout
    echoopt     Print strings on stdout, with opts
 
+The echoprog additional help topics are:
+   topic3      Help topic 3 short
+
 The echoprog flags are:
    -extra=false: Print an extra arg
 ================================================================================
+Toplevelprog Echoprog Echo
+
 Echo prints any strings passed in to stdout.
 
 Usage:
@@ -738,6 +790,8 @@ Usage:
 
 [strings] are arbitrary strings that will be echoed.
 ================================================================================
+Toplevelprog Echoprog Echoopt
+
 Echoopt prints any args passed in to stdout.
 
 Usage:
@@ -748,6 +802,12 @@ Usage:
 The echoopt flags are:
    -n=false: Do not output trailing newline
 ================================================================================
+Toplevelprog Echoprog Topic3 (Help Topic)
+
+Help topic 3 long.
+================================================================================
+Toplevelprog Hello
+
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
@@ -755,18 +815,27 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Help displays usage descriptions for this command, or usage descriptions for
-sub-commands.
+Toplevelprog Help
+
+Help with no args displays the usage of the parent command.
+Help with args displays the usage of the specified sub-command or help topic.
+"help ..." recursively displays help for all commands and topics.
 
 Usage:
-   toplevelprog help [flags] [command ...]
+   toplevelprog help [flags] [command/topic ...]
 
-[command ...] is an optional sequence of commands to display detailed usage.
-The special-case "help ..." recursively displays help for all commands.
+[command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
 ================================================================================
+Toplevelprog Topic1 (Help Topic)
+
+Help topic 1 long.
+================================================================================
+Toplevelprog Topic2 (Help Topic)
+
+Help topic 2 long.
 `,
 		},
 		{
@@ -779,7 +848,12 @@ Usage:
 The echoprog commands are:
    echo        Print strings on stdout
    echoopt     Print strings on stdout, with opts
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "toplevelprog echoprog help [command]" for command usage.
+
+The echoprog additional help topics are:
+   topic3      Help topic 3 short
+Run "toplevelprog echoprog help [topic]" for topic details.
 
 The echoprog flags are:
    -extra=false: Print an extra arg
@@ -787,6 +861,16 @@ The echoprog flags are:
 The global flags are:
    -global1=: global test flag 1
    -global2=0: global test flag 2
+`,
+		},
+		{
+			Args: []string{"help", "topic1"},
+			Stdout: `Help topic 1 long.
+`,
+		},
+		{
+			Args: []string{"help", "topic2"},
+			Stdout: `Help topic 2 long.
 `,
 		},
 		{
@@ -799,7 +883,12 @@ Usage:
 The echoprog commands are:
    echo        Print strings on stdout
    echoopt     Print strings on stdout, with opts
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "toplevelprog echoprog help [command]" for command usage.
+
+The echoprog additional help topics are:
+   topic3      Help topic 3 short
+Run "toplevelprog echoprog help [topic]" for topic details.
 
 The echoprog flags are:
    -extra=false: Print an extra arg
@@ -808,6 +897,8 @@ The global flags are:
    -global1=: global test flag 1
    -global2=0: global test flag 2
 ================================================================================
+Toplevelprog Echoprog Echo
+
 Echo prints any strings passed in to stdout.
 
 Usage:
@@ -815,6 +906,8 @@ Usage:
 
 [strings] are arbitrary strings that will be echoed.
 ================================================================================
+Toplevelprog Echoprog Echoopt
+
 Echoopt prints any args passed in to stdout.
 
 Usage:
@@ -825,18 +918,23 @@ Usage:
 The echoopt flags are:
    -n=false: Do not output trailing newline
 ================================================================================
-Help displays usage descriptions for this command, or usage descriptions for
-sub-commands.
+Toplevelprog Echoprog Help
+
+Help with no args displays the usage of the parent command.
+Help with args displays the usage of the specified sub-command or help topic.
+"help ..." recursively displays help for all commands and topics.
 
 Usage:
-   toplevelprog echoprog help [flags] [command ...]
+   toplevelprog echoprog help [flags] [command/topic ...]
 
-[command ...] is an optional sequence of commands to display detailed usage.
-The special-case "help ..." recursively displays help for all commands.
+[command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
 ================================================================================
+Toplevelprog Echoprog Topic3 (Help Topic)
+
+Help topic 3 long.
 `,
 		},
 		{
@@ -857,6 +955,16 @@ The global flags are:
 `,
 		},
 		{
+			Args: []string{"help", "echoprog", "topic3"},
+			Stdout: `Help topic 3 long.
+`,
+		},
+		{
+			Args: []string{"echoprog", "help", "topic3"},
+			Stdout: `Help topic 3 long.
+`,
+		},
+		{
 			Args: []string{"help", "hello"},
 			Stdout: `Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -873,7 +981,7 @@ The global flags are:
 		{
 			Args: []string{"help", "foo"},
 			Err:  ErrUsage,
-			Stderr: `ERROR: toplevelprog: unknown command "foo"
+			Stderr: `ERROR: toplevelprog: unknown command or topic "foo"
 
 Toplevelprog has the echo subprogram and the hello command.
 
@@ -883,7 +991,13 @@ Usage:
 The toplevelprog commands are:
    echoprog    Set of echo commands
    hello       Print strings on stdout preceded by "Hello"
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "toplevelprog help [command]" for command usage.
+
+The toplevelprog additional help topics are:
+   topic1      Help topic 1 short
+   topic2      Help topic 2 short
+Run "toplevelprog help [topic]" for topic details.
 
 The toplevelprog flags are:
    -tlextra=false: Print an extra arg for all commands
@@ -941,6 +1055,7 @@ The global flags are:
 			Args: []string{"hello", "--extra", "foo", "bar"},
 			Err:  ErrUsage,
 			Stderr: `ERROR: flag provided but not defined: -extra
+
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
@@ -957,6 +1072,7 @@ The global flags are:
 			Args: []string{"-extra", "echoprog", "echoopt", "foo", "bar"},
 			Err:  ErrUsage,
 			Stderr: `ERROR: flag provided but not defined: -extra
+
 Toplevelprog has the echo subprogram and the hello command.
 
 Usage:
@@ -965,7 +1081,13 @@ Usage:
 The toplevelprog commands are:
    echoprog    Set of echo commands
    hello       Print strings on stdout preceded by "Hello"
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "toplevelprog help [command]" for command usage.
+
+The toplevelprog additional help topics are:
+   topic1      Help topic 1 short
+   topic2      Help topic 2 short
+Run "toplevelprog help [topic]" for topic details.
 
 The toplevelprog flags are:
    -tlextra=false: Print an extra arg for all commands
@@ -1074,7 +1196,8 @@ The prog1 commands are:
    hello11     Print strings on stdout preceded by "Hello"
    hello12     Print strings on stdout preceded by "Hello"
    prog2       Set of hello commands
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "prog1 help [command]" for command usage.
 
 The global flags are:
    -global1=: global test flag 1
@@ -1092,7 +1215,8 @@ The prog1 commands are:
    hello11     Print strings on stdout preceded by "Hello"
    hello12     Print strings on stdout preceded by "Hello"
    prog2       Set of hello commands
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "prog1 help [command]" for command usage.
 
 The global flags are:
    -global1=: global test flag 1
@@ -1110,12 +1234,15 @@ The prog1 commands are:
    hello11     Print strings on stdout preceded by "Hello"
    hello12     Print strings on stdout preceded by "Hello"
    prog2       Set of hello commands
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "prog1 help [command]" for command usage.
 
 The global flags are:
    -global1=: global test flag 1
    -global2=0: global test flag 2
 ================================================================================
+Prog1 Hello11
+
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
@@ -1123,6 +1250,8 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
+Prog1 Hello12
+
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
@@ -1130,6 +1259,8 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
+Prog1 Prog2
+
 Prog2 has two variants of hello and a subprogram prog3.
 
 Usage:
@@ -1140,6 +1271,8 @@ The prog2 commands are:
    prog3       Set of hello commands
    hello22     Print strings on stdout preceded by "Hello"
 ================================================================================
+Prog1 Prog2 Hello21
+
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
@@ -1147,6 +1280,8 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
+Prog1 Prog2 Prog3
+
 Prog3 has two variants of hello.
 
 Usage:
@@ -1156,6 +1291,8 @@ The prog3 commands are:
    hello31     Print strings on stdout preceded by "Hello"
    hello32     Print strings on stdout preceded by "Hello"
 ================================================================================
+Prog1 Prog2 Prog3 Hello31
+
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
@@ -1163,6 +1300,8 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
+Prog1 Prog2 Prog3 Hello32
+
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
@@ -1170,6 +1309,8 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
+Prog1 Prog2 Hello22
+
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
@@ -1177,18 +1318,19 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Help displays usage descriptions for this command, or usage descriptions for
-sub-commands.
+Prog1 Help
+
+Help with no args displays the usage of the parent command.
+Help with args displays the usage of the specified sub-command or help topic.
+"help ..." recursively displays help for all commands and topics.
 
 Usage:
-   prog1 help [flags] [command ...]
+   prog1 help [flags] [command/topic ...]
 
-[command ...] is an optional sequence of commands to display detailed usage.
-The special-case "help ..." recursively displays help for all commands.
+[command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
-================================================================================
 `,
 		},
 		{
@@ -1202,12 +1344,15 @@ The prog2 commands are:
    hello21     Print strings on stdout preceded by "Hello"
    prog3       Set of hello commands
    hello22     Print strings on stdout preceded by "Hello"
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "prog1 prog2 help [command]" for command usage.
 
 The global flags are:
    -global1=: global test flag 1
    -global2=0: global test flag 2
 ================================================================================
+Prog1 Prog2 Hello21
+
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
@@ -1215,6 +1360,8 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
+Prog1 Prog2 Prog3
+
 Prog3 has two variants of hello.
 
 Usage:
@@ -1224,6 +1371,8 @@ The prog3 commands are:
    hello31     Print strings on stdout preceded by "Hello"
    hello32     Print strings on stdout preceded by "Hello"
 ================================================================================
+Prog1 Prog2 Prog3 Hello31
+
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
@@ -1231,6 +1380,8 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
+Prog1 Prog2 Prog3 Hello32
+
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
@@ -1238,6 +1389,8 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
+Prog1 Prog2 Hello22
+
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
@@ -1245,18 +1398,19 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Help displays usage descriptions for this command, or usage descriptions for
-sub-commands.
+Prog1 Prog2 Help
+
+Help with no args displays the usage of the parent command.
+Help with args displays the usage of the specified sub-command or help topic.
+"help ..." recursively displays help for all commands and topics.
 
 Usage:
-   prog1 prog2 help [flags] [command ...]
+   prog1 prog2 help [flags] [command/topic ...]
 
-[command ...] is an optional sequence of commands to display detailed usage.
-The special-case "help ..." recursively displays help for all commands.
+[command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
-================================================================================
 `,
 		},
 		{
@@ -1269,12 +1423,15 @@ Usage:
 The prog3 commands are:
    hello31     Print strings on stdout preceded by "Hello"
    hello32     Print strings on stdout preceded by "Hello"
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "prog1 prog2 prog3 help [command]" for command usage.
 
 The global flags are:
    -global1=: global test flag 1
    -global2=0: global test flag 2
 ================================================================================
+Prog1 Prog2 Prog3 Hello31
+
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
@@ -1282,6 +1439,8 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
+Prog1 Prog2 Prog3 Hello32
+
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
@@ -1289,18 +1448,19 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Help displays usage descriptions for this command, or usage descriptions for
-sub-commands.
+Prog1 Prog2 Prog3 Help
+
+Help with no args displays the usage of the parent command.
+Help with args displays the usage of the specified sub-command or help topic.
+"help ..." recursively displays help for all commands and topics.
 
 Usage:
-   prog1 prog2 prog3 help [flags] [command ...]
+   prog1 prog2 prog3 help [flags] [command/topic ...]
 
-[command ...] is an optional sequence of commands to display detailed usage.
-The special-case "help ..." recursively displays help for all commands.
+[command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
-================================================================================
 `,
 		},
 		{
@@ -1313,12 +1473,15 @@ Usage:
 The prog3 commands are:
    hello31     Print strings on stdout preceded by "Hello"
    hello32     Print strings on stdout preceded by "Hello"
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "prog1 prog2 prog3 help [command]" for command usage.
 
 The global flags are:
    -global1=: global test flag 1
    -global2=0: global test flag 2
 ================================================================================
+Prog1 Prog2 Prog3 Hello31
+
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
@@ -1326,6 +1489,8 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
+Prog1 Prog2 Prog3 Hello32
+
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
@@ -1333,18 +1498,19 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Help displays usage descriptions for this command, or usage descriptions for
-sub-commands.
+Prog1 Prog2 Prog3 Help
+
+Help with no args displays the usage of the parent command.
+Help with args displays the usage of the specified sub-command or help topic.
+"help ..." recursively displays help for all commands and topics.
 
 Usage:
-   prog1 prog2 prog3 help [flags] [command ...]
+   prog1 prog2 prog3 help [flags] [command/topic ...]
 
-[command ...] is an optional sequence of commands to display detailed usage.
-The special-case "help ..." recursively displays help for all commands.
+[command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
-================================================================================
 `,
 		},
 		{
@@ -1358,7 +1524,8 @@ The prog1 commands are:
    hello11     Print strings on stdout preceded by "Hello"
    hello12     Print strings on stdout preceded by "Hello"
    prog2       Set of hello commands
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "prog1 help [command]" for command usage.
 
 The global flags are:
    -global1=: global test flag 1
@@ -1443,18 +1610,17 @@ Usage:
 
 Prog1 Help
 
-Help displays usage descriptions for this command, or usage descriptions for
-sub-commands.
+Help with no args displays the usage of the parent command.
+Help with args displays the usage of the specified sub-command or help topic.
+"help ..." recursively displays help for all commands and topics.
 
 Usage:
-   prog1 help [flags] [command ...]
+   prog1 help [flags] [command/topic ...]
 
-[command ...] is an optional sequence of commands to display detailed usage.
-The special-case "help ..." recursively displays help for all commands.
+[command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
-
 `,
 		},
 	}
@@ -1503,7 +1669,8 @@ Usage:
 
 The cmdargs commands are:
    echo        Print strings on stdout
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "cmdargs help [command]" for command usage.
 
 [strings] are arbitrary strings that will be printed.
 
@@ -1536,7 +1703,8 @@ Usage:
 
 The cmdargs commands are:
    echo        Print strings on stdout
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "cmdargs help [command]" for command usage.
 
 [strings] are arbitrary strings that will be printed.
 
@@ -1544,6 +1712,8 @@ The global flags are:
    -global1=: global test flag 1
    -global2=0: global test flag 2
 ================================================================================
+Cmdargs Echo
+
 Echo prints any strings passed in to stdout.
 
 Usage:
@@ -1551,24 +1721,25 @@ Usage:
 
 [strings] are arbitrary strings that will be echoed.
 ================================================================================
-Help displays usage descriptions for this command, or usage descriptions for
-sub-commands.
+Cmdargs Help
+
+Help with no args displays the usage of the parent command.
+Help with args displays the usage of the specified sub-command or help topic.
+"help ..." recursively displays help for all commands and topics.
 
 Usage:
-   cmdargs help [flags] [command ...]
+   cmdargs help [flags] [command/topic ...]
 
-[command ...] is an optional sequence of commands to display detailed usage.
-The special-case "help ..." recursively displays help for all commands.
+[command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
-================================================================================
 `,
 		},
 		{
 			Args: []string{"help", "foo"},
 			Err:  ErrUsage,
-			Stderr: `ERROR: cmdargs: unknown command "foo"
+			Stderr: `ERROR: cmdargs: unknown command or topic "foo"
 
 Cmdargs has the echo command and a Run function with args.
 
@@ -1578,7 +1749,8 @@ Usage:
 
 The cmdargs commands are:
    echo        Print strings on stdout
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "cmdargs help [command]" for command usage.
 
 [strings] are arbitrary strings that will be printed.
 
@@ -1654,7 +1826,8 @@ Usage:
 
 The cmdrun commands are:
    echo        Print strings on stdout
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "cmdrun help [command]" for command usage.
 
 The global flags are:
    -global1=: global test flag 1
@@ -1671,7 +1844,8 @@ Usage:
 
 The cmdrun commands are:
    echo        Print strings on stdout
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "cmdrun help [command]" for command usage.
 
 The global flags are:
    -global1=: global test flag 1
@@ -1702,12 +1876,15 @@ Usage:
 
 The cmdrun commands are:
    echo        Print strings on stdout
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "cmdrun help [command]" for command usage.
 
 The global flags are:
    -global1=: global test flag 1
    -global2=0: global test flag 2
 ================================================================================
+Cmdrun Echo
+
 Echo prints any strings passed in to stdout.
 
 Usage:
@@ -1715,24 +1892,25 @@ Usage:
 
 [strings] are arbitrary strings that will be echoed.
 ================================================================================
-Help displays usage descriptions for this command, or usage descriptions for
-sub-commands.
+Cmdrun Help
+
+Help with no args displays the usage of the parent command.
+Help with args displays the usage of the specified sub-command or help topic.
+"help ..." recursively displays help for all commands and topics.
 
 Usage:
-   cmdrun help [flags] [command ...]
+   cmdrun help [flags] [command/topic ...]
 
-[command ...] is an optional sequence of commands to display detailed usage.
-The special-case "help ..." recursively displays help for all commands.
+[command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
-================================================================================
 `,
 		},
 		{
 			Args: []string{"help", "foo"},
 			Err:  ErrUsage,
-			Stderr: `ERROR: cmdrun: unknown command "foo"
+			Stderr: `ERROR: cmdrun: unknown command or topic "foo"
 
 Cmdrun has the echo command and a Run function with no args.
 
@@ -1742,7 +1920,8 @@ Usage:
 
 The cmdrun commands are:
    echo        Print strings on stdout
-   help        Display help for commands
+   help        Display help for commands or topics
+Run "cmdrun help [command]" for command usage.
 
 The global flags are:
    -global1=: global test flag 1

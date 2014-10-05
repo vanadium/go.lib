@@ -18,6 +18,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"strings"
 )
@@ -51,6 +52,9 @@ type Command struct {
 	// child's name, and call Run on the first matching child.
 	Children []*Command
 
+	// Topics that provide additional info via the default help command.
+	Topics []Topic
+
 	// Run is a function that runs cmd with args.  If both Children and Run are
 	// specified, Run will only be called if none of the children match.  It is an
 	// error if neither is specified.  The special ErrExitCode error may be
@@ -74,6 +78,14 @@ type Command struct {
 
 	// TODO(toddw): If necessary we can add alias support, e.g. for abbreviations.
 	//   Alias map[string]string
+}
+
+// Topic represents an additional help topic that is accessed via the default
+// help command.
+type Topic struct {
+	Name  string // Name of the topic.
+	Short string // Short description, shown in help for the command.
+	Long  string // Long description, shown in help for this topic.
 }
 
 // style describes the formatting style for usage descriptions.
@@ -126,85 +138,102 @@ func (cmd *Command) UsageErrorf(format string, v ...interface{}) error {
 	fmt.Fprint(cmd.stderr, "ERROR: ")
 	fmt.Fprintf(cmd.stderr, format, v...)
 	fmt.Fprint(cmd.stderr, "\n\n")
-	cmd.usage(cmd.stderr, styleText, true)
+	cmd.usage(cmd.stderr, true)
 	return ErrUsage
 }
 
-// usage prints the usage of cmd to the writer, with the given style.  The
-// firstCall boolean is set to false when printing usage for multiple commands,
-// and is used to avoid printing redundant information (e.g. section headers,
-// global flags).
-func (cmd *Command) usage(w io.Writer, style style, firstCall bool) {
-	var names []string
-	for c := cmd; c != nil; c = c.parent {
-		names = append([]string{c.Name}, names...)
-	}
-	namestr := strings.Join(names, " ")
-	if !firstCall && style == styleGoDoc {
-		// Title-case names so that godoc recognizes it as a section header.
-		fmt.Fprintf(w, "%s\n\n", strings.Title(namestr))
-	}
-	// Long description.
-	fmt.Fprint(w, strings.Trim(cmd.Long, "\n"))
-	fmt.Fprintln(w)
+// usage prints the usage of cmd to the writer.  The firstCall boolean is set to
+// false when printing usage for multiple commands, and is used to avoid
+// printing redundant information (e.g. help command, global flags).
+func (cmd *Command) usage(w io.Writer, firstCall bool) {
+	printLong(w, cmd.Long)
 	// Usage line.
-	hasFlags := false
-	cmd.Flags.VisitAll(func(*flag.Flag) {
-		hasFlags = true
-	})
+	hasFlags := numFlags(&cmd.Flags) > 0
 	fmt.Fprintf(w, "\nUsage:\n")
-	nameflags := "   " + namestr
+	path := namePath(cmd)
+	pathf := "   " + path
 	if hasFlags {
-		nameflags += " [flags]"
+		pathf += " [flags]"
 	}
 	if len(cmd.Children) > 0 {
-		fmt.Fprintf(w, "%s <command>\n", nameflags)
+		fmt.Fprintf(w, "%s <command>\n", pathf)
 	}
 	if cmd.Run != nil {
 		if cmd.ArgsName != "" {
-			fmt.Fprintf(w, "%s %s\n", nameflags, cmd.ArgsName)
+			fmt.Fprintf(w, "%s %s\n", pathf, cmd.ArgsName)
 		} else {
-			fmt.Fprintf(w, "%s\n", nameflags)
+			fmt.Fprintf(w, "%s\n", pathf)
 		}
 	}
 	if len(cmd.Children) == 0 && cmd.Run == nil {
 		// This is a specification error.
-		fmt.Fprintf(w, "%s [ERROR: neither Children nor Run is specified]\n", nameflags)
+		fmt.Fprintf(w, "%s [ERROR: neither Children nor Run is specified]\n", pathf)
 	}
 	// Commands.
 	if len(cmd.Children) > 0 {
 		fmt.Fprintf(w, "\nThe %s commands are:\n", cmd.Name)
 		for _, child := range cmd.Children {
-			if !firstCall && child.isDefaultHelp {
-				continue // don't repeatedly list default help command
+			// Don't repeatedly list default help command.
+			if !child.isDefaultHelp || firstCall {
+				fmt.Fprintf(w, "   %-11s %s\n", child.Name, child.Short)
 			}
-			fmt.Fprintf(w, "   %-11s %s\n", child.Name, child.Short)
+		}
+		if firstCall {
+			fmt.Fprintf(w, "Run \"%s help [command]\" for command usage.\n", path)
 		}
 	}
 	// Args.
 	if cmd.Run != nil && cmd.ArgsLong != "" {
-		fmt.Fprintf(w, "\n")
-		fmt.Fprint(w, strings.Trim(cmd.ArgsLong, "\n"))
-		fmt.Fprintf(w, "\n")
+		fmt.Fprintln(w)
+		printLong(w, cmd.ArgsLong)
+	}
+	// Help topics.
+	if len(cmd.Topics) > 0 {
+		fmt.Fprintf(w, "\nThe %s additional help topics are:\n", cmd.Name)
+		for _, topic := range cmd.Topics {
+			fmt.Fprintf(w, "   %-11s %s\n", topic.Name, topic.Short)
+		}
+		if firstCall {
+			fmt.Fprintf(w, "Run \"%s help [topic]\" for topic details.\n", path)
+		}
 	}
 	// Flags.
 	if hasFlags {
 		fmt.Fprintf(w, "\nThe %s flags are:\n", cmd.Name)
-		cmd.Flags.VisitAll(func(f *flag.Flag) {
-			fmt.Fprintf(w, "   -%s=%s: %s\n", f.Name, f.DefValue, f.Usage)
-		})
+		printFlags(w, &cmd.Flags)
 	}
 	// Global flags.
-	hasGlobalFlags := false
-	flag.VisitAll(func(*flag.Flag) {
-		hasGlobalFlags = true
-	})
-	if firstCall && hasGlobalFlags {
+	if numFlags(flag.CommandLine) > 0 && firstCall {
 		fmt.Fprintf(w, "\nThe global flags are:\n")
-		flag.VisitAll(func(f *flag.Flag) {
-			fmt.Fprintf(w, "   -%s=%s: %s\n", f.Name, f.DefValue, f.Usage)
-		})
+		printFlags(w, flag.CommandLine)
 	}
+}
+
+// namePath returns the path of command names up to cmd.
+func namePath(cmd *Command) string {
+	var path []string
+	for ; cmd != nil; cmd = cmd.parent {
+		path = append([]string{cmd.Name}, path...)
+	}
+	return strings.Join(path, " ")
+}
+
+func printLong(w io.Writer, long string) {
+	fmt.Fprint(w, strings.Trim(long, "\n"))
+	fmt.Fprintln(w)
+}
+
+func numFlags(set *flag.FlagSet) (num int) {
+	set.VisitAll(func(*flag.Flag) {
+		num++
+	})
+	return
+}
+
+func printFlags(w io.Writer, set *flag.FlagSet) {
+	set.VisitAll(func(f *flag.Flag) {
+		fmt.Fprintf(w, "   -%s=%s: %s\n", f.Name, f.DefValue, f.Usage)
+	})
 }
 
 // newDefaultHelp creates a new default help command.  We need to create new
@@ -213,19 +242,19 @@ func newDefaultHelp() *Command {
 	helpStyle := styleText
 	help := &Command{
 		Name:  helpName,
-		Short: "Display help for commands",
+		Short: "Display help for commands or topics",
 		Long: `
-Help displays usage descriptions for this command, or usage descriptions for
-sub-commands.
+Help with no args displays the usage of the parent command.
+Help with args displays the usage of the specified sub-command or help topic.
+"help ..." recursively displays help for all commands and topics.
 `,
-		ArgsName: "[command ...]",
+		ArgsName: "[command/topic ...]",
 		ArgsLong: `
-[command ...] is an optional sequence of commands to display detailed usage.
-The special-case "help ..." recursively displays help for all commands.
+[command/topic ...] optionally identifies a specific sub-command or help topic.
 `,
 		Run: func(cmd *Command, args []string) error {
 			// Help applies to its parent - e.g. "foo help" applies to the foo command.
-			return runHelp(cmd.parent, args, helpStyle)
+			return runHelp(cmd.stdout, cmd.parent, args, helpStyle)
 		},
 		isDefaultHelp: true,
 	}
@@ -236,57 +265,63 @@ The special-case "help ..." recursively displays help for all commands.
 const helpName = "help"
 
 // runHelp runs the "help" command.
-func runHelp(cmd *Command, args []string, style style) error {
+func runHelp(w io.Writer, cmd *Command, args []string, style style) error {
 	if len(args) == 0 {
-		cmd.usage(cmd.stdout, style, true)
+		cmd.usage(w, true)
 		return nil
 	}
 	if args[0] == "..." {
-		recursiveHelp(cmd, style, true)
+		recursiveHelp(w, cmd, style, true)
 		return nil
 	}
-	// Find the subcommand to display help.
-	subName := args[0]
-	subArgs := args[1:]
+	// Try to display help for the subcommand.
+	subName, subArgs := args[0], args[1:]
 	for _, child := range cmd.Children {
 		if child.Name == subName {
-			return runHelp(child, subArgs, style)
+			return runHelp(w, child, subArgs, style)
 		}
 	}
-	return cmd.UsageErrorf("%s: unknown command %q", cmd.Name, subName)
+	// Try to display help for the help topic.
+	for _, topic := range cmd.Topics {
+		if topic.Name == subName {
+			printLong(w, topic.Long)
+			return nil
+		}
+	}
+	return cmd.UsageErrorf("%s: unknown command or topic %q", cmd.Name, subName)
 }
 
 // recursiveHelp prints help recursively via DFS from this cmd onward.
-func recursiveHelp(cmd *Command, style style, firstCall bool) {
-	cmd.usage(cmd.stdout, style, firstCall)
+func recursiveHelp(w io.Writer, cmd *Command, style style, firstCall bool) {
+	if !firstCall {
+		// Title-case required for godoc to recognize this as a section header.
+		header := strings.Title(namePath(cmd))
+		lineBreak(w, style)
+		fmt.Fprintf(w, "%s\n\n", header)
+	}
+	cmd.usage(w, firstCall)
+	for _, child := range cmd.Children {
+		// Don't repeatedly print default help command.
+		if !child.isDefaultHelp || firstCall {
+			recursiveHelp(w, child, style, false)
+		}
+	}
+	for _, topic := range cmd.Topics {
+		// Title-case required for godoc to recognize this as a section header.
+		header := strings.Title(namePath(cmd) + " " + topic.Name + " (Help Topic)")
+		lineBreak(w, style)
+		fmt.Fprintf(w, "%s\n\n", header)
+		printLong(w, topic.Long)
+	}
+}
+
+func lineBreak(w io.Writer, style style) {
 	switch style {
 	case styleText:
-		fmt.Fprintln(cmd.stdout, strings.Repeat("=", 80))
+		fmt.Fprintln(w, strings.Repeat("=", 80))
 	case styleGoDoc:
-		fmt.Fprintln(cmd.stdout)
+		fmt.Fprintln(w)
 	}
-	for _, child := range cmd.Children {
-		if !firstCall && child.isDefaultHelp {
-			continue // don't repeatedly print default help command
-		}
-		recursiveHelp(child, style, false)
-	}
-}
-
-// prefixErrorWriter simply wraps a regular io.Writer and adds an "ERROR: "
-// prefix if Write is ever called.  It's used to ensure errors are clearly
-// marked when flag.FlagSet.Parse encounters errors.
-type prefixErrorWriter struct {
-	writer        io.Writer
-	prefixWritten bool
-}
-
-func (p *prefixErrorWriter) Write(b []byte) (int, error) {
-	if !p.prefixWritten {
-		io.WriteString(p.writer, "ERROR: ")
-		p.prefixWritten = true
-	}
-	return p.writer.Write(b)
 }
 
 // Init initializes all nodes in the command tree rooted at cmd.  Init must be
@@ -306,24 +341,31 @@ func (cmd *Command) Init(parent *Command, stdout, stderr io.Writer) {
 	if !hasHelp && cmd.Name != helpName && len(cmd.Children) > 0 {
 		cmd.Children = append(cmd.Children, newDefaultHelp())
 	}
-	// Merge command-specific and global flags into parseFlags.
+	// Merge command-specific and global flags into parseFlags.  We want to handle
+	// all error output ourselves, so we:
+	//   1) Set flag.ContinueOnError so that Parse() doesn't exit or panic.
+	//   2) Discard all output (can't be nil, that means stderr).
+	//   3) Set an empty Usage function (can't be nil, that means default).
 	cmd.parseFlags = flag.NewFlagSet(cmd.Name, flag.ContinueOnError)
-	cmd.parseFlags.SetOutput(&prefixErrorWriter{writer: stderr})
-	cmd.parseFlags.Usage = func() {
-		cmd.usage(stderr, styleText, true)
-	}
-	flagMerger := func(f *flag.Flag) {
-		if cmd.parseFlags.Lookup(f.Name) == nil {
-			cmd.parseFlags.Var(f.Value, f.Name, f.Usage)
-		}
-	}
-	cmd.Flags.VisitAll(flagMerger)
-	flag.VisitAll(flagMerger)
+	cmd.parseFlags.SetOutput(ioutil.Discard)
+	cmd.parseFlags.Usage = emptyUsage
+	mergeFlags(cmd.parseFlags, &cmd.Flags)
+	mergeFlags(cmd.parseFlags, flag.CommandLine)
 	// Call children recursively.
 	for _, child := range cmd.Children {
 		child.Init(cmd, stdout, stderr)
 	}
 }
+
+func mergeFlags(dst, src *flag.FlagSet) {
+	src.VisitAll(func(f *flag.Flag) {
+		if dst.Lookup(f.Name) == nil {
+			dst.Var(f.Value, f.Name, f.Usage)
+		}
+	})
+}
+
+func emptyUsage() {}
 
 // Execute the command with the given args.  The returned error is ErrUsage if
 // there are usage errors, otherwise it is whatever the leaf command returns
@@ -331,13 +373,16 @@ func (cmd *Command) Init(parent *Command, stdout, stderr io.Writer) {
 func (cmd *Command) Execute(args []string) error {
 	// Parse the merged flags.
 	if err := cmd.parseFlags.Parse(args); err != nil {
-		return ErrUsage
+		if err == flag.ErrHelp {
+			cmd.usage(cmd.stdout, true)
+			return nil
+		}
+		return cmd.UsageErrorf(err.Error())
 	}
 	args = cmd.parseFlags.Args()
 	// Look for matching children.
 	if len(args) > 0 {
-		subName := args[0]
-		subArgs := args[1:]
+		subName, subArgs := args[0], args[1:]
 		for _, child := range cmd.Children {
 			if child.Name == subName {
 				return child.Execute(subArgs)
@@ -349,9 +394,8 @@ func (cmd *Command) Execute(args []string) error {
 		if cmd.ArgsName == "" && len(args) > 0 {
 			if len(cmd.Children) > 0 {
 				return cmd.UsageErrorf("%s: unknown command %q", cmd.Name, args[0])
-			} else {
-				return cmd.UsageErrorf("%s doesn't take any arguments", cmd.Name)
 			}
+			return cmd.UsageErrorf("%s doesn't take any arguments", cmd.Name)
 		}
 		return cmd.Run(cmd, args)
 	}
@@ -374,9 +418,8 @@ func (cmd *Command) Main() {
 	if err := cmd.Execute(os.Args[1:]); err != nil {
 		if code, ok := err.(ErrExitCode); ok {
 			os.Exit(int(code))
-		} else {
-			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-			os.Exit(2)
 		}
+		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		os.Exit(2)
 	}
 }
