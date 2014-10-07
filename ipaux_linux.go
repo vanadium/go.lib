@@ -1,3 +1,5 @@
+// +build linux
+
 package netconfig
 
 // We connect to the Netlink Route socket and parse messages to

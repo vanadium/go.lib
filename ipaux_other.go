@@ -1,4 +1,5 @@
-// +build plan9 windows
+// +build plan9 windows nacl
+// TODO(bprosnitz) Should change for nacl?
 
 package netconfig
 
@@ -40,8 +41,13 @@ func (w *timerNetConfigWatcher) watcher() {
 }
 
 func NewNetConfigWatcher() (NetConfigWatcher, error) {
+	w := &timerNetConfigWatcher{}
 	w.c = make(chan struct{})
 	w.stop = make(chan struct{}, 1)
 	go w.watcher()
 	return w, nil
+}
+
+func GetIPRoutes(defaultOnly bool) []*IPRoute {
+	panic("Not yet implemented")
 }
