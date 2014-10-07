@@ -802,7 +802,7 @@ Usage:
 The echoopt flags are:
    -n=false: Do not output trailing newline
 ================================================================================
-Toplevelprog Echoprog Topic3 (Help Topic)
+Toplevelprog Echoprog Topic3 - help topic
 
 Help topic 3 long.
 ================================================================================
@@ -829,11 +829,11 @@ Usage:
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
 ================================================================================
-Toplevelprog Topic1 (Help Topic)
+Toplevelprog Topic1 - help topic
 
 Help topic 1 long.
 ================================================================================
-Toplevelprog Topic2 (Help Topic)
+Toplevelprog Topic2 - help topic
 
 Help topic 2 long.
 `,
@@ -932,7 +932,7 @@ Usage:
 The help flags are:
    -style=text: The formatting style for help output, either "text" or "godoc".
 ================================================================================
-Toplevelprog Echoprog Topic3 (Help Topic)
+Toplevelprog Echoprog Topic3 - help topic
 
 Help topic 3 long.
 `,

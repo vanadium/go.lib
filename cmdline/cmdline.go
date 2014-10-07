@@ -308,7 +308,7 @@ func recursiveHelp(w io.Writer, cmd *Command, style style, firstCall bool) {
 	}
 	for _, topic := range cmd.Topics {
 		// Title-case required for godoc to recognize this as a section header.
-		header := strings.Title(namePath(cmd) + " " + topic.Name + " (Help Topic)")
+		header := strings.Title(namePath(cmd)+" "+topic.Name) + " - help topic"
 		lineBreak(w, style)
 		fmt.Fprintf(w, "%s\n\n", header)
 		printLong(w, topic.Long)
