@@ -1,4 +1,4 @@
-// +build !linux,!bsd
+// +build !linux,!darwin,!dragonfly,!freebsd,!netbsd,!openbsd
 // TODO(bprosnitz) Should change for nacl?
 
 package netconfig
