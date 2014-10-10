@@ -1,4 +1,4 @@
-// +build plan9 windows nacl
+// +build !linux,!bsd
 // TODO(bprosnitz) Should change for nacl?
 
 package netconfig
