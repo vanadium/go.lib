@@ -172,10 +172,17 @@ func (cmd *Command) usage(w io.Writer, firstCall bool) {
 	// Commands.
 	if len(cmd.Children) > 0 {
 		fmt.Fprintf(w, "\nThe %s commands are:\n", cmd.Name)
+		// Compute the size of the largest command name
+		namelen := 11
+		for _, child := range cmd.Children {
+			if len(child.Name) > namelen {
+				namelen = len(child.Name)
+			}
+		}
 		for _, child := range cmd.Children {
 			// Don't repeatedly list default help command.
 			if !child.isDefaultHelp || firstCall {
-				fmt.Fprintf(w, "   %-11s %s\n", child.Name, child.Short)
+				fmt.Fprintf(w, "   %-[1]*[2]s %[3]s\n", namelen, child.Name, child.Short)
 			}
 		}
 		if firstCall {

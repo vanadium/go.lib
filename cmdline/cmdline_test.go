@@ -1956,3 +1956,45 @@ The global flags are:
 	}
 	runTestCases(t, prog, tests)
 }
+
+func TestLongCommandsHelp(t *testing.T) {
+	cmdLong := &Command{
+		Name:  "thisisaverylongcommand",
+		Short: "description of very long command.",
+		Long:  "blah blah blah.",
+		Run:   runEcho,
+	}
+	cmdShort := &Command{
+		Name:  "x",
+		Short: "description of short command.",
+		Long:  "blah blah blah",
+		Run:   runEcho,
+	}
+	prog := &Command{
+		Name:     "program",
+		Short:    "Test help strings when there are long commands.",
+		Long:     "Test help strings when there are long commands.",
+		Children: []*Command{cmdShort, cmdLong},
+	}
+	var tests = []testCase{
+		{
+			Args: []string{"help"},
+			Stdout: `Test help strings when there are long commands.
+
+Usage:
+   program <command>
+
+The program commands are:
+   x                      description of short command.
+   thisisaverylongcommand description of very long command.
+   help                   Display help for commands or topics
+Run "program help [command]" for command usage.
+
+The global flags are:
+   -global1=: global test flag 1
+   -global2=0: global test flag 2
+`,
+		},
+	}
+	runTestCases(t, prog, tests)
+}
