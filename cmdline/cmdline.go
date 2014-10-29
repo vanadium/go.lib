@@ -20,7 +20,10 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"strconv"
 	"strings"
+
+	"veyron.io/veyron/veyron/lib/textutil"
 )
 
 // ErrExitCode may be returned by the Run function of a Command to cause the
@@ -138,53 +141,78 @@ func (cmd *Command) UsageErrorf(format string, v ...interface{}) error {
 	fmt.Fprint(cmd.stderr, "ERROR: ")
 	fmt.Fprintf(cmd.stderr, format, v...)
 	fmt.Fprint(cmd.stderr, "\n\n")
-	cmd.usage(cmd.stderr, true)
+	cmd.writeUsage(cmd.stderr)
 	return ErrUsage
+}
+
+// Have a reasonable default for the output width in runes.
+const defaultWidth = 80
+
+func outputWidth() int {
+	if width, err := strconv.Atoi(os.Getenv("CMDLINE_WIDTH")); err == nil && width != 0 {
+		return width
+	}
+	if _, width, err := textutil.TerminalSize(); err == nil && width != 0 {
+		return width
+	}
+	return defaultWidth
+}
+
+func (cmd *Command) writeUsage(w io.Writer) {
+	lineWriter := textutil.NewUTF8LineWriter(w, outputWidth())
+	cmd.usage(lineWriter, true)
+	lineWriter.Flush()
 }
 
 // usage prints the usage of cmd to the writer.  The firstCall boolean is set to
 // false when printing usage for multiple commands, and is used to avoid
 // printing redundant information (e.g. help command, global flags).
-func (cmd *Command) usage(w io.Writer, firstCall bool) {
-	printLong(w, cmd.Long)
+func (cmd *Command) usage(w *textutil.LineWriter, firstCall bool) {
+	fmt.Fprintln(w, cmd.Long)
+	fmt.Fprintln(w)
 	// Usage line.
 	hasFlags := numFlags(&cmd.Flags) > 0
-	fmt.Fprintf(w, "\nUsage:\n")
-	path := namePath(cmd)
+	fmt.Fprintln(w, "Usage:")
+	path := cmd.namePath()
 	pathf := "   " + path
 	if hasFlags {
 		pathf += " [flags]"
 	}
 	if len(cmd.Children) > 0 {
-		fmt.Fprintf(w, "%s <command>\n", pathf)
+		fmt.Fprintln(w, pathf, "<command>")
 	}
 	if cmd.Run != nil {
 		if cmd.ArgsName != "" {
-			fmt.Fprintf(w, "%s %s\n", pathf, cmd.ArgsName)
+			fmt.Fprintln(w, pathf, cmd.ArgsName)
 		} else {
-			fmt.Fprintf(w, "%s\n", pathf)
+			fmt.Fprintln(w, pathf)
 		}
 	}
 	if len(cmd.Children) == 0 && cmd.Run == nil {
 		// This is a specification error.
-		fmt.Fprintf(w, "%s [ERROR: neither Children nor Run is specified]\n", pathf)
+		fmt.Fprintln(w, pathf, "[ERROR: neither Children nor Run is specified]")
 	}
 	// Commands.
+	const minNameWidth = 11
 	if len(cmd.Children) > 0 {
-		fmt.Fprintf(w, "\nThe %s commands are:\n", cmd.Name)
-		// Compute the size of the largest command name
-		namelen := 11
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "The", path, "commands are:")
+		nameWidth := minNameWidth
 		for _, child := range cmd.Children {
-			if len(child.Name) > namelen {
-				namelen = len(child.Name)
+			if len(child.Name) > nameWidth {
+				nameWidth = len(child.Name)
 			}
 		}
+		// Print as a table with aligned columns Name and Short.
+		w.SetIndents(spaces(3), spaces(3+nameWidth+1))
 		for _, child := range cmd.Children {
 			// Don't repeatedly list default help command.
 			if !child.isDefaultHelp || firstCall {
-				fmt.Fprintf(w, "   %-[1]*[2]s %[3]s\n", namelen, child.Name, child.Short)
+				fmt.Fprintf(w, "%-[1]*[2]s %[3]s", nameWidth, child.Name, child.Short)
+				w.Flush()
 			}
 		}
+		w.SetIndents()
 		if firstCall {
 			fmt.Fprintf(w, "Run \"%s help [command]\" for command usage.\n", path)
 		}
@@ -192,42 +220,50 @@ func (cmd *Command) usage(w io.Writer, firstCall bool) {
 	// Args.
 	if cmd.Run != nil && cmd.ArgsLong != "" {
 		fmt.Fprintln(w)
-		printLong(w, cmd.ArgsLong)
+		fmt.Fprintln(w, cmd.ArgsLong)
 	}
 	// Help topics.
 	if len(cmd.Topics) > 0 {
-		fmt.Fprintf(w, "\nThe %s additional help topics are:\n", cmd.Name)
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "The", path, "additional help topics are:")
+		nameWidth := minNameWidth
 		for _, topic := range cmd.Topics {
-			fmt.Fprintf(w, "   %-11s %s\n", topic.Name, topic.Short)
+			if len(topic.Name) > nameWidth {
+				nameWidth = len(topic.Name)
+			}
 		}
+		// Print as a table with aligned columns Name and Short.
+		w.SetIndents(spaces(3), spaces(3+nameWidth+1))
+		for _, topic := range cmd.Topics {
+			fmt.Fprintf(w, "%-[1]*[2]s %[3]s", nameWidth, topic.Name, topic.Short)
+			w.Flush()
+		}
+		w.SetIndents()
 		if firstCall {
 			fmt.Fprintf(w, "Run \"%s help [topic]\" for topic details.\n", path)
 		}
 	}
 	// Flags.
 	if hasFlags {
-		fmt.Fprintf(w, "\nThe %s flags are:\n", cmd.Name)
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "The", path, "flags are:")
 		printFlags(w, &cmd.Flags)
 	}
 	// Global flags.
 	if numFlags(flag.CommandLine) > 0 && firstCall {
-		fmt.Fprintf(w, "\nThe global flags are:\n")
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "The global flags are:")
 		printFlags(w, flag.CommandLine)
 	}
 }
 
 // namePath returns the path of command names up to cmd.
-func namePath(cmd *Command) string {
+func (cmd *Command) namePath() string {
 	var path []string
 	for ; cmd != nil; cmd = cmd.parent {
 		path = append([]string{cmd.Name}, path...)
 	}
 	return strings.Join(path, " ")
-}
-
-func printLong(w io.Writer, long string) {
-	fmt.Fprint(w, strings.Trim(long, "\n"))
-	fmt.Fprintln(w)
 }
 
 func numFlags(set *flag.FlagSet) (num int) {
@@ -237,10 +273,17 @@ func numFlags(set *flag.FlagSet) (num int) {
 	return
 }
 
-func printFlags(w io.Writer, set *flag.FlagSet) {
+func printFlags(w *textutil.LineWriter, set *flag.FlagSet) {
 	set.VisitAll(func(f *flag.Flag) {
-		fmt.Fprintf(w, "   -%s=%s: %s\n", f.Name, f.DefValue, f.Usage)
+		fmt.Fprintf(w, " -%s=%s", f.Name, f.DefValue)
+		w.SetIndents(spaces(3))
+		fmt.Fprintln(w, f.Usage)
+		w.SetIndents()
 	})
+}
+
+func spaces(count int) string {
+	return strings.Repeat(" ", count)
 }
 
 // newDefaultHelp creates a new default help command.  We need to create new
@@ -252,8 +295,16 @@ func newDefaultHelp() *Command {
 		Short: "Display help for commands or topics",
 		Long: `
 Help with no args displays the usage of the parent command.
+
 Help with args displays the usage of the specified sub-command or help topic.
+
 "help ..." recursively displays help for all commands and topics.
+
+The output is formatted to a target width in runes.  The target width is
+determined by checking the environment variable CMDLINE_WIDTH, falling back on
+the terminal width from the OS, falling back on 80 chars.  By setting
+CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0 the width is unlimited, and
+if x == 0 or is unset one of the fallbacks is used.
 `,
 		ArgsName: "[command/topic ...]",
 		ArgsLong: `
@@ -261,7 +312,9 @@ Help with args displays the usage of the specified sub-command or help topic.
 `,
 		Run: func(cmd *Command, args []string) error {
 			// Help applies to its parent - e.g. "foo help" applies to the foo command.
-			return runHelp(cmd.stdout, cmd.parent, args, helpStyle)
+			lineWriter := textutil.NewUTF8LineWriter(cmd.stdout, outputWidth())
+			defer lineWriter.Flush()
+			return runHelp(lineWriter, cmd.parent, args, helpStyle)
 		},
 		isDefaultHelp: true,
 	}
@@ -272,7 +325,7 @@ Help with args displays the usage of the specified sub-command or help topic.
 const helpName = "help"
 
 // runHelp runs the "help" command.
-func runHelp(w io.Writer, cmd *Command, args []string, style style) error {
+func runHelp(w *textutil.LineWriter, cmd *Command, args []string, style style) error {
 	if len(args) == 0 {
 		cmd.usage(w, true)
 		return nil
@@ -291,20 +344,21 @@ func runHelp(w io.Writer, cmd *Command, args []string, style style) error {
 	// Try to display help for the help topic.
 	for _, topic := range cmd.Topics {
 		if topic.Name == subName {
-			printLong(w, topic.Long)
+			fmt.Fprintln(w, topic.Long)
 			return nil
 		}
 	}
-	return cmd.UsageErrorf("%s: unknown command or topic %q", cmd.Name, subName)
+	return cmd.UsageErrorf("%s: unknown command or topic %q", cmd.namePath(), subName)
 }
 
 // recursiveHelp prints help recursively via DFS from this cmd onward.
-func recursiveHelp(w io.Writer, cmd *Command, style style, firstCall bool) {
+func recursiveHelp(w *textutil.LineWriter, cmd *Command, style style, firstCall bool) {
 	if !firstCall {
-		// Title-case required for godoc to recognize this as a section header.
-		header := strings.Title(namePath(cmd))
 		lineBreak(w, style)
-		fmt.Fprintf(w, "%s\n\n", header)
+		// Title-case required for godoc to recognize this as a section header.
+		header := strings.Title(cmd.namePath())
+		fmt.Fprintln(w, header)
+		fmt.Fprintln(w)
 	}
 	cmd.usage(w, firstCall)
 	for _, child := range cmd.Children {
@@ -314,22 +368,33 @@ func recursiveHelp(w io.Writer, cmd *Command, style style, firstCall bool) {
 		}
 	}
 	for _, topic := range cmd.Topics {
-		// Title-case required for godoc to recognize this as a section header.
-		header := strings.Title(namePath(cmd)+" "+topic.Name) + " - help topic"
 		lineBreak(w, style)
-		fmt.Fprintf(w, "%s\n\n", header)
-		printLong(w, topic.Long)
+		// Title-case required for godoc to recognize this as a section header.
+		header := strings.Title(cmd.namePath()+" "+topic.Name) + " - help topic"
+		fmt.Fprintln(w, header)
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, topic.Long)
 	}
 }
 
-func lineBreak(w io.Writer, style style) {
+func lineBreak(w *textutil.LineWriter, style style) {
+	w.Flush()
 	switch style {
 	case styleText:
-		fmt.Fprintln(w, strings.Repeat("=", 80))
+		width := w.Width()
+		if width < 0 {
+			// If the user has chosen an "unlimited" word-wrapping width, we still
+			// need a reasonable width for our visual line break.
+			width = defaultWidth
+		}
+		fmt.Fprintln(w, strings.Repeat("=", width))
 	case styleGoDoc:
 		fmt.Fprintln(w)
 	}
+	w.Flush()
 }
+
+func trimNewlines(s *string) { *s = strings.Trim(*s, "\n") }
 
 // Init initializes all nodes in the command tree rooted at cmd.  Init must be
 // called before Execute.
@@ -337,6 +402,13 @@ func (cmd *Command) Init(parent *Command, stdout, stderr io.Writer) {
 	cmd.parent = parent
 	cmd.stdout = stdout
 	cmd.stderr = stderr
+	trimNewlines(&cmd.Short)
+	trimNewlines(&cmd.Long)
+	trimNewlines(&cmd.ArgsLong)
+	for tx := range cmd.Topics {
+		trimNewlines(&cmd.Topics[tx].Short)
+		trimNewlines(&cmd.Topics[tx].Long)
+	}
 	// Add help command, if it doesn't already exist.
 	hasHelp := false
 	for _, child := range cmd.Children {
@@ -366,6 +438,7 @@ func (cmd *Command) Init(parent *Command, stdout, stderr io.Writer) {
 
 func mergeFlags(dst, src *flag.FlagSet) {
 	src.VisitAll(func(f *flag.Flag) {
+		trimNewlines(&f.Usage)
 		if dst.Lookup(f.Name) == nil {
 			dst.Var(f.Value, f.Name, f.Usage)
 		}
@@ -378,13 +451,14 @@ func emptyUsage() {}
 // there are usage errors, otherwise it is whatever the leaf command returns
 // from its Run function.
 func (cmd *Command) Execute(args []string) error {
+	path := cmd.namePath()
 	// Parse the merged flags.
 	if err := cmd.parseFlags.Parse(args); err != nil {
 		if err == flag.ErrHelp {
-			cmd.usage(cmd.stdout, true)
+			cmd.writeUsage(cmd.stdout)
 			return nil
 		}
-		return cmd.UsageErrorf(err.Error())
+		return cmd.UsageErrorf("%s: %v", path, err)
 	}
 	args = cmd.parseFlags.Args()
 	// Look for matching children.
@@ -400,19 +474,19 @@ func (cmd *Command) Execute(args []string) error {
 	if cmd.Run != nil {
 		if cmd.ArgsName == "" && len(args) > 0 {
 			if len(cmd.Children) > 0 {
-				return cmd.UsageErrorf("%s: unknown command %q", cmd.Name, args[0])
+				return cmd.UsageErrorf("%s: unknown command %q", path, args[0])
 			}
-			return cmd.UsageErrorf("%s doesn't take any arguments", cmd.Name)
+			return cmd.UsageErrorf("%s doesn't take any arguments", path)
 		}
 		return cmd.Run(cmd, args)
 	}
 	switch {
 	case len(cmd.Children) == 0:
-		return cmd.UsageErrorf("%s: neither Children nor Run is specified", cmd.Name)
+		return cmd.UsageErrorf("%s: neither Children nor Run is specified", path)
 	case len(args) > 0:
-		return cmd.UsageErrorf("%s: unknown command %q", cmd.Name, args[0])
+		return cmd.UsageErrorf("%s: unknown command %q", path, args[0])
 	default:
-		return cmd.UsageErrorf("%s: no command specified", cmd.Name)
+		return cmd.UsageErrorf("%s: no command specified", path)
 	}
 }
 
@@ -426,7 +500,7 @@ func (cmd *Command) Main() {
 		if code, ok := err.(ErrExitCode); ok {
 			os.Exit(int(code))
 		}
-		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		fmt.Fprintln(os.Stderr, "ERROR:", err)
 		os.Exit(2)
 	}
 }
