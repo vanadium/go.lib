@@ -155,7 +155,7 @@ func (w *LineWriter) SetParagraphSeparator(sep string) error {
 //
 // SetIndents() is equivalent to SetIndents(""), SetIndents("", ""), etc.
 //
-// A new LineWriter instance has no idents by default.
+// A new LineWriter instance has no indents by default.
 //
 // Calls Flush internally, and returns any Flush error.
 func (w *LineWriter) SetIndents(indents ...string) error {
