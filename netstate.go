@@ -10,7 +10,7 @@
 // A simple usage would be:
 //
 //   state, _ := netstate.GetAccessibleIPs()
-//   ipv4 := state.Filter(netstate.IsPublicIPv4)
+//   ipv4 := state.Filter(netstate.IsPublicUnicastIPv4)
 //   // ipv4 will contain all of the public IPv4 addresses, if any.
 //
 // The example policy described above would be implemented using a
