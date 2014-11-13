@@ -225,7 +225,6 @@ func IsIPProtocol(n string) bool {
 		return true
 	default:
 		return false
-
 	}
 }
 
@@ -378,7 +377,6 @@ func SameMachine(addr net.Addr) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-
 	ips := make(map[string]struct{})
 	for _, a := range addrs {
 		ip, _, err := net.ParseCIDR(a.Address().String())
@@ -392,7 +390,6 @@ func SameMachine(addr net.Addr) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-
 	_, islocal := ips[client]
 	return islocal, nil
 }
