@@ -49,5 +49,7 @@ func NewNetConfigWatcher() (NetConfigWatcher, error) {
 }
 
 func GetIPRoutes(defaultOnly bool) []*IPRoute {
-	panic("Not yet implemented")
+	// TODO(nlacasse,bprosnitz): Consider implementing? For now return
+	// empty array, since that seems to keep things working.
+	return []*IPRoute{}
 }
