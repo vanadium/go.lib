@@ -23,7 +23,7 @@ import (
 	"strconv"
 	"strings"
 
-	"veyron.io/veyron/veyron/lib/textutil"
+	"veyron.io/lib/textutil"
 )
 
 // ErrExitCode may be returned by the Run function of a Command to cause the
