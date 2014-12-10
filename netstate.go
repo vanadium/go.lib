@@ -369,8 +369,8 @@ func FindRemoved(a, b AddrList) AddrList {
 	return diffAB(a, b)
 }
 
-// SameMachine returns true if the provided addr is on the node
-// executing this function.
+// SameMachine returns true if the provided addr is on the device executing this
+// function.
 func SameMachine(addr net.Addr) (bool, error) {
 	// The available interfaces may change between calls.
 	addrs, err := GetAll()
