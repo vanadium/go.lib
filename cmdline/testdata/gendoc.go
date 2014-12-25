@@ -12,9 +12,9 @@
 //
 // NOTE: The gendoc command itself is not based on the cmdline library
 // to avoid non-trivial bootstrapping. In particular, if the
-// compilation of gendoc requires GOPATH to contain the veyron
-// workspaces, then running the gendoc command requires the veyron
-// tool, which in turn my depend on the gendoc command.
+// compilation of gendoc requires GOPATH to contain the vanadium Go
+// workspaces, then running the gendoc command requires the v23 tool,
+// which in turn my depend on the gendoc command.
 package main
 
 import (
@@ -63,7 +63,7 @@ func main() {
 	} else {
 		args = append(args, os.Args[2:]...)
 	}
-	runCmd := exec.Command("veyron", args...)
+	runCmd := exec.Command("v23", args...)
 	runCmd.Stdout = &out
 	if err := runCmd.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "%q failed: %v\n%v\n", strings.Join(runCmd.Args, " "), out.String(), err)
