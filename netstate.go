@@ -52,9 +52,9 @@ import (
 	"net"
 	"strings"
 
-	"veyron.io/veyron/veyron2/ipc"
+	"v.io/veyron/veyron2/ipc"
 
-	"veyron.io/veyron/veyron/lib/netconfig"
+	"v.io/veyron/veyron/lib/netconfig"
 )
 
 // AddrIfc represents a network address and the network interface that

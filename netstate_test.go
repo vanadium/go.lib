@@ -5,10 +5,10 @@ import (
 	"reflect"
 	"testing"
 
-	"veyron.io/veyron/veyron2/ipc"
+	"v.io/veyron/veyron2/ipc"
 
-	"veyron.io/veyron/veyron/lib/netconfig"
-	"veyron.io/veyron/veyron/lib/netstate"
+	"v.io/veyron/veyron/lib/netconfig"
+	"v.io/veyron/veyron/lib/netstate"
 )
 
 func TestGet(t *testing.T) {
