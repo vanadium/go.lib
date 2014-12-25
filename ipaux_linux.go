@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
-	"veyron.io/veyron/veyron2/vlog"
+	"v.io/veyron/veyron2/vlog"
 )
 
 /*

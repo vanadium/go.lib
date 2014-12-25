@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"veyron.io/veyron/veyron/lib/netconfig"
+	"v.io/veyron/veyron/lib/netconfig"
 )
 
 func ExampleNetConfigWatcher() {
