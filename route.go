@@ -5,9 +5,9 @@ import (
 	"net"
 	"strings"
 
-	"v.io/veyron/veyron2/ipc"
+	"v.io/core/veyron2/ipc"
 
-	"v.io/veyron/veyron/lib/netconfig"
+	"v.io/core/veyron/lib/netconfig"
 )
 
 // Interface represents a network interface.
