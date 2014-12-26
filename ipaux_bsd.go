@@ -14,7 +14,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
-	"v.io/veyron/veyron2/vlog"
+	"v.io/core/veyron2/vlog"
 )
 
 /*
