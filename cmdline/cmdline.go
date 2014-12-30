@@ -44,9 +44,17 @@ const ErrUsage = ErrExitCode(1)
 // have exactly one parent (a sub-command), or no parent (the root), and cycles
 // are not allowed.  This makes it easier to display the usage for subcommands.
 type Command struct {
-	Name     string       // Name of the command.
-	Short    string       // Short description, shown in help called on parent.
-	Long     string       // Long description, shown in help called on itself.
+	Name  string // Name of the command.
+	Short string // Short description, shown in help called on parent.
+	Long  string // Long description, shown in help called on itself.
+
+	// WARNING: If this Command is the root of the command tree, specifying
+	// flags this way will interfere with attempts to parse flag args in
+	// other code that may be linked in (since the other code's flag set --
+	// typically, the global flag set -- will likely not contain the flags
+	// defined here).  In such cases, it's recommended to just use the
+	// global flag set for all flags and avoid defining flags on the root
+	// command.
 	Flags    flag.FlagSet // Flags for the command.
 	ArgsName string       // Name of the args, shown in usage line.
 	ArgsLong string       // Long description of the args, shown in help.
