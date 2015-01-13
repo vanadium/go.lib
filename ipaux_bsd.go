@@ -14,6 +14,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
 	"v.io/core/veyron2/vlog"
 )
 
@@ -95,6 +96,7 @@ func (w *bsdNetConfigWatcher) watcher() {
 			switch m.(type) {
 			case *syscall.InterfaceMessage:
 			case *syscall.InterfaceAddrMessage:
+			case *syscall.RouteMessage:
 			default:
 				continue
 			}

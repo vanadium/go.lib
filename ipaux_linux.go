@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
+
 	"v.io/core/veyron2/vlog"
 )
 
@@ -273,7 +274,7 @@ func (w *rtnetlinkWatcher) Channel() chan struct{} {
 }
 
 const (
-	GROUPS = C.RTMGRP_LINK | C.RTMGRP_IPV4_IFADDR | C.RTMGRP_IPV6_IFADDR | C.RTMGRP_NOTIFY
+	GROUPS = C.RTMGRP_LINK | C.RTMGRP_IPV4_IFADDR | C.RTMGRP_IPV4_MROUTE | C.RTMGRP_IPV4_ROUTE | C.RTMGRP_IPV6_IFADDR | C.RTMGRP_IPV6_MROUTE | C.RTMGRP_IPV6_ROUTE | C.RTMGRP_NOTIFY
 )
 
 // NewNetConfigWatcher returns a watcher that wakes up anyone
