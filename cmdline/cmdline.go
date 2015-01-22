@@ -499,16 +499,28 @@ func (cmd *Command) Execute(args []string) error {
 }
 
 // Main executes the command tree rooted at cmd, writing output to os.Stdout,
-// writing errors to os.Stderr, and getting args from os.Args.  We'll call
-// os.Exit with a non-zero exit code on errors.  It's meant as a simple
-// one-liner for the main function of command-line tools.
-func (cmd *Command) Main() {
+// writing errors to os.Stderr, and getting args from os.Args.  We return
+// an appropriate exit code depending on whether there were errors or not.
+// Users should call os.Exit(exitCode).
+//
+// Many main packages can use this simple pattern:
+//
+// var cmd := &cmdline.Command{
+//   ...
+// }
+//
+// func main() {
+//   os.Exit(cmd.Main())
+// }
+//
+func (cmd *Command) Main() (exitCode int) {
 	cmd.Init(nil, os.Stdout, os.Stderr)
 	if err := cmd.Execute(os.Args[1:]); err != nil {
 		if code, ok := err.(ErrExitCode); ok {
-			os.Exit(int(code))
+			return int(code)
 		}
 		fmt.Fprintln(os.Stderr, "ERROR:", err)
-		os.Exit(2)
+		return 2
 	}
+	return 0
 }
