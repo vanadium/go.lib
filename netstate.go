@@ -155,23 +155,7 @@ func GetAccessibleIPs() (AddrList, error) {
 	if err != nil {
 		return nil, err
 	}
-	return all.Map(accessibleIPHost), nil
-}
-
-func accessibleIPHost(a ipc.Address) ipc.Address {
-	if !IsAccessibleIP(a) {
-		return nil
-	}
-	aifc, ok := a.(*AddrIfc)
-	if !ok {
-		return nil
-	}
-	ip := AsIPAddr(aifc.Addr)
-	if ip == nil {
-		return aifc
-	}
-	aifc.Addr = ip
-	return aifc
+	return all.Map(ConvertAccessibleIPHost), nil
 }
 
 // AddressPredicate defines the function signature for predicate functions
@@ -205,8 +189,8 @@ func (al AddrList) Map(mapper Mapper) AddrList {
 	return ral
 }
 
-// Convert the network address component of an ipc.Address into an instance
-// with a net.Addr that contains an IP host address (as opposed to a
+// ConvertToIPHost converts the network address component of an ipc.Address into
+// an instance with a net.Addr that contains an IP host address (as opposed to a
 // network CIDR for example).
 func ConvertToIPHost(a ipc.Address) ipc.Address {
 	aifc, ok := a.(*AddrIfc)
@@ -214,6 +198,23 @@ func ConvertToIPHost(a ipc.Address) ipc.Address {
 		return nil
 	}
 	aifc.Addr = AsIPAddr(aifc.Addr)
+	return aifc
+}
+
+// ConvertAccessibleIPHost converts the network address component of an ipc.Address
+// into an instance with a net.Addr that contains an IP host address (as opposed to a
+// network CIDR for example) with filtering out a loopback or non-accessible IPs.
+func ConvertAccessibleIPHost(a ipc.Address) ipc.Address {
+	if !IsAccessibleIP(a) {
+		return nil
+	}
+	aifc, ok := a.(*AddrIfc)
+	if !ok {
+		return nil
+	}
+	if ip := AsIPAddr(aifc.Addr); ip != nil {
+		aifc.Addr = ip
+	}
 	return aifc
 }
 
