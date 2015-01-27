@@ -222,7 +222,7 @@ func ConvertAccessibleIPHost(a ipc.Address) ipc.Address {
 // network/protocol values for IP.
 func IsIPProtocol(n string) bool {
 	switch n {
-	case "ip+net", "ip", "tcp", "tcp4", "tcp6", "udp":
+	case "ip+net", "ip", "tcp", "tcp4", "tcp6", "udp", "wsh":
 		return true
 	default:
 		return false
