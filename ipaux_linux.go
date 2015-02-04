@@ -385,16 +385,16 @@ func toIP(a []byte) (net.IP, error) {
 // IPRoutes returns all kernel known routes.  If defaultOnly is set, only default routes
 // are returned.
 func GetIPRoutes(defaultOnly bool) []*IPRoute {
-	var x []*IPRoute
+	var iproutes []*IPRoute
 	rib, err := syscall.NetlinkRIB(syscall.RTM_GETROUTE, syscall.AF_UNSPEC)
 	if err != nil {
 		vlog.Infof("Couldn't read: %s", err)
-		return x
+		return iproutes
 	}
 	msgs, err := syscall.ParseNetlinkMessage(rib)
 	if err != nil {
 		vlog.Infof("Couldn't parse: %s", err)
-		return x
+		return iproutes
 	}
 L:
 	for _, m := range msgs {
@@ -406,7 +406,6 @@ L:
 			continue
 		}
 		r := new(IPRoute)
-		r.Net.IP = net.IPv4zero
 		for _, a := range attrs {
 			switch a.Attr.Type {
 			case syscall.RTA_DST:
@@ -425,19 +424,34 @@ L:
 				}
 			}
 		}
+
+		// There is no RTA_DST attribute if destination is a default gateway.
+		// Set the destination IP with zero IP, if not set yet.
+		if r.Net.IP == nil {
+			if r.Gateway == nil {
+				continue
+			}
+			if r.Gateway.To4() != nil {
+				r.Net.IP = net.IPv4zero
+			} else {
+				r.Net.IP = net.IPv6zero
+			}
+		}
+
+		addrLen := 128
+		if r.Net.IP.To4() != nil {
+			addrLen = 32
+		}
+
 		b := m.Data[:syscall.SizeofRtMsg]
 		a := (*syscall.RtMsg)(unsafe.Pointer(&b[0]))
-		len := 128
-		if r.Net.IP.To4() != nil {
-			len = 32
-		}
-		if int(a.Dst_len) > len {
+		if int(a.Dst_len) > addrLen {
 			continue
 		}
-		r.Net.Mask = net.CIDRMask(int(a.Dst_len), len)
+		r.Net.Mask = net.CIDRMask(int(a.Dst_len), addrLen)
 		if !defaultOnly || IsDefaultIPRoute(r) {
-			x = append(x, r)
+			iproutes = append(iproutes, r)
 		}
 	}
-	return x
+	return iproutes
 }
