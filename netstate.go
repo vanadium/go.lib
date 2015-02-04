@@ -221,8 +221,10 @@ func ConvertAccessibleIPHost(a ipc.Address) ipc.Address {
 // IsIPProtocol returns true if its parameter is one of the allowed
 // network/protocol values for IP.
 func IsIPProtocol(n string) bool {
+	// Removed the training IP version number.
+	n = strings.TrimRightFunc(n, func(r rune) bool { return r == '4' || r == '6' })
 	switch n {
-	case "ip+net", "ip", "tcp", "tcp4", "tcp6", "udp", "wsh":
+	case "ip+net", "ip", "tcp", "udp", "ws", "wsh":
 		return true
 	default:
 		return false
