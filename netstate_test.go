@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"v.io/core/veyron2/ipc"
+	"v.io/v23/ipc"
 
 	"v.io/core/veyron/lib/netconfig"
 	"v.io/core/veyron/lib/netstate"
