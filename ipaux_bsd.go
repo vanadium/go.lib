@@ -15,7 +15,7 @@ import (
 	"syscall"
 	"time"
 
-	"v.io/v23/vlog"
+	"v.io/x/lib/vlog"
 )
 
 /*
