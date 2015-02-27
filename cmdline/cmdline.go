@@ -23,7 +23,7 @@ import (
 	"strconv"
 	"strings"
 
-	"v.io/lib/textutil"
+	"v.io/x/lib/textutil"
 )
 
 // ErrExitCode may be returned by the Run function of a Command to cause the
