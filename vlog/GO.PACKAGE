@@ -1,0 +1,7 @@
+{
+	"dependencies": {
+		"outgoing": [
+			{"allow": "github.com/cosmosnicolaou/llog"}
+		]
+	}
+}
