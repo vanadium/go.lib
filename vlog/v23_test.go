@@ -10,8 +10,8 @@ import "fmt"
 import "testing"
 import "os"
 
-import "v.io/core/veyron/lib/modules"
-import "v.io/core/veyron/lib/testutil"
+import "v.io/x/ref/lib/modules"
+import "v.io/x/ref/lib/testutil"
 
 func init() {
 	modules.RegisterChild("child", ``, child)

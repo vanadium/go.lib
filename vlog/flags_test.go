@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"v.io/core/veyron/lib/modules"
+	"v.io/x/ref/lib/modules"
 
 	"v.io/x/lib/vlog"
 )
