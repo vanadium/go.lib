@@ -54,7 +54,7 @@ import (
 
 	"v.io/v23/ipc"
 
-	"v.io/core/veyron/lib/netconfig"
+	"v.io/x/ref/lib/netconfig"
 )
 
 // AddrIfc represents a network address and the network interface that
