@@ -1,9 +1,11 @@
 package vlog
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"runtime"
+	"sync"
 
 	"github.com/cosmosnicolaou/llog"
 )
@@ -14,9 +16,11 @@ const (
 
 type logger struct {
 	log             *llog.Log
+	mu              sync.Mutex // guards updates to the vars below.
 	autoFlush       bool
 	maxStackBufSize int
 	logDir          string
+	configured      bool
 }
 
 func (l *logger) maybeFlush() {
@@ -26,7 +30,8 @@ func (l *logger) maybeFlush() {
 }
 
 var (
-	Log *logger
+	Log        *logger
+	Configured = errors.New("logger has already been configured")
 )
 
 const stackSkip = 1
@@ -36,20 +41,29 @@ func init() {
 }
 
 // NewLogger creates a new instance of the logging interface.
-func NewLogger(name string, opts ...LoggingOpts) (Logger, error) {
+func NewLogger(name string) Logger {
 	// Create an instance of the runtime with just logging enabled.
-	nl := &logger{log: llog.NewLogger(name, stackSkip)}
-	if err := nl.ConfigureLogger(opts...); err != nil {
-		return nil, err
-	}
-	return nl, nil
+	return &logger{log: llog.NewLogger(name, stackSkip)}
 }
 
-// ConfigureLogging configures all future logging. Some options
-// may not be usable if ConfigureLogging
-// is called from an init function, in which case an error will
-// be returned.
-func (l *logger) ConfigureLogger(opts ...LoggingOpts) error {
+// Configure configures all future logging. Some options
+// may not be usable if ConfigureLogging is called from an init function,
+// in which case an error will be returned. The Configured error is returned
+// if ConfigureLogger has already been called unless the
+// OverridePriorConfiguration options is included.
+func (l *logger) Configure(opts ...LoggingOpts) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	override := false
+	for _, o := range opts {
+		switch v := o.(type) {
+		case OverridePriorConfiguration:
+			override = bool(v)
+		}
+	}
+	if l.configured && !override {
+		return Configured
+	}
 	for _, o := range opts {
 		switch v := o.(type) {
 		case AlsoLogToStderr:
@@ -77,6 +91,7 @@ func (l *logger) ConfigureLogger(opts ...LoggingOpts) error {
 			l.autoFlush = bool(v)
 		}
 	}
+	l.configured = true
 	return nil
 }
 

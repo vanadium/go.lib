@@ -74,7 +74,7 @@ func ConfigureLibraryLoggerFromFlags() error {
 // ConfigureLoggerFromLogs will configure the supplied logger using
 // command line flags.
 func ConfigureLoggerFromFlags(l Logger) error {
-	return l.ConfigureLogger(
+	return l.Configure(
 		LogToStderr(toStderr),
 		AlsoLogToStderr(alsoToStderr),
 		LogDir(logDir),

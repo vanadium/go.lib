@@ -8,6 +8,7 @@ type AutoFlush bool
 type AlsoLogToStderr bool
 type LogDir string
 type LogToStderr bool
+type OverridePriorConfiguration bool
 type MaxStackBufSize int
 
 // If true, logs are written to standard error as well as to files.
@@ -51,5 +52,5 @@ func (_ TraceLocation) LoggingOpt() {}
 // If true, enables automatic flushing of log output on every call
 func (_ AutoFlush) LoggingOpt() {}
 
-// TODO(cnicolaou): provide options for setting a remote network
-// destination for logging.
+// If true, allows this call to ConfigureLogger to override a prior configuration.
+func (_ OverridePriorConfiguration) LoggingOpt() {}

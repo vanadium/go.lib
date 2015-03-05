@@ -12,7 +12,7 @@ import (
 )
 
 func ExampleConfigure() {
-	vlog.ConfigureLogger()
+	vlog.Configure()
 }
 
 func ExampleInfo() {
@@ -58,10 +58,8 @@ func TestHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-	logger, err := vlog.NewLogger("testHeader", vlog.LogDir(dir), vlog.Level(2))
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
+	logger := vlog.NewLogger("testHeader")
+	logger.Configure(vlog.LogDir(dir), vlog.Level(2))
 	logger.Infof("abc\n")
 	logger.Infof("wombats\n")
 	logger.VI(1).Infof("wombats again\n")
@@ -98,10 +96,8 @@ func TestLogCall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-	logger, err := vlog.NewLogger("testHeader", vlog.LogDir(dir), vlog.Level(2))
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
+	logger := vlog.NewLogger("testHeader")
+	logger.Configure(vlog.LogDir(dir), vlog.Level(2))
 	saveLog := vlog.Log
 	defer vlog.SetLog(saveLog)
 	vlog.SetLog(logger)
@@ -142,7 +138,8 @@ func TestVModule(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	logger, err := vlog.NewLogger("testVmodule", vlog.LogDir(dir))
+	logger := vlog.NewLogger("testVmodule")
+	logger.Configure(vlog.LogDir(dir))
 	if logger.V(2) || logger.V(3) {
 		t.Errorf("Logging should not be enabled at levels 2 & 3")
 	}
@@ -150,7 +147,7 @@ func TestVModule(t *testing.T) {
 	if err := spec.Set("*log_test=2"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if err := logger.ConfigureLogger(spec); err != nil {
+	if err := logger.Configure(vlog.OverridePriorConfiguration(true), spec); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !logger.V(2) {
@@ -162,7 +159,7 @@ func TestVModule(t *testing.T) {
 	if vlog.V(2) || vlog.V(3) {
 		t.Errorf("Logging should not be enabled at levels 2 & 3")
 	}
-	vlog.Log.ConfigureLogger(spec)
+	vlog.Log.Configure(vlog.OverridePriorConfiguration(true), spec)
 	if !vlog.V(2) {
 		t.Errorf("vlog.V(2) should be true")
 	}
@@ -174,5 +171,23 @@ func TestVModule(t *testing.T) {
 	}
 	if vlog.VI(3) == vlog.Log {
 		t.Errorf("vlog.V(3) should not be vlog.Log")
+	}
+}
+
+func TestConfigure(t *testing.T) {
+	dir, err := ioutil.TempDir("", "logtest")
+	defer os.RemoveAll(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	logger := vlog.NewLogger("testVmodule")
+	if got, want := logger.Configure(vlog.LogDir(dir), vlog.AlsoLogToStderr(false)), error(nil); got != want {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	if got, want := logger.Configure(vlog.AlsoLogToStderr(true)), vlog.Configured; got != want {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	if got, want := logger.Configure(vlog.OverridePriorConfiguration(true), vlog.AlsoLogToStderr(false)), error(nil); got != want {
+		t.Fatalf("got %v, want %v", got, want)
 	}
 }

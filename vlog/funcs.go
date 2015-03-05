@@ -75,9 +75,11 @@ func Fatalf(format string, args ...interface{}) {
 
 // ConfigureLogging configures all future logging. Some options
 // may not be usable if ConfigureLogging is called from an init function,
-// in which case an error will be returned.
-func ConfigureLogger(opts ...LoggingOpts) error {
-	return Log.ConfigureLogger(opts...)
+// in which case an error will be returned. The Configured error is
+// returned if ConfigureLogger has already been called unless the
+// OverridePriorConfiguration options is included.
+func Configure(opts ...LoggingOpts) error {
+	return Log.Configure(opts...)
 }
 
 // Stats returns stats on how many lines/bytes haven been written to

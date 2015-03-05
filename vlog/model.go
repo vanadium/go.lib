@@ -31,7 +31,7 @@ type Verbosity interface {
 }
 
 // Level specifies a level of verbosity for V logs.
-// It can be set via the Level optional parameter to ConfigureLogger.
+// It can be set via the Level optional parameter to Configure.
 // It implements the flag.Value interface to support command line option parsing.
 type Level llog.Level
 
@@ -52,7 +52,7 @@ func (l *Level) String() string {
 
 // StderrThreshold identifies the sort of log: info, warning etc.
 // The values match the corresponding constants in C++ - e.g WARNING etc.
-// It can be set via the StderrThreshold optional parameter to ConfigureLogger.
+// It can be set via the StderrThreshold optional parameter to Configure.
 // It implements the flag.Value interface to support command line option parsing.
 type StderrThreshold llog.Severity
 
@@ -73,7 +73,7 @@ func (s *StderrThreshold) String() string {
 
 // ModuleSpec allows for the setting of specific log levels for specific
 // modules. The syntax is recordio=2,file=1,gfs*=3
-// It can be set via the ModuleSpec optional parameter to ConfigureLogger.
+// It can be set via the ModuleSpec optional parameter to Configure.
 // It implements the flag.Value interface to support command line option parsing.
 type ModuleSpec struct {
 	llog.ModuleSpec
@@ -81,7 +81,7 @@ type ModuleSpec struct {
 
 // TraceLocation specifies the location, file:N, which when encountered will
 // cause logging to emit a stack trace.
-// It can be set via the TraceLocation optional parameter to ConfigureLogger.
+// It can be set via the TraceLocation optional parameter to Configure.
 // It implements the flag.Value interface to support command line option parsing.
 type TraceLocation struct {
 	llog.TraceLocation
@@ -122,15 +122,16 @@ type Logger interface {
 	// Panicf is equivalent to Errorf() followed by a call to panic().
 	Panicf(format string, args ...interface{})
 
-	// ConfigureLogger configures all future logging. Some options
-	// may not be usable if ConfigureLogger
-	// is called from an init function, in which case an error will
-	// be returned.
+	// Configure configures all future logging. Some options
+	// may not be usable if Configure is called from an init function,
+	// in which case an error will be returned. The Configured error is
+	// returned if ConfigureLogger has already been called unless the
+	// OverridePriorConfiguration options is included.
 	// Some options only take effect if they are set before the logger
 	// is used.  Once anything is logged using the logger, these options
 	// will silently be ignored.  For example, LogDir, LogToStderr or
 	// AlsoLogToStderr fall in this category.
-	ConfigureLogger(opts ...LoggingOpts) error
+	Configure(opts ...LoggingOpts) error
 
 	// Stats returns stats on how many lines/bytes haven been written to
 	// this set of logs per severity level.
