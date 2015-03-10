@@ -19,7 +19,7 @@ func init() {
 
 func TestMain(m *testing.M) {
 	testutil.Init()
-	if modules.IsModulesProcess() {
+	if modules.IsModulesChildProcess() {
 		if err := modules.Dispatch(); err != nil {
 			fmt.Fprintf(os.Stderr, "modules.Dispatch failed: %v\n", err)
 			os.Exit(1)
