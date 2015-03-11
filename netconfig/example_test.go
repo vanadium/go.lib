@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"v.io/x/ref/lib/netconfig"
+	"v.io/x/lib/netconfig"
 )
 
 func ExampleNetConfigWatcher() {

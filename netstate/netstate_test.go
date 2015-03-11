@@ -7,8 +7,8 @@ import (
 
 	"v.io/v23/ipc"
 
-	"v.io/x/ref/lib/netconfig"
-	"v.io/x/ref/lib/netstate"
+	"v.io/x/lib/netconfig"
+	"v.io/x/lib/netstate"
 )
 
 func TestGet(t *testing.T) {
