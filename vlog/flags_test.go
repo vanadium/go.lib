@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"v.io/x/ref/lib/modules"
-
 	"v.io/x/lib/vlog"
+
+	"v.io/x/ref/test/modules"
 )
 
 //go:generate v23 test generate
