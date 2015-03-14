@@ -270,8 +270,8 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The onecmd help flags are:
- -style=text
-   The formatting style for help output, either "text" or "godoc".
+ -style=default
+   The formatting style for help output, either "default" or "godoc".
 
 The global flags are:
  -global1=
@@ -327,8 +327,8 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The onecmd help flags are:
- -style=text
-   The formatting style for help output, either "text" or "godoc".
+ -style=default
+   The formatting style for help output, either "default" or "godoc".
 `,
 		},
 		{
@@ -534,8 +534,8 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The multi help flags are:
- -style=text
-   The formatting style for help output, either "text" or "godoc".
+ -style=default
+   The formatting style for help output, either "default" or "godoc".
 `,
 		},
 		{
@@ -918,8 +918,8 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The toplevelprog help flags are:
- -style=text
-   The formatting style for help output, either "text" or "godoc".
+ -style=default
+   The formatting style for help output, either "default" or "godoc".
 ================================================================================
 Toplevelprog Topic1 - help topic
 
@@ -1037,8 +1037,8 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The toplevelprog echoprog help flags are:
- -style=text
-   The formatting style for help output, either "text" or "godoc".
+ -style=default
+   The formatting style for help output, either "default" or "godoc".
 ================================================================================
 Toplevelprog Echoprog Topic3 - help topic
 
@@ -1465,8 +1465,8 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The prog1 help flags are:
- -style=text
-   The formatting style for help output, either "text" or "godoc".
+ -style=default
+   The formatting style for help output, either "default" or "godoc".
 `,
 		},
 		{
@@ -1556,8 +1556,8 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The prog1 prog2 help flags are:
- -style=text
-   The formatting style for help output, either "text" or "godoc".
+ -style=default
+   The formatting style for help output, either "default" or "godoc".
 `,
 		},
 		{
@@ -1617,8 +1617,8 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The prog1 prog2 prog3 help flags are:
- -style=text
-   The formatting style for help output, either "text" or "godoc".
+ -style=default
+   The formatting style for help output, either "default" or "godoc".
 `,
 		},
 		{
@@ -1678,8 +1678,8 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The prog1 prog2 prog3 help flags are:
- -style=text
-   The formatting style for help output, either "text" or "godoc".
+ -style=default
+   The formatting style for help output, either "default" or "godoc".
 `,
 		},
 		{
@@ -1799,8 +1799,8 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The prog1 help flags are:
- -style=text
-   The formatting style for help output, either "text" or "godoc".
+ -style=default
+   The formatting style for help output, either "default" or "godoc".
 `,
 		},
 	}
@@ -1927,8 +1927,8 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The cmdargs help flags are:
- -style=text
-   The formatting style for help output, either "text" or "godoc".
+ -style=default
+   The formatting style for help output, either "default" or "godoc".
 `,
 		},
 		{
@@ -2119,8 +2119,8 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The cmdrun help flags are:
- -style=text
-   The formatting style for help output, either "text" or "godoc".
+ -style=default
+   The formatting style for help output, either "default" or "godoc".
 `,
 		},
 		{

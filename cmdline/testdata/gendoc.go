@@ -56,13 +56,16 @@ func generate() error {
 
 	// Use it to generate the documentation.
 	var out bytes.Buffer
+	env := os.Environ()
 	if len(os.Args) == 2 {
 		args = []string{"help", "-style=godoc", "..."}
 	} else {
 		args = os.Args[2:]
+		env = append(env, "CMDLINE_STYLE=godoc")
 	}
 	runCmd := exec.Command(gendocBin, args...)
 	runCmd.Stdout = &out
+	runCmd.Env = env
 	if err := runCmd.Run(); err != nil {
 		return fmt.Errorf("%q failed: %v\n%v\n", strings.Join(runCmd.Args, " "), err)
 	}

@@ -103,15 +103,15 @@ type Topic struct {
 type style int
 
 const (
-	styleText  style = iota // Default style, good for cmdline output.
-	styleGoDoc              // Style good for godoc processing.
+	styleDefault style = iota // Default style, good for cmdline output.
+	styleGoDoc                // Style good for godoc processing.
 )
 
 // String returns the human-readable representation of the style.
 func (s *style) String() string {
 	switch *s {
-	case styleText:
-		return "text"
+	case styleDefault:
+		return "default"
 	case styleGoDoc:
 		return "godoc"
 	default:
@@ -122,14 +122,22 @@ func (s *style) String() string {
 // Set implements the flag.Value interface method.
 func (s *style) Set(value string) error {
 	switch value {
-	case "text":
-		*s = styleText
+	case "default":
+		*s = styleDefault
 	case "godoc":
 		*s = styleGoDoc
 	default:
 		return fmt.Errorf("Unknown style %q", value)
 	}
 	return nil
+}
+
+// styleFromEnv returns the style value specified by the CMDLINE_STYLE
+// environment variable, falling back on the default style.
+func styleFromEnv() style {
+	style := styleDefault
+	style.Set(os.Getenv("CMDLINE_STYLE"))
+	return style
 }
 
 // Stdout is where output goes.  Typically os.Stdout.
@@ -168,14 +176,14 @@ func outputWidth() int {
 
 func (cmd *Command) writeUsage(w io.Writer) {
 	lineWriter := textutil.NewUTF8LineWriter(w, outputWidth())
-	cmd.usage(lineWriter, true)
+	cmd.usage(lineWriter, styleFromEnv(), true)
 	lineWriter.Flush()
 }
 
 // usage prints the usage of cmd to the writer.  The firstCall boolean is set to
 // false when printing usage for multiple commands, and is used to avoid
 // printing redundant information (e.g. help command, global flags).
-func (cmd *Command) usage(w *textutil.LineWriter, firstCall bool) {
+func (cmd *Command) usage(w *textutil.LineWriter, style style, firstCall bool) {
 	fmt.Fprintln(w, cmd.Long)
 	fmt.Fprintln(w)
 	// Usage line.
@@ -255,13 +263,13 @@ func (cmd *Command) usage(w *textutil.LineWriter, firstCall bool) {
 	if hasFlags {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "The", path, "flags are:")
-		printFlags(w, &cmd.Flags)
+		printFlags(w, &cmd.Flags, style)
 	}
 	// Global flags.
 	if numFlags(flag.CommandLine) > 0 && firstCall {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "The global flags are:")
-		printFlags(w, flag.CommandLine)
+		printFlags(w, flag.CommandLine, style)
 	}
 }
 
@@ -281,9 +289,24 @@ func numFlags(set *flag.FlagSet) (num int) {
 	return
 }
 
-func printFlags(w *textutil.LineWriter, set *flag.FlagSet) {
+func printFlags(w *textutil.LineWriter, set *flag.FlagSet, style style) {
 	set.VisitAll(func(f *flag.Flag) {
-		fmt.Fprintf(w, " -%s=%s", f.Name, f.DefValue)
+		var value interface{}
+		// When using styleDefault, we want the current value of the flag.
+		// But when using styleGoDoc, we want the default value. This
+		// logic ensures the godoc style prints out default values of
+		// VariableFlags without expanding variables.
+		switch style {
+		case styleDefault:
+			if getter, ok := f.Value.(flag.Getter); ok {
+				value = getter.Get()
+			} else {
+				value = f.Value.String()
+			}
+		case styleGoDoc:
+			value = f.DefValue
+		}
+		fmt.Fprintf(w, " -%s=%v", f.Name, value)
 		w.SetIndents(spaces(3))
 		fmt.Fprintln(w, f.Usage)
 		w.SetIndents()
@@ -297,7 +320,7 @@ func spaces(count int) string {
 // newDefaultHelp creates a new default help command.  We need to create new
 // instances since the parent for each help command is different.
 func newDefaultHelp() *Command {
-	helpStyle := styleText
+	helpStyle := styleFromEnv()
 	help := &Command{
 		Name:  helpName,
 		Short: "Display help for commands or topics",
@@ -326,7 +349,7 @@ if x == 0 or is unset one of the fallbacks is used.
 		},
 		isDefaultHelp: true,
 	}
-	help.Flags.Var(&helpStyle, "style", `The formatting style for help output, either "text" or "godoc".`)
+	help.Flags.Var(&helpStyle, "style", `The formatting style for help output, either "default" or "godoc".`)
 	return help
 }
 
@@ -335,7 +358,7 @@ const helpName = "help"
 // runHelp runs the "help" command.
 func runHelp(w *textutil.LineWriter, cmd *Command, args []string, style style) error {
 	if len(args) == 0 {
-		cmd.usage(w, true)
+		cmd.usage(w, style, true)
 		return nil
 	}
 	if args[0] == "..." {
@@ -368,7 +391,7 @@ func recursiveHelp(w *textutil.LineWriter, cmd *Command, style style, firstCall 
 		fmt.Fprintln(w, header)
 		fmt.Fprintln(w)
 	}
-	cmd.usage(w, firstCall)
+	cmd.usage(w, style, firstCall)
 	for _, child := range cmd.Children {
 		// Don't repeatedly print default help command.
 		if !child.isDefaultHelp || firstCall {
@@ -388,7 +411,7 @@ func recursiveHelp(w *textutil.LineWriter, cmd *Command, style style, firstCall 
 func lineBreak(w *textutil.LineWriter, style style) {
 	w.Flush()
 	switch style {
-	case styleText:
+	case styleDefault:
 		width := w.Width()
 		if width < 0 {
 			// If the user has chosen an "unlimited" word-wrapping width, we still

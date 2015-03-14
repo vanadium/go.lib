@@ -58,9 +58,22 @@ func TestFlagSubstitution(t *testing.T) {
 			t.Fatalf("%v failed:\n%v", strings.Join(cmd.Args, " "), string(output))
 		}
 	}
-	// Check that the substitution does not occur in the documentation.
+	// Check that the substitution occurs in the default documentation.
 	{
 		cmd := exec.Command("go", "run", filepath.Join("testdata", "flag.go"), "-help")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("%v failed:\n%v", strings.Join(cmd.Args, " "), string(output))
+		}
+		if got, want := string(output), "-test=HELLO"; !strings.Contains(got, want) {
+			t.Fatalf("%q not found in:\n%v", want, got)
+		}
+	}
+	// Check that the substitution does not occur in the GoDoc
+	// documentation.
+	{
+		cmd := exec.Command("go", "run", filepath.Join("testdata", "flag.go"), "-help")
+		cmd.Env = append(os.Environ(), "CMDLINE_STYLE=godoc")
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("%v failed:\n%v", strings.Join(cmd.Args, " "), string(output))
