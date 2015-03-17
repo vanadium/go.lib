@@ -37,7 +37,7 @@ var (
 const stackSkip = 1
 
 func init() {
-	Log = &logger{log: llog.NewLogger("veyron", stackSkip)}
+	Log = &logger{log: llog.NewLogger("vanadium", stackSkip)}
 }
 
 // NewLogger creates a new instance of the logging interface.
