@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"v.io/v23/ipc"
+	"v.io/v23/rpc"
 
 	"v.io/x/lib/netconfig"
 	"v.io/x/lib/netstate"
@@ -114,7 +114,7 @@ func TestPredicates(t *testing.T) {
 
 	}
 	cases := []struct {
-		f func(a ipc.Address) bool
+		f func(a rpc.Address) bool
 		a string
 		r bool
 	}{

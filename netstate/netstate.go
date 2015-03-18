@@ -52,7 +52,7 @@ import (
 	"net"
 	"strings"
 
-	"v.io/v23/ipc"
+	"v.io/v23/rpc"
 
 	"v.io/x/lib/netconfig"
 )
@@ -112,7 +112,7 @@ func (a *AddrIfc) Networks() []net.Addr {
 	return nets
 }
 
-type AddrList []ipc.Address
+type AddrList []rpc.Address
 
 func (al AddrList) String() string {
 	r := ""
@@ -160,7 +160,7 @@ func GetAccessibleIPs() (AddrList, error) {
 
 // AddressPredicate defines the function signature for predicate functions
 // to be used with AddrList
-type AddressPredicate func(a ipc.Address) bool
+type AddressPredicate func(a rpc.Address) bool
 
 // Filter returns all of the addresses for which the predicate
 // function is true.
@@ -174,7 +174,7 @@ func (al AddrList) Filter(predicate AddressPredicate) AddrList {
 	return r
 }
 
-type Mapper func(a ipc.Address) ipc.Address
+type Mapper func(a rpc.Address) rpc.Address
 
 // Map will apply the Mapper function to all of the items in its receiver
 // and return a new AddrList containing all of the non-nil results from
@@ -189,10 +189,10 @@ func (al AddrList) Map(mapper Mapper) AddrList {
 	return ral
 }
 
-// ConvertToIPHost converts the network address component of an ipc.Address into
+// ConvertToIPHost converts the network address component of an rpc.Address into
 // an instance with a net.Addr that contains an IP host address (as opposed to a
 // network CIDR for example).
-func ConvertToIPHost(a ipc.Address) ipc.Address {
+func ConvertToIPHost(a rpc.Address) rpc.Address {
 	aifc, ok := a.(*AddrIfc)
 	if !ok {
 		return nil
@@ -201,10 +201,10 @@ func ConvertToIPHost(a ipc.Address) ipc.Address {
 	return aifc
 }
 
-// ConvertAccessibleIPHost converts the network address component of an ipc.Address
+// ConvertAccessibleIPHost converts the network address component of an rpc.Address
 // into an instance with a net.Addr that contains an IP host address (as opposed to a
 // network CIDR for example) with filtering out a loopback or non-accessible IPs.
-func ConvertAccessibleIPHost(a ipc.Address) ipc.Address {
+func ConvertAccessibleIPHost(a rpc.Address) rpc.Address {
 	if !IsAccessibleIP(a) {
 		return nil
 	}
@@ -257,7 +257,7 @@ func AsIP(a net.Addr) net.IP {
 }
 
 // IsUnspecified returns true if its argument is an unspecified IP address
-func IsUnspecifiedIP(a ipc.Address) bool {
+func IsUnspecifiedIP(a rpc.Address) bool {
 	if ip := AsIP(a.Address()); ip != nil {
 		return ip.IsUnspecified()
 	}
@@ -265,7 +265,7 @@ func IsUnspecifiedIP(a ipc.Address) bool {
 }
 
 // IsLoopback returns true if its argument is a loopback IP address
-func IsLoopbackIP(a ipc.Address) bool {
+func IsLoopbackIP(a rpc.Address) bool {
 	if ip := AsIP(a.Address()); ip != nil && !ip.IsUnspecified() {
 		return ip.IsLoopback()
 	}
@@ -274,7 +274,7 @@ func IsLoopbackIP(a ipc.Address) bool {
 
 // IsAccessible returns true if its argument is an accessible (non-loopback)
 // IP address.
-func IsAccessibleIP(a ipc.Address) bool {
+func IsAccessibleIP(a rpc.Address) bool {
 	if ip := AsIP(a.Address()); ip != nil && !ip.IsUnspecified() {
 		return !ip.IsLoopback()
 	}
@@ -282,7 +282,7 @@ func IsAccessibleIP(a ipc.Address) bool {
 }
 
 // IsUnicastIP returns true if its argument is a unicast IP address.
-func IsUnicastIP(a ipc.Address) bool {
+func IsUnicastIP(a rpc.Address) bool {
 	if ip := AsIP(a.Address()); ip != nil && !ip.IsUnspecified() {
 		// ipv4 or v6
 		return !(ip.IsMulticast() || ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast())
@@ -291,7 +291,7 @@ func IsUnicastIP(a ipc.Address) bool {
 }
 
 // IsUnicastIPv4 returns true if its argument is a unicast IP4 address
-func IsUnicastIPv4(a ipc.Address) bool {
+func IsUnicastIPv4(a rpc.Address) bool {
 	if ip := AsIP(a.Address()); ip != nil && ip.To4() != nil {
 		return !ip.IsUnspecified() && !ip.IsMulticast()
 	}
@@ -300,7 +300,7 @@ func IsUnicastIPv4(a ipc.Address) bool {
 
 // IsPublicUnicastIPv4 returns true if its argument is a globally routable,
 // public IPv4 unicast address.
-func IsPublicUnicastIPv4(a ipc.Address) bool {
+func IsPublicUnicastIPv4(a rpc.Address) bool {
 	if ip := AsIP(a.Address()); ip != nil && !ip.IsUnspecified() {
 		if t := ip.To4(); t != nil && IsGloballyRoutableIP(t) {
 			return !ip.IsMulticast()
@@ -310,7 +310,7 @@ func IsPublicUnicastIPv4(a ipc.Address) bool {
 }
 
 // IsUnicastIPv6 returns true if its argument is a unicast IPv6 address
-func IsUnicastIPv6(a ipc.Address) bool {
+func IsUnicastIPv6(a rpc.Address) bool {
 	if ip := AsIP(a.Address()); ip != nil && ip.To4() == nil {
 		return !ip.IsUnspecified() && !(ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast())
 	}
@@ -319,7 +319,7 @@ func IsUnicastIPv6(a ipc.Address) bool {
 
 // IsUnicastIPv6 returns true if its argument is a globally routable IP6
 // address
-func IsPublicUnicastIPv6(a ipc.Address) bool {
+func IsPublicUnicastIPv6(a rpc.Address) bool {
 	if ip := AsIP(a.Address()); ip != nil && ip.To4() == nil {
 		if t := ip.To16(); t != nil && IsGloballyRoutableIP(t) {
 			return true
@@ -330,7 +330,7 @@ func IsPublicUnicastIPv6(a ipc.Address) bool {
 
 // IsPublicUnicastIP returns true if its argument is a global routable IPv4
 // or 6 address.
-func IsPublicUnicastIP(a ipc.Address) bool {
+func IsPublicUnicastIP(a rpc.Address) bool {
 	if ip := AsIP(a.Address()); ip != nil {
 		if t := ip.To4(); t != nil && IsGloballyRoutableIP(t) {
 			return true

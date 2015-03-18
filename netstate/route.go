@@ -5,7 +5,7 @@ import (
 	"net"
 	"strings"
 
-	"v.io/v23/ipc"
+	"v.io/v23/rpc"
 
 	"v.io/x/lib/netconfig"
 )
@@ -81,7 +81,7 @@ func IsDefaultRoute(r *netconfig.IPRoute) bool {
 
 // IsOnDefaultRoute returns true for addresses that are on an interface that
 // has a default route set for the supplied address.
-func IsOnDefaultRoute(a ipc.Address) bool {
+func IsOnDefaultRoute(a rpc.Address) bool {
 	aifc, ok := a.(*AddrIfc)
 	if !ok || len(aifc.IPRoutes) == 0 {
 		return false
