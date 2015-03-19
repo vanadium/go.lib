@@ -1,4 +1,4 @@
-// Package vlog defines and implements the veyron2 logging interfaces and
+// Package vlog defines and implements logging interfaces and
 // command line parsing. vlog is modeled on google3 and glog;
 // the differences from glog are:
 //
