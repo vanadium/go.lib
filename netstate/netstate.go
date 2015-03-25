@@ -1,3 +1,7 @@
+// Copyright 2015 The Vanadium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 // Package netstate provides routines to obtain the available set of
 // of network addresess, for determining changes to those addresses and for
 // selecting from amongst them according to some set of policies that are

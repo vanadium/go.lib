@@ -1,3 +1,7 @@
+// Copyright 2015 The Vanadium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 // Package cmdline provides a data-driven framework to simplify writing
 // command-line programs.  It includes built-in support for formatted help.
 //

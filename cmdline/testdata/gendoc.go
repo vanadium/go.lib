@@ -1,3 +1,7 @@
+// Copyright 2015 The Vanadium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 // Command gendoc can be used for generating detailed godoc comments
 // for cmdline-based tools. The user specifies the cmdline-based tool
 // source file directory <dir> using the first command-line argument
