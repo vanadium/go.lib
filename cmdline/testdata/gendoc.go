@@ -69,7 +69,11 @@ func generate() error {
 	if err := runCmd.Run(); err != nil {
 		return fmt.Errorf("%q failed: %v\n%v\n", strings.Join(runCmd.Args, " "), err)
 	}
-	doc := fmt.Sprintf(`// This file was auto-generated via go generate.
+	doc := fmt.Sprintf(`// Copyright 2015 The Vanadium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+// This file was auto-generated via go generate.
 // DO NOT UPDATE MANUALLY
 
 /*
