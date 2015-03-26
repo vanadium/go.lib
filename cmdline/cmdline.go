@@ -42,6 +42,9 @@ func (x ErrExitCode) Error() string {
 // flags, subcommands or args.  It corresponds to exit code 1.
 const ErrUsage = ErrExitCode(1)
 
+// Runner is a function that can be used as the Run method of a Command.
+type Runner func(cmd *Command, args []string) error
+
 // Command represents a single command in a command-line program.  A program
 // with subcommands is represented as a root Command with children representing
 // each subcommand.  The command graph must be a tree; each command may either
@@ -74,7 +77,7 @@ type Command struct {
 	// specified, Run will only be called if none of the children match.  It is an
 	// error if neither is specified.  The special ErrExitCode error may be
 	// returned to indicate the command should exit with a specific exit code.
-	Run func(cmd *Command, args []string) error
+	Run Runner
 
 	// parent holds the parent of this Command, or nil if this is the root.
 	parent *Command
@@ -90,6 +93,10 @@ type Command struct {
 	// isDefaultHelp indicates whether this is the the default help command
 	// provided by the framework.
 	isDefaultHelp bool
+
+	// globalFlags is the set of global flags (flag.CommandLine before any
+	// merging is performed by this package).
+	globalFlags *flag.FlagSet
 
 	// TODO(toddw): If necessary we can add alias support, e.g. for abbreviations.
 	//   Alias map[string]string
@@ -270,10 +277,10 @@ func (cmd *Command) usage(w *textutil.LineWriter, style style, firstCall bool) {
 		printFlags(w, &cmd.Flags, style)
 	}
 	// Global flags.
-	if numFlags(flag.CommandLine) > 0 && firstCall {
+	if numFlags(cmd.globalFlags) > 0 && firstCall {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "The global flags are:")
-		printFlags(w, flag.CommandLine, style)
+		printFlags(w, cmd.globalFlags, style)
 	}
 }
 
@@ -455,6 +462,11 @@ func (cmd *Command) Init(parent *Command, stdout, stderr io.Writer) {
 	if !hasHelp && cmd.Name != helpName && len(cmd.Children) > 0 {
 		cmd.Children = append(cmd.Children, newDefaultHelp())
 	}
+	if parent == nil {
+		cmd.globalFlags = copyFlags(os.Args[0], flag.CommandLine)
+	} else {
+		cmd.globalFlags = parent.globalFlags
+	}
 	// Merge command-specific and global flags into parseFlags.  We want to handle
 	// all error output ourselves, so we:
 	//   1) Set flag.ContinueOnError so that Parse() doesn't exit or panic.
@@ -464,11 +476,27 @@ func (cmd *Command) Init(parent *Command, stdout, stderr io.Writer) {
 	cmd.parseFlags.SetOutput(ioutil.Discard)
 	cmd.parseFlags.Usage = emptyUsage
 	mergeFlags(cmd.parseFlags, &cmd.Flags)
-	mergeFlags(cmd.parseFlags, flag.CommandLine)
+	mergeFlags(cmd.parseFlags, cmd.globalFlags)
+	// If this is the root command, also merge the commands flags into the global
+	// flag set.  This allows people to call flag.Parse without failing on undefined
+	// flags that were declared in a top-level command.
+	if parent == nil {
+		mergeFlags(flag.CommandLine, &cmd.Flags)
+	}
+
 	// Call children recursively.
 	for _, child := range cmd.Children {
 		child.Init(cmd, stdout, stderr)
 	}
+}
+
+func copyFlags(name string, src *flag.FlagSet) *flag.FlagSet {
+	cpy := flag.NewFlagSet(name, flag.ContinueOnError)
+	src.VisitAll(func(f *flag.Flag) {
+		trimNewlines(&f.Usage)
+		cpy.Var(f.Value, f.Name, f.Usage)
+	})
+	return cpy
 }
 
 func mergeFlags(dst, src *flag.FlagSet) {

@@ -20,8 +20,6 @@ var (
 	flagExtra         bool
 	optNoNewline      bool
 	flagTopLevelExtra bool
-	globalFlag1       string
-	globalFlag2       *int64
 )
 
 // runEcho is used to implement commands for our tests.
@@ -67,8 +65,7 @@ type testCase struct {
 
 func init() {
 	os.Setenv("CMDLINE_WIDTH", "80") // make sure the formatting stays the same.
-	flag.StringVar(&globalFlag1, "global1", "", "global test flag 1")
-	globalFlag2 = flag.Int64("global2", 0, "global test flag 2")
+
 }
 
 func stripOutput(got string) string {
@@ -86,11 +83,21 @@ func runTestCases(t *testing.T, cmd *Command, tests []testCase) {
 		flagExtra = false
 		flagTopLevelExtra = false
 		optNoNewline = false
-		globalFlag1 = ""
-		*globalFlag2 = 0
+
+		fmt.Fprintf(os.Stderr, "running test %v\n", test.Args)
+		os.Args = append([]string{os.Args[0]}, test.Args...)
+		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.PanicOnError)
+
+		var globalFlag1 string
+		flag.StringVar(&globalFlag1, "global1", "", "global test flag 1")
+		globalFlag2 := flag.Int64("global2", 0, "global test flag 2")
 
 		// Run the execute function and check against expected results.
 		cmd.Init(nil, &stdout, &stderr)
+		// It should be legal to parse global flags after Init.
+		if test.Err == nil {
+			flag.Parse()
+		}
 		if err := cmd.Execute(test.Args); err != test.Err {
 			t.Errorf("Ran with args %q\n GOT error:\n%q\nWANT error:\n%q", test.Args, err, test.Err)
 		}
