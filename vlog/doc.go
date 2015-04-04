@@ -3,21 +3,18 @@
 // license that can be found in the LICENSE file.
 
 // Package vlog defines and implements logging interfaces and
-// command line parsing. vlog is modeled on google3 and glog;
+// command line parsing. vlog is modeled on glog;
 // the differences from glog are:
 //
 // - interfaces are used to allow for multiple implementations and instances.
 //   In particular, application and runtime logging can be separated.
 //   We also expect to stream log messages to external log collectors rather
 //   to local storage.
-// - the Warn family of methods are not provided; their main use within
-//   google3 is to avoid the flush that's implicit in the Error routines
+// - the Warn family of methods are not provided; their main use
+//   is to avoid the flush that's implicit in the Error routines
 //   rather than any semantic difference between warnings and errors.
 // - Info logging and Event logging is separated with the former expected
-//   to be somewhat spammy and the latter to be used sparingly. An error
-//   message that occurs during execution of a test should be treated as
-//   a failure of that test regardless of whether the test code itself
-//   passes. TODO(cnicolaou,toddw): implement this.
+//   to be somewhat spammy and the latter to be used sparingly.
 // - Event logging includes methods for unconditionally (i.e. regardless
 //   of any command line options) logging the current goroutine's stack
 //   or the stacks of all goroutines.
