@@ -2,14 +2,17 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package netstate provides routines to obtain the available set of
-// of network addresess, for determining changes to those addresses and for
-// selecting from amongst them according to some set of policies that are
-// implemented by applying simple predicates (functions with names of the form
-// Is<condition>) to filter or find the first matching address from a list
-// of addresses. The intent is to make it easy to create policies that do
-// things like 'find the first IPv4 unicast address that is globally routable,
-// failing that use a private IPv4 address, and failing that, an IPv6 address'.
+// Package netstate implements utilities for retrieving and filtering network
+// interface state.
+//
+// There are routines to obtain the available set of of network addresess, for
+// determining changes to those addresses, and for selecting from amongst them
+// according to some set of policies.  Polices are implemented by applying
+// simple predicates (functions with names of the form Is<condition>) to filter
+// or find the first matching address from a list of addresses.  The intent is
+// to make it easy to create policies that do things like 'find the first IPv4
+// unicast address that is globally routable, failing that use a private IPv4
+// address, and failing that, an IPv6 address'.
 //
 // A simple usage would be:
 //

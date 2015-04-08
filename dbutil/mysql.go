@@ -2,13 +2,12 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Utility functions for opening and configuring a connection to a MySQL-like
-// database, with optional TLS support.
+// Package dbutil implements utilities for opening and configuring connections
+// to MySQL-like databases, with optional TLS support.
 //
 // Functions in this file are not thread-safe. However, the returned *sql.DB is.
 // Sane defaults are assumed: utf8mb4 encoding, UTC timezone, parsing date/time
 // into time.Time.
-
 package dbutil
 
 import (

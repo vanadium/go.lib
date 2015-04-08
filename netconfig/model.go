@@ -2,11 +2,11 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// package netconfig implements a network configuration watcher.
+// Package netconfig implements a network configuration watcher.
+package netconfig
+
 // NOTE(p): This is also where we should put any code that changes
 //          network configuration.
-
-package netconfig
 
 import (
 	"net"

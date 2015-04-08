@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package buildinfo defines a mechanism to inject build-time metadata into
-// binaries.
+// Package buildinfo implements a mechanism for injecting build-time metadata
+// into executable binaries.
 package buildinfo
 
 import (

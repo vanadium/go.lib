@@ -2,9 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package vlog defines and implements logging interfaces and
-// command line parsing. vlog is modeled on glog;
-// the differences from glog are:
+// Package vlog implements a general-purpose logging system.  It is modeled on
+// glog; the differences from glog are:
 //
 // - interfaces are used to allow for multiple implementations and instances.
 //   In particular, application and runtime logging can be separated.

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package host provides utilities for inspecting the host platform.
+// Package host implements utilities for describing the host platform.
 package host
 
 import (

@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package cmdline provides a data-driven framework to simplify writing
-// command-line programs.  It includes built-in support for formatted help.
+// Package cmdline implements a data-driven mechanism for writing command-line
+// programs with built-in support for help.
 //
 // Commands may be linked together to form a command tree.  Since commands may
 // be arbitrarily nested within other commands, it's easy to create wrapper
