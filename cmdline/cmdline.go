@@ -51,17 +51,9 @@ type Runner func(cmd *Command, args []string) error
 // have exactly one parent (a sub-command), or no parent (the root), and cycles
 // are not allowed.  This makes it easier to display the usage for subcommands.
 type Command struct {
-	Name  string // Name of the command.
-	Short string // Short description, shown in help called on parent.
-	Long  string // Long description, shown in help called on itself.
-
-	// WARNING: If this Command is the root of the command tree, specifying
-	// flags this way will interfere with attempts to parse flag args in
-	// other code that may be linked in (since the other code's flag set --
-	// typically, the global flag set -- will likely not contain the flags
-	// defined here).  In such cases, it's recommended to just use the
-	// global flag set for all flags and avoid defining flags on the root
-	// command.
+	Name     string       // Name of the command.
+	Short    string       // Short description, shown in help called on parent.
+	Long     string       // Long description, shown in help called on itself.
 	Flags    flag.FlagSet // Flags for the command.
 	ArgsName string       // Name of the args, shown in usage line.
 	ArgsLong string       // Long description of the args, shown in help.
@@ -302,19 +294,10 @@ func numFlags(set *flag.FlagSet) (num int) {
 
 func printFlags(w *textutil.LineWriter, set *flag.FlagSet, style style) {
 	set.VisitAll(func(f *flag.Flag) {
-		var value interface{}
-		// When using styleDefault, we want the current value of the flag.
-		// But when using styleGoDoc, we want the default value. This
-		// logic ensures the godoc style prints out default values of
-		// VariableFlags without expanding variables.
-		switch style {
-		case styleDefault:
-			if getter, ok := f.Value.(flag.Getter); ok {
-				value = getter.Get()
-			} else {
-				value = f.Value.String()
-			}
-		case styleGoDoc:
+		value := f.Value.String()
+		if style == styleGoDoc {
+			// When using styleGoDoc we use the default value, so that e.g. regular
+			// help will show "/usr/home/me/foo" while godoc will show "$HOME/foo".
 			value = f.DefValue
 		}
 		fmt.Fprintf(w, " -%s=%v", f.Name, value)
@@ -560,13 +543,13 @@ func (cmd *Command) Execute(args []string) error {
 //
 // Many main packages can use this simple pattern:
 //
-// var cmd := &cmdline.Command{
-//   ...
-// }
+//   var cmd := &cmdline.Command{
+//     ...
+//   }
 //
-// func main() {
-//   os.Exit(cmd.Main())
-// }
+//   func main() {
+//     os.Exit(cmd.Main())
+//   }
 //
 func (cmd *Command) Main() (exitCode int) {
 	cmd.Init(nil, os.Stdout, os.Stderr)
