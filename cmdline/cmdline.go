@@ -14,8 +14,41 @@
 //   command [flags] [subcommand [flags]]* [args]
 //
 // Each sequence of flags on the command-line is associated with the command
-// that immediately precedes them.  Global flags registered with the standard
-// flags package are allowed anywhere a command-specific flag is allowed.
+// that immediately precedes them.  Flags registered on flag.CommandLine are
+// considered global flags, and are allowed anywhere a command-specific flag is
+// allowed.
+//
+// Caveats
+//
+// Registering flags on the root command may be tricky to get right, if
+// flag.Parse is called.  The problem is that flags registered on the root
+// command must be merged into flag.CommandLine first, before flag.Parse is
+// called, so that all root flags are known during the parse.  The merging
+// occurs in the Command.Init method, which is called by the Command.Main
+// method, and it's easy to get the ordering wrong.
+//
+//   // Example pitfall of registering flags on the root command.
+//   func main() {
+//     flag.Parse()
+//     os.Exit(rootcmd.Main())
+//   }
+//
+// In the example we're calling flag.Parse() before we call rootcmd.Main().
+// Thus the root flags are not known during the parse, so the parse will fail if
+// any root flags appear in os.Args.  One workaround is to call Init before the
+// parse.
+//
+//   // Example of calling Init and Execute separately.
+//   func main() {
+//     rootcmd.Init(nil, os.Stdout, os.Stderr)
+//     flag.Parse()
+//     err := rootcmd.Execute(os.Args[1:])
+//     // ... handle err
+//   }
+//
+// Another workaround is to avoid registering flags on the root command
+// altogether, either by registering the flags on a subcommand, or by
+// registering the flags on flag.CommandLine.
 package cmdline
 
 import (
@@ -62,20 +95,24 @@ type Command struct {
 	// child's name, and call Run on the first matching child.
 	Children []*Command
 
-	// Topics that provide additional info via the default help command.
-	Topics []Topic
-
 	// Run is a function that runs cmd with args.  If both Children and Run are
 	// specified, Run will only be called if none of the children match.  It is an
 	// error if neither is specified.  The special ErrExitCode error may be
 	// returned to indicate the command should exit with a specific exit code.
 	Run Runner
 
+	// Topics that provide additional info via the default help command.
+	Topics []Topic
+
 	// parent holds the parent of this Command, or nil if this is the root.
 	parent *Command
 
 	// stdout and stderr are set through Init.
 	stdout, stderr io.Writer
+
+	// globalFlags is the set of global flags (flag.CommandLine before any
+	// merging is performed by this package).
+	globalFlags *flag.FlagSet
 
 	// parseFlags holds the merged flags used for parsing.  Each command starts
 	// with its own Flags, and we merge in all global flags.  If the same flag is
@@ -85,10 +122,6 @@ type Command struct {
 	// isDefaultHelp indicates whether this is the the default help command
 	// provided by the framework.
 	isDefaultHelp bool
-
-	// globalFlags is the set of global flags (flag.CommandLine before any
-	// merging is performed by this package).
-	globalFlags *flag.FlagSet
 
 	// TODO(toddw): If necessary we can add alias support, e.g. for abbreviations.
 	//   Alias map[string]string
@@ -427,6 +460,11 @@ func (cmd *Command) Init(parent *Command, stdout, stderr io.Writer) {
 	cmd.parent = parent
 	cmd.stdout = stdout
 	cmd.stderr = stderr
+	if parent == nil {
+		cmd.globalFlags = copyFlags(os.Args[0], flag.CommandLine)
+	} else {
+		cmd.globalFlags = parent.globalFlags
+	}
 	trimNewlines(&cmd.Short)
 	trimNewlines(&cmd.Long)
 	trimNewlines(&cmd.ArgsLong)
@@ -445,11 +483,6 @@ func (cmd *Command) Init(parent *Command, stdout, stderr io.Writer) {
 	if !hasHelp && cmd.Name != helpName && len(cmd.Children) > 0 {
 		cmd.Children = append(cmd.Children, newDefaultHelp())
 	}
-	if parent == nil {
-		cmd.globalFlags = copyFlags(os.Args[0], flag.CommandLine)
-	} else {
-		cmd.globalFlags = parent.globalFlags
-	}
 	// Merge command-specific and global flags into parseFlags.  We want to handle
 	// all error output ourselves, so we:
 	//   1) Set flag.ContinueOnError so that Parse() doesn't exit or panic.
@@ -466,7 +499,6 @@ func (cmd *Command) Init(parent *Command, stdout, stderr io.Writer) {
 	if parent == nil {
 		mergeFlags(flag.CommandLine, &cmd.Flags)
 	}
-
 	// Call children recursively.
 	for _, child := range cmd.Children {
 		child.Init(cmd, stdout, stderr)
