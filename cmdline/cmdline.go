@@ -586,10 +586,10 @@ func (cmd *Command) Execute(args []string) error {
 func (cmd *Command) Main() (exitCode int) {
 	cmd.Init(nil, os.Stdout, os.Stderr)
 	if err := cmd.Execute(os.Args[1:]); err != nil {
+		fmt.Fprintln(os.Stderr, "ERROR:", err)
 		if code, ok := err.(ErrExitCode); ok {
 			return int(code)
 		}
-		fmt.Fprintln(os.Stderr, "ERROR:", err)
 		return 2
 	}
 	return 0
