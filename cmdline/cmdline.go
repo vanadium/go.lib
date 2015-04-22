@@ -57,8 +57,11 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"v.io/x/lib/textutil"
 )
@@ -139,39 +142,44 @@ type Topic struct {
 type style int
 
 const (
-	styleDefault style = iota // Default style, good for cmdline output.
+	styleCompact style = iota // Default style, good for compact cmdline output.
+	styleFull                 // Similar to compact but shows global flags.
 	styleGoDoc                // Style good for godoc processing.
 )
 
 // String returns the human-readable representation of the style.
 func (s *style) String() string {
 	switch *s {
-	case styleDefault:
-		return "default"
+	case styleCompact:
+		return "compact"
+	case styleFull:
+		return "full"
 	case styleGoDoc:
 		return "godoc"
 	default:
-		panic(fmt.Errorf("Unhandled style %d", *s))
+		panic(fmt.Errorf("unhandled style %d", *s))
 	}
 }
 
 // Set implements the flag.Value interface method.
 func (s *style) Set(value string) error {
 	switch value {
-	case "default":
-		*s = styleDefault
+	case "compact":
+		*s = styleCompact
+	case "full":
+		*s = styleFull
 	case "godoc":
 		*s = styleGoDoc
 	default:
-		return fmt.Errorf("Unknown style %q", value)
+		return fmt.Errorf("unknown style %q", value)
 	}
 	return nil
 }
 
 // styleFromEnv returns the style value specified by the CMDLINE_STYLE
-// environment variable, falling back on the default style.
+// environment variable, falling back on styleCompact.
 func styleFromEnv() style {
-	style := styleDefault
+	style := styleCompact
 	style.Set(os.Getenv("CMDLINE_STYLE"))
 	return style
 }
@@ -223,7 +231,7 @@ func (cmd *Command) usage(w *textutil.LineWriter, style style, firstCall bool) {
 	fmt.Fprintln(w, cmd.Long)
 	fmt.Fprintln(w)
 	// Usage line.
-	hasFlags := numFlags(&cmd.Flags) > 0
+	hasFlags := numFlags(&cmd.Flags, nil, true) > 0
 	fmt.Fprintln(w, "Usage:")
 	path := cmd.namePath()
 	pathf := "   " + path
@@ -259,13 +267,13 @@ func (cmd *Command) usage(w *textutil.LineWriter, style style, firstCall bool) {
 		w.SetIndents(spaces(3), spaces(3+nameWidth+1))
 		for _, child := range cmd.Children {
 			// Don't repeatedly list default help command.
-			if !child.isDefaultHelp || firstCall {
+			if firstCall || !child.isDefaultHelp {
 				fmt.Fprintf(w, "%-[1]*[2]s %[3]s", nameWidth, child.Name, child.Short)
 				w.Flush()
 			}
 		}
 		w.SetIndents()
-		if firstCall {
+		if firstCall && style != styleGoDoc {
 			fmt.Fprintf(w, "Run \"%s help [command]\" for command usage.\n", path)
 		}
 	}
@@ -291,7 +299,7 @@ func (cmd *Command) usage(w *textutil.LineWriter, style style, firstCall bool) {
 			w.Flush()
 		}
 		w.SetIndents()
-		if firstCall {
+		if firstCall && style != styleGoDoc {
 			fmt.Fprintf(w, "Run \"%s help [topic]\" for topic details.\n", path)
 		}
 	}
@@ -299,13 +307,41 @@ func (cmd *Command) usage(w *textutil.LineWriter, style style, firstCall bool) {
 	if hasFlags {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "The", path, "flags are:")
-		printFlags(w, &cmd.Flags, style)
+		printFlags(w, &cmd.Flags, style, nil, true)
 	}
 	// Global flags.
-	if numFlags(cmd.globalFlags) > 0 && firstCall {
-		fmt.Fprintln(w)
-		fmt.Fprintln(w, "The global flags are:")
-		printFlags(w, cmd.globalFlags, style)
+	hasCompact := numFlags(cmd.globalFlags, compactGlobalFlags, true) > 0
+	hasFull := numFlags(cmd.globalFlags, compactGlobalFlags, false) > 0
+	if firstCall {
+		if style == styleCompact {
+			if hasCompact {
+				fmt.Fprintln(w)
+				fmt.Fprintln(w, "The global flags are:")
+				printFlags(w, cmd.globalFlags, style, compactGlobalFlags, true)
+			}
+			if hasFull {
+				fmt.Fprintln(w)
+				fullhelp := fmt.Sprintf(`Run "%s help -style=full" to show all global flags.`, path)
+				if len(cmd.Children) == 0 {
+					if cmd.parent != nil {
+						fullhelp = fmt.Sprintf(`Run "%s help -style=full %s" to show all global flags.`, cmd.parent.namePath(), cmd.Name)
+					} else {
+						fullhelp = fmt.Sprintf(`Run "CMDLINE_STYLE=full %s -help" to show all global flags.`, path)
+					}
+				}
+				fmt.Fprintln(w, fullhelp)
+			}
+		} else {
+			if hasCompact || hasFull {
+				fmt.Fprintln(w)
+				fmt.Fprintln(w, "The global flags are:")
+				printFlags(w, cmd.globalFlags, style, compactGlobalFlags, true)
+				if hasCompact && hasFull {
+					fmt.Fprintln(w)
+				}
+				printFlags(w, cmd.globalFlags, style, compactGlobalFlags, false)
+			}
+		}
 	}
 }
 
@@ -318,15 +354,20 @@ func (cmd *Command) namePath() string {
 	return strings.Join(path, " ")
 }
 
-func numFlags(set *flag.FlagSet) (num int) {
-	set.VisitAll(func(*flag.Flag) {
-		num++
+func numFlags(set *flag.FlagSet, regexps []*regexp.Regexp, match bool) (num int) {
+	set.VisitAll(func(f *flag.Flag) {
+		if match == matchRegexps(regexps, f.Name) {
+			num++
+		}
 	})
 	return
 }
 
-func printFlags(w *textutil.LineWriter, set *flag.FlagSet, style style) {
+func printFlags(w *textutil.LineWriter, set *flag.FlagSet, style style, regexps []*regexp.Regexp, match bool) {
 	set.VisitAll(func(f *flag.Flag) {
+		if match != matchRegexps(regexps, f.Name) {
+			return
+		}
 		value := f.Value.String()
 		if style == styleGoDoc {
 			// When using styleGoDoc we use the default value, so that e.g. regular
@@ -344,6 +385,35 @@ func spaces(count int) string {
 	return strings.Repeat(" ", count)
 }
 
+func matchRegexps(regexps []*regexp.Regexp, name string) bool {
+	// We distinguish nil regexps from empty regexps; the former means "all names
+	// match", while the latter means "no names match".
+	if regexps == nil {
+		return true
+	}
+	for _, r := range regexps {
+		if r.MatchString(name) {
+			return true
+		}
+	}
+	return false
+}
+
+var compactGlobalFlags []*regexp.Regexp
+
+// HideGlobalFlagsExcept hides global flags from the default compact-style usage
+// message, except for the given regexps.  Global flag names that match any of
+// the regexps will still be shown in the compact usage message.  Multiple calls
+// behave as if all regexps were provided in a single call.
+//
+// All global flags are always shown in non-compact style usage messages.
+func HideGlobalFlagsExcept(regexps ...*regexp.Regexp) {
+	compactGlobalFlags = append(compactGlobalFlags, regexps...)
+	if compactGlobalFlags == nil {
+		compactGlobalFlags = []*regexp.Regexp{}
+	}
+}
+
 // newDefaultHelp creates a new default help command.  We need to create new
 // instances since the parent for each help command is different.
 func newDefaultHelp() *Command {
@@ -358,11 +428,10 @@ Help with args displays the usage of the specified sub-command or help topic.
 
 "help ..." recursively displays help for all commands and topics.
 
-The output is formatted to a target width in runes.  The target width is
-determined by checking the environment variable CMDLINE_WIDTH, falling back on
-the terminal width from the OS, falling back on 80 chars.  By setting
-CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0 the width is unlimited, and
-if x == 0 or is unset one of the fallbacks is used.
+Output is formatted to a target width in runes, determined by checking the
+CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
+back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
+the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
 `,
 		ArgsName: "[command/topic ...]",
 		ArgsLong: `
@@ -376,7 +445,13 @@ if x == 0 or is unset one of the fallbacks is used.
 		},
 		isDefaultHelp: true,
 	}
-	help.Flags.Var(&helpStyle, "style", `The formatting style for help output, either "default" or "godoc".`)
+	help.Flags.Var(&helpStyle, "style", `
+The formatting style for help output:
+   compact - Good for compact cmdline output.
+   full    - Good for cmdline output, shows all global flags.
+   godoc   - Good for godoc processing.
+Override the default by setting the CMDLINE_STYLE environment variable.
+`)
 	return help
 }
 
@@ -413,8 +488,7 @@ func runHelp(w *textutil.LineWriter, cmd *Command, args []string, style style) e
 func recursiveHelp(w *textutil.LineWriter, cmd *Command, style style, firstCall bool) {
 	if !firstCall {
 		lineBreak(w, style)
-		// Title-case required for godoc to recognize this as a section header.
-		header := strings.Title(cmd.namePath())
+		header := godocSectionHeader(cmd.namePath())
 		fmt.Fprintln(w, header)
 		fmt.Fprintln(w)
 	}
@@ -427,18 +501,27 @@ func recursiveHelp(w *textutil.LineWriter, cmd *Command, style style, firstCall 
 	}
 	for _, topic := range cmd.Topics {
 		lineBreak(w, style)
-		// Title-case required for godoc to recognize this as a section header.
-		header := strings.Title(cmd.namePath()+" "+topic.Name) + " - help topic"
+		header := godocSectionHeader(cmd.namePath() + " " + topic.Name + " - help topic")
 		fmt.Fprintln(w, header)
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, topic.Long)
 	}
 }
 
+func godocSectionHeader(s string) string {
+	// The first rune must be uppercase for godoc to recognize the string as a
+	// section header, which is linked to the table of contents.
+	if s == "" {
+		return ""
+	}
+	r, n := utf8.DecodeRuneInString(s)
+	return string(unicode.ToUpper(r)) + s[n:]
+}
+
 func lineBreak(w *textutil.LineWriter, style style) {
 	w.Flush()
 	switch style {
-	case styleDefault:
+	case styleCompact, styleFull:
 		width := w.Width()
 		if width < 0 {
 			// If the user has chosen an "unlimited" word-wrapping width, we still

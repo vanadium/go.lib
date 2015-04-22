@@ -56,6 +56,7 @@ func runHello(cmd *Command, args []string) error {
 
 type testCase struct {
 	Args        []string
+	Envs        map[string]string
 	Err         error
 	Stdout      string
 	Stderr      string
@@ -83,10 +84,17 @@ func runTestCases(t *testing.T, cmd *Command, tests []testCase) {
 		flagExtra = false
 		flagTopLevelExtra = false
 		optNoNewline = false
+		origEnvs := make(map[string]string)
 
-		fmt.Fprintf(os.Stderr, "running test %v\n", test.Args)
+		fmt.Fprintf(os.Stderr, "running test %v %v\n", test.Args, test.Envs)
 		os.Args = append([]string{os.Args[0]}, test.Args...)
-		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.PanicOnError)
+		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
+		for k, v := range test.Envs {
+			origEnvs[k] = os.Getenv(k)
+			if err := os.Setenv(k, v); err != nil {
+				t.Fatalf("os.Setenv(%v, %v) failed: %v", k, v, err)
+			}
+		}
 
 		var globalFlag1 string
 		flag.StringVar(&globalFlag1, "global1", "", "global test flag 1")
@@ -99,19 +107,25 @@ func runTestCases(t *testing.T, cmd *Command, tests []testCase) {
 			flag.Parse()
 		}
 		if err := cmd.Execute(test.Args); err != test.Err {
-			t.Errorf("Ran with args %q\n GOT error:\n%q\nWANT error:\n%q", test.Args, err, test.Err)
+			t.Errorf("Ran with args %q envs %q\n GOT error:\n%q\nWANT error:\n%q", test.Args, test.Envs, err, test.Err)
 		}
 		if got, want := stripOutput(stdout.String()), test.Stdout; got != want {
-			t.Errorf("Ran with args %q\n GOT stdout:\n%q\nWANT stdout:\n%q", test.Args, got, want)
+			t.Errorf("Ran with args %q envs %q\n GOT stdout:\n%q\nWANT stdout:\n%q", test.Args, test.Envs, got, want)
 		}
 		if got, want := stripOutput(stderr.String()), test.Stderr; got != want {
-			t.Errorf("Ran with args %q\n GOT stderr:\n%q\nWANT stderr:\n%q", test.Args, got, want)
+			t.Errorf("Ran with args %q envs %q\n GOT stderr:\n%q\nWANT stderr:\n%q", test.Args, test.Envs, got, want)
 		}
 		if got, want := globalFlag1, test.GlobalFlag1; got != want {
 			t.Errorf("global1 flag got %q, want %q", got, want)
 		}
 		if got, want := *globalFlag2, test.GlobalFlag2; got != want {
 			t.Errorf("global2 flag got %q, want %q", got, want)
+		}
+
+		for k, v := range origEnvs {
+			if err := os.Setenv(k, v); err != nil {
+				t.Fatalf("os.Setenv(%v, %v) failed: %v", k, v, err)
+			}
 		}
 	}
 }
@@ -269,11 +283,10 @@ Help with args displays the usage of the specified sub-command or help topic.
 
 "help ..." recursively displays help for all commands and topics.
 
-The output is formatted to a target width in runes.  The target width is
-determined by checking the environment variable CMDLINE_WIDTH, falling back on
-the terminal width from the OS, falling back on 80 chars.  By setting
-CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0 the width is unlimited, and
-if x == 0 or is unset one of the fallbacks is used.
+Output is formatted to a target width in runes, determined by checking the
+CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
+back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
+the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
 
 Usage:
    onecmd help [flags] [command/topic ...]
@@ -281,8 +294,12 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The onecmd help flags are:
- -style=default
-   The formatting style for help output, either "default" or "godoc".
+ -style=compact
+   The formatting style for help output:
+      compact - Good for compact cmdline output.
+      full    - Good for cmdline output, shows all global flags.
+      godoc   - Good for godoc processing.
+   Override the default by setting the CMDLINE_STYLE environment variable.
 
 The global flags are:
  -global1=
@@ -309,7 +326,7 @@ The global flags are:
  -global2=0
    global test flag 2
 ================================================================================
-Onecmd Echo
+Onecmd echo
 
 Echo prints any strings passed in to stdout.
 
@@ -318,7 +335,7 @@ Usage:
 
 [strings] are arbitrary strings that will be echoed.
 ================================================================================
-Onecmd Help
+Onecmd help
 
 Help with no args displays the usage of the parent command.
 
@@ -326,11 +343,10 @@ Help with args displays the usage of the specified sub-command or help topic.
 
 "help ..." recursively displays help for all commands and topics.
 
-The output is formatted to a target width in runes.  The target width is
-determined by checking the environment variable CMDLINE_WIDTH, falling back on
-the terminal width from the OS, falling back on 80 chars.  By setting
-CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0 the width is unlimited, and
-if x == 0 or is unset one of the fallbacks is used.
+Output is formatted to a target width in runes, determined by checking the
+CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
+back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
+the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
 
 Usage:
    onecmd help [flags] [command/topic ...]
@@ -338,8 +354,12 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The onecmd help flags are:
- -style=default
-   The formatting style for help output, either "default" or "godoc".
+ -style=compact
+   The formatting style for help output:
+      compact - Good for compact cmdline output.
+      full    - Good for cmdline output, shows all global flags.
+      godoc   - Good for godoc processing.
+   Override the default by setting the CMDLINE_STYLE environment variable.
 `,
 		},
 		{
@@ -503,7 +523,7 @@ The global flags are:
  -global2=0
    global test flag 2
 ================================================================================
-Multi Echo
+Multi echo
 
 Echo prints any strings passed in to stdout.
 
@@ -512,7 +532,7 @@ Usage:
 
 [strings] are arbitrary strings that will be echoed.
 ================================================================================
-Multi Echoopt
+Multi echoopt
 
 Echoopt prints any args passed in to stdout.
 
@@ -525,7 +545,7 @@ The multi echoopt flags are:
  -n=false
    Do not output trailing newline
 ================================================================================
-Multi Help
+Multi help
 
 Help with no args displays the usage of the parent command.
 
@@ -533,11 +553,10 @@ Help with args displays the usage of the specified sub-command or help topic.
 
 "help ..." recursively displays help for all commands and topics.
 
-The output is formatted to a target width in runes.  The target width is
-determined by checking the environment variable CMDLINE_WIDTH, falling back on
-the terminal width from the OS, falling back on 80 chars.  By setting
-CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0 the width is unlimited, and
-if x == 0 or is unset one of the fallbacks is used.
+Output is formatted to a target width in runes, determined by checking the
+CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
+back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
+the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
 
 Usage:
    multi help [flags] [command/topic ...]
@@ -545,8 +564,12 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The multi help flags are:
- -style=default
-   The formatting style for help output, either "default" or "godoc".
+ -style=compact
+   The formatting style for help output:
+      compact - Good for compact cmdline output.
+      full    - Good for cmdline output, shows all global flags.
+      godoc   - Good for godoc processing.
+   Override the default by setting the CMDLINE_STYLE environment variable.
 `,
 		},
 		{
@@ -856,7 +879,7 @@ The global flags are:
  -global2=0
    global test flag 2
 ================================================================================
-Toplevelprog Echoprog
+Toplevelprog echoprog
 
 Echoprog has two variants of echo.
 
@@ -874,7 +897,7 @@ The toplevelprog echoprog flags are:
  -extra=false
    Print an extra arg
 ================================================================================
-Toplevelprog Echoprog Echo
+Toplevelprog echoprog echo
 
 Echo prints any strings passed in to stdout.
 
@@ -883,7 +906,7 @@ Usage:
 
 [strings] are arbitrary strings that will be echoed.
 ================================================================================
-Toplevelprog Echoprog Echoopt
+Toplevelprog echoprog echoopt
 
 Echoopt prints any args passed in to stdout.
 
@@ -896,11 +919,11 @@ The toplevelprog echoprog echoopt flags are:
  -n=false
    Do not output trailing newline
 ================================================================================
-Toplevelprog Echoprog Topic3 - help topic
+Toplevelprog echoprog topic3 - help topic
 
 Help topic 3 long.
 ================================================================================
-Toplevelprog Hello
+Toplevelprog hello
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -909,7 +932,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Toplevelprog Help
+Toplevelprog help
 
 Help with no args displays the usage of the parent command.
 
@@ -917,11 +940,10 @@ Help with args displays the usage of the specified sub-command or help topic.
 
 "help ..." recursively displays help for all commands and topics.
 
-The output is formatted to a target width in runes.  The target width is
-determined by checking the environment variable CMDLINE_WIDTH, falling back on
-the terminal width from the OS, falling back on 80 chars.  By setting
-CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0 the width is unlimited, and
-if x == 0 or is unset one of the fallbacks is used.
+Output is formatted to a target width in runes, determined by checking the
+CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
+back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
+the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
 
 Usage:
    toplevelprog help [flags] [command/topic ...]
@@ -929,14 +951,18 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The toplevelprog help flags are:
- -style=default
-   The formatting style for help output, either "default" or "godoc".
+ -style=compact
+   The formatting style for help output:
+      compact - Good for compact cmdline output.
+      full    - Good for cmdline output, shows all global flags.
+      godoc   - Good for godoc processing.
+   Override the default by setting the CMDLINE_STYLE environment variable.
 ================================================================================
-Toplevelprog Topic1 - help topic
+Toplevelprog topic1 - help topic
 
 Help topic 1 long.
 ================================================================================
-Toplevelprog Topic2 - help topic
+Toplevelprog topic2 - help topic
 
 Help topic 2 long.
 `,
@@ -1006,7 +1032,7 @@ The global flags are:
  -global2=0
    global test flag 2
 ================================================================================
-Toplevelprog Echoprog Echo
+Toplevelprog echoprog echo
 
 Echo prints any strings passed in to stdout.
 
@@ -1015,7 +1041,7 @@ Usage:
 
 [strings] are arbitrary strings that will be echoed.
 ================================================================================
-Toplevelprog Echoprog Echoopt
+Toplevelprog echoprog echoopt
 
 Echoopt prints any args passed in to stdout.
 
@@ -1028,7 +1054,7 @@ The toplevelprog echoprog echoopt flags are:
  -n=false
    Do not output trailing newline
 ================================================================================
-Toplevelprog Echoprog Help
+Toplevelprog echoprog help
 
 Help with no args displays the usage of the parent command.
 
@@ -1036,11 +1062,10 @@ Help with args displays the usage of the specified sub-command or help topic.
 
 "help ..." recursively displays help for all commands and topics.
 
-The output is formatted to a target width in runes.  The target width is
-determined by checking the environment variable CMDLINE_WIDTH, falling back on
-the terminal width from the OS, falling back on 80 chars.  By setting
-CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0 the width is unlimited, and
-if x == 0 or is unset one of the fallbacks is used.
+Output is formatted to a target width in runes, determined by checking the
+CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
+back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
+the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
 
 Usage:
    toplevelprog echoprog help [flags] [command/topic ...]
@@ -1048,10 +1073,14 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The toplevelprog echoprog help flags are:
- -style=default
-   The formatting style for help output, either "default" or "godoc".
+ -style=compact
+   The formatting style for help output:
+      compact - Good for compact cmdline output.
+      full    - Good for cmdline output, shows all global flags.
+      godoc   - Good for godoc processing.
+   Override the default by setting the CMDLINE_STYLE environment variable.
 ================================================================================
-Toplevelprog Echoprog Topic3 - help topic
+Toplevelprog echoprog topic3 - help topic
 
 Help topic 3 long.
 `,
@@ -1379,7 +1408,7 @@ The global flags are:
  -global2=0
    global test flag 2
 ================================================================================
-Prog1 Hello11
+Prog1 hello11
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1388,7 +1417,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 Hello12
+Prog1 hello12
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1397,7 +1426,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 Prog2
+Prog1 prog2
 
 Prog2 has two variants of hello and a subprogram prog3.
 
@@ -1409,7 +1438,7 @@ The prog1 prog2 commands are:
    prog3       Set of hello commands
    hello22     Print strings on stdout preceded by "Hello"
 ================================================================================
-Prog1 Prog2 Hello21
+Prog1 prog2 hello21
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1418,7 +1447,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 Prog2 Prog3
+Prog1 prog2 prog3
 
 Prog3 has two variants of hello.
 
@@ -1429,7 +1458,7 @@ The prog1 prog2 prog3 commands are:
    hello31     Print strings on stdout preceded by "Hello"
    hello32     Print strings on stdout preceded by "Hello"
 ================================================================================
-Prog1 Prog2 Prog3 Hello31
+Prog1 prog2 prog3 hello31
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1438,7 +1467,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 Prog2 Prog3 Hello32
+Prog1 prog2 prog3 hello32
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1447,7 +1476,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 Prog2 Hello22
+Prog1 prog2 hello22
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1456,7 +1485,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 Help
+Prog1 help
 
 Help with no args displays the usage of the parent command.
 
@@ -1464,11 +1493,10 @@ Help with args displays the usage of the specified sub-command or help topic.
 
 "help ..." recursively displays help for all commands and topics.
 
-The output is formatted to a target width in runes.  The target width is
-determined by checking the environment variable CMDLINE_WIDTH, falling back on
-the terminal width from the OS, falling back on 80 chars.  By setting
-CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0 the width is unlimited, and
-if x == 0 or is unset one of the fallbacks is used.
+Output is formatted to a target width in runes, determined by checking the
+CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
+back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
+the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
 
 Usage:
    prog1 help [flags] [command/topic ...]
@@ -1476,8 +1504,12 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The prog1 help flags are:
- -style=default
-   The formatting style for help output, either "default" or "godoc".
+ -style=compact
+   The formatting style for help output:
+      compact - Good for compact cmdline output.
+      full    - Good for cmdline output, shows all global flags.
+      godoc   - Good for godoc processing.
+   Override the default by setting the CMDLINE_STYLE environment variable.
 `,
 		},
 		{
@@ -1500,7 +1532,7 @@ The global flags are:
  -global2=0
    global test flag 2
 ================================================================================
-Prog1 Prog2 Hello21
+Prog1 prog2 hello21
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1509,7 +1541,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 Prog2 Prog3
+Prog1 prog2 prog3
 
 Prog3 has two variants of hello.
 
@@ -1520,7 +1552,7 @@ The prog1 prog2 prog3 commands are:
    hello31     Print strings on stdout preceded by "Hello"
    hello32     Print strings on stdout preceded by "Hello"
 ================================================================================
-Prog1 Prog2 Prog3 Hello31
+Prog1 prog2 prog3 hello31
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1529,7 +1561,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 Prog2 Prog3 Hello32
+Prog1 prog2 prog3 hello32
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1538,7 +1570,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 Prog2 Hello22
+Prog1 prog2 hello22
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1547,7 +1579,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 Prog2 Help
+Prog1 prog2 help
 
 Help with no args displays the usage of the parent command.
 
@@ -1555,11 +1587,10 @@ Help with args displays the usage of the specified sub-command or help topic.
 
 "help ..." recursively displays help for all commands and topics.
 
-The output is formatted to a target width in runes.  The target width is
-determined by checking the environment variable CMDLINE_WIDTH, falling back on
-the terminal width from the OS, falling back on 80 chars.  By setting
-CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0 the width is unlimited, and
-if x == 0 or is unset one of the fallbacks is used.
+Output is formatted to a target width in runes, determined by checking the
+CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
+back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
+the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
 
 Usage:
    prog1 prog2 help [flags] [command/topic ...]
@@ -1567,8 +1598,12 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The prog1 prog2 help flags are:
- -style=default
-   The formatting style for help output, either "default" or "godoc".
+ -style=compact
+   The formatting style for help output:
+      compact - Good for compact cmdline output.
+      full    - Good for cmdline output, shows all global flags.
+      godoc   - Good for godoc processing.
+   Override the default by setting the CMDLINE_STYLE environment variable.
 `,
 		},
 		{
@@ -1590,7 +1625,7 @@ The global flags are:
  -global2=0
    global test flag 2
 ================================================================================
-Prog1 Prog2 Prog3 Hello31
+Prog1 prog2 prog3 hello31
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1599,7 +1634,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 Prog2 Prog3 Hello32
+Prog1 prog2 prog3 hello32
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1608,7 +1643,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 Prog2 Prog3 Help
+Prog1 prog2 prog3 help
 
 Help with no args displays the usage of the parent command.
 
@@ -1616,11 +1651,10 @@ Help with args displays the usage of the specified sub-command or help topic.
 
 "help ..." recursively displays help for all commands and topics.
 
-The output is formatted to a target width in runes.  The target width is
-determined by checking the environment variable CMDLINE_WIDTH, falling back on
-the terminal width from the OS, falling back on 80 chars.  By setting
-CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0 the width is unlimited, and
-if x == 0 or is unset one of the fallbacks is used.
+Output is formatted to a target width in runes, determined by checking the
+CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
+back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
+the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
 
 Usage:
    prog1 prog2 prog3 help [flags] [command/topic ...]
@@ -1628,8 +1662,12 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The prog1 prog2 prog3 help flags are:
- -style=default
-   The formatting style for help output, either "default" or "godoc".
+ -style=compact
+   The formatting style for help output:
+      compact - Good for compact cmdline output.
+      full    - Good for cmdline output, shows all global flags.
+      godoc   - Good for godoc processing.
+   Override the default by setting the CMDLINE_STYLE environment variable.
 `,
 		},
 		{
@@ -1651,7 +1689,7 @@ The global flags are:
  -global2=0
    global test flag 2
 ================================================================================
-Prog1 Prog2 Prog3 Hello31
+Prog1 prog2 prog3 hello31
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1660,7 +1698,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 Prog2 Prog3 Hello32
+Prog1 prog2 prog3 hello32
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1669,7 +1707,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 Prog2 Prog3 Help
+Prog1 prog2 prog3 help
 
 Help with no args displays the usage of the parent command.
 
@@ -1677,11 +1715,10 @@ Help with args displays the usage of the specified sub-command or help topic.
 
 "help ..." recursively displays help for all commands and topics.
 
-The output is formatted to a target width in runes.  The target width is
-determined by checking the environment variable CMDLINE_WIDTH, falling back on
-the terminal width from the OS, falling back on 80 chars.  By setting
-CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0 the width is unlimited, and
-if x == 0 or is unset one of the fallbacks is used.
+Output is formatted to a target width in runes, determined by checking the
+CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
+back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
+the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
 
 Usage:
    prog1 prog2 prog3 help [flags] [command/topic ...]
@@ -1689,8 +1726,12 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The prog1 prog2 prog3 help flags are:
- -style=default
-   The formatting style for help output, either "default" or "godoc".
+ -style=compact
+   The formatting style for help output:
+      compact - Good for compact cmdline output.
+      full    - Good for cmdline output, shows all global flags.
+      godoc   - Good for godoc processing.
+   Override the default by setting the CMDLINE_STYLE environment variable.
 `,
 		},
 		{
@@ -1705,7 +1746,6 @@ The prog1 commands are:
    hello12     Print strings on stdout preceded by "Hello"
    prog2       Set of hello commands
    help        Display help for commands or topics
-Run "prog1 help [command]" for command usage.
 
 The global flags are:
  -global1=
@@ -1713,7 +1753,7 @@ The global flags are:
  -global2=0
    global test flag 2
 
-Prog1 Hello11
+Prog1 hello11
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1722,7 +1762,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 
-Prog1 Hello12
+Prog1 hello12
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1731,7 +1771,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 
-Prog1 Prog2
+Prog1 prog2
 
 Prog2 has two variants of hello and a subprogram prog3.
 
@@ -1743,7 +1783,7 @@ The prog1 prog2 commands are:
    prog3       Set of hello commands
    hello22     Print strings on stdout preceded by "Hello"
 
-Prog1 Prog2 Hello21
+Prog1 prog2 hello21
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1752,7 +1792,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 
-Prog1 Prog2 Prog3
+Prog1 prog2 prog3
 
 Prog3 has two variants of hello.
 
@@ -1763,7 +1803,7 @@ The prog1 prog2 prog3 commands are:
    hello31     Print strings on stdout preceded by "Hello"
    hello32     Print strings on stdout preceded by "Hello"
 
-Prog1 Prog2 Prog3 Hello31
+Prog1 prog2 prog3 hello31
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1772,7 +1812,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 
-Prog1 Prog2 Prog3 Hello32
+Prog1 prog2 prog3 hello32
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1781,7 +1821,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 
-Prog1 Prog2 Hello22
+Prog1 prog2 hello22
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1790,7 +1830,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 
-Prog1 Help
+Prog1 help
 
 Help with no args displays the usage of the parent command.
 
@@ -1798,11 +1838,10 @@ Help with args displays the usage of the specified sub-command or help topic.
 
 "help ..." recursively displays help for all commands and topics.
 
-The output is formatted to a target width in runes.  The target width is
-determined by checking the environment variable CMDLINE_WIDTH, falling back on
-the terminal width from the OS, falling back on 80 chars.  By setting
-CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0 the width is unlimited, and
-if x == 0 or is unset one of the fallbacks is used.
+Output is formatted to a target width in runes, determined by checking the
+CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
+back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
+the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
 
 Usage:
    prog1 help [flags] [command/topic ...]
@@ -1810,8 +1849,12 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The prog1 help flags are:
- -style=default
-   The formatting style for help output, either "default" or "godoc".
+ -style=compact
+   The formatting style for help output:
+      compact - Good for compact cmdline output.
+      full    - Good for cmdline output, shows all global flags.
+      godoc   - Good for godoc processing.
+   Override the default by setting the CMDLINE_STYLE environment variable.
 `,
 		},
 	}
@@ -1909,7 +1952,7 @@ The global flags are:
  -global2=0
    global test flag 2
 ================================================================================
-Cmdargs Echo
+Cmdargs echo
 
 Echo prints any strings passed in to stdout.
 
@@ -1918,7 +1961,7 @@ Usage:
 
 [strings] are arbitrary strings that will be echoed.
 ================================================================================
-Cmdargs Help
+Cmdargs help
 
 Help with no args displays the usage of the parent command.
 
@@ -1926,11 +1969,10 @@ Help with args displays the usage of the specified sub-command or help topic.
 
 "help ..." recursively displays help for all commands and topics.
 
-The output is formatted to a target width in runes.  The target width is
-determined by checking the environment variable CMDLINE_WIDTH, falling back on
-the terminal width from the OS, falling back on 80 chars.  By setting
-CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0 the width is unlimited, and
-if x == 0 or is unset one of the fallbacks is used.
+Output is formatted to a target width in runes, determined by checking the
+CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
+back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
+the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
 
 Usage:
    cmdargs help [flags] [command/topic ...]
@@ -1938,8 +1980,12 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The cmdargs help flags are:
- -style=default
-   The formatting style for help output, either "default" or "godoc".
+ -style=compact
+   The formatting style for help output:
+      compact - Good for compact cmdline output.
+      full    - Good for cmdline output, shows all global flags.
+      godoc   - Good for godoc processing.
+   Override the default by setting the CMDLINE_STYLE environment variable.
 `,
 		},
 		{
@@ -2101,7 +2147,7 @@ The global flags are:
  -global2=0
    global test flag 2
 ================================================================================
-Cmdrun Echo
+Cmdrun echo
 
 Echo prints any strings passed in to stdout.
 
@@ -2110,7 +2156,7 @@ Usage:
 
 [strings] are arbitrary strings that will be echoed.
 ================================================================================
-Cmdrun Help
+Cmdrun help
 
 Help with no args displays the usage of the parent command.
 
@@ -2118,11 +2164,10 @@ Help with args displays the usage of the specified sub-command or help topic.
 
 "help ..." recursively displays help for all commands and topics.
 
-The output is formatted to a target width in runes.  The target width is
-determined by checking the environment variable CMDLINE_WIDTH, falling back on
-the terminal width from the OS, falling back on 80 chars.  By setting
-CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0 the width is unlimited, and
-if x == 0 or is unset one of the fallbacks is used.
+Output is formatted to a target width in runes, determined by checking the
+CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
+back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
+the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
 
 Usage:
    cmdrun help [flags] [command/topic ...]
@@ -2130,8 +2175,12 @@ Usage:
 [command/topic ...] optionally identifies a specific sub-command or help topic.
 
 The cmdrun help flags are:
- -style=default
-   The formatting style for help output, either "default" or "godoc".
+ -style=compact
+   The formatting style for help output:
+      compact - Good for compact cmdline output.
+      full    - Good for cmdline output, shows all global flags.
+      godoc   - Good for godoc processing.
+   Override the default by setting the CMDLINE_STYLE environment variable.
 `,
 		},
 		{
@@ -2188,7 +2237,7 @@ The global flags are:
 	runTestCases(t, prog, tests)
 }
 
-func TestLongCommandsHelp(t *testing.T) {
+func TestLongCommands(t *testing.T) {
 	cmdLong := &Command{
 		Name:  "thisisaverylongcommand",
 		Short: "the short description of the very long command is very long, and will have to be wrapped",
@@ -2246,4 +2295,136 @@ The global flags are:
 		},
 	}
 	runTestCases(t, prog, tests)
+}
+
+func TestHideGlobalFlags(t *testing.T) {
+	HideGlobalFlagsExcept(regexp.MustCompile(`^global2$`))
+	cmdChild := &Command{
+		Name:  "child",
+		Short: "description of child command.",
+		Long:  "blah blah blah",
+		Run:   runEcho,
+	}
+	prog := &Command{
+		Name:     "program",
+		Short:    "Test hiding global flags.",
+		Long:     "Test hiding global flags.",
+		Children: []*Command{cmdChild},
+	}
+	var tests = []testCase{
+		{
+			Args: []string{"help"},
+			Stdout: `Test hiding global flags.
+
+Usage:
+   program <command>
+
+The program commands are:
+   child       description of child command.
+   help        Display help for commands or topics
+Run "program help [command]" for command usage.
+
+The global flags are:
+ -global2=0
+   global test flag 2
+
+Run "program help -style=full" to show all global flags.
+`,
+		},
+		{
+			Args: []string{"help", "child"},
+			Stdout: `blah blah blah
+
+Usage:
+   program child
+
+The global flags are:
+ -global2=0
+   global test flag 2
+
+Run "program help -style=full child" to show all global flags.
+`,
+		},
+		{
+			Args: []string{"help", "-style=full"},
+			Stdout: `Test hiding global flags.
+
+Usage:
+   program <command>
+
+The program commands are:
+   child       description of child command.
+   help        Display help for commands or topics
+Run "program help [command]" for command usage.
+
+The global flags are:
+ -global2=0
+   global test flag 2
+
+ -global1=
+   global test flag 1
+`,
+		},
+		{
+			Args: []string{"help", "-style=full", "child"},
+			Stdout: `blah blah blah
+
+Usage:
+   program child
+
+The global flags are:
+ -global2=0
+   global test flag 2
+
+ -global1=
+   global test flag 1
+`,
+		},
+	}
+	runTestCases(t, prog, tests)
+	compactGlobalFlags = nil
+}
+
+func TestHideGlobalFlagsRootNoChildren(t *testing.T) {
+	HideGlobalFlagsExcept(regexp.MustCompile(`^global2$`))
+	prog := &Command{
+		Name:  "program",
+		Short: "Test hiding global flags, root no children.",
+		Long:  "Test hiding global flags, root no children.",
+		Run:   runEcho,
+	}
+	var tests = []testCase{
+		{
+			Args: []string{"-help"},
+			Stdout: `Test hiding global flags, root no children.
+
+Usage:
+   program
+
+The global flags are:
+ -global2=0
+   global test flag 2
+
+Run "CMDLINE_STYLE=full program -help" to show all global flags.
+`,
+		},
+		{
+			Args: []string{"-help"},
+			Envs: map[string]string{"CMDLINE_STYLE": "full"},
+			Stdout: `Test hiding global flags, root no children.
+
+Usage:
+   program
+
+The global flags are:
+ -global2=0
+   global test flag 2
+
+ -global1=
+   global test flag 1
+`,
+		},
+	}
+	runTestCases(t, prog, tests)
+	compactGlobalFlags = nil
 }
