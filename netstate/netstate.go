@@ -24,10 +24,15 @@
 // series of calls to Filter with appropriate predicates.
 //
 // In some cases, it may be necessary to take IP routing information
-// into account and hence interface hosting the address. The interface
-// hosting each address is provided in the AddrIfc structure used to represent
-// addresses and the IP routing information is provided by the GetAccessibleIPs
-// function which will typically be used to obtain the available IP addresses.
+// into account and hence the interface hosting the address. The interface
+// hosting each address is provided via NetworkInterface. GetAllAddresses and
+// GetAccessibleIPs return instances of Address that provide access to the
+// network address and the network interface that hosts it.
+//
+// GetAll and GetAccessibleIPs cache the state of the network interfaces
+// and routing information. This cache is invalidated by the Invalidate
+// function which must be called whenever the network changes state (e.g.
+// in response to dhcp changes).
 //
 // Although most commercial networking hardware supports IPv6, some consumer
 // devices and more importantly many ISPs do not, so routines are provided
@@ -55,34 +60,97 @@
 package netstate
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strings"
-
-	"v.io/v23/rpc"
+	"sync"
 
 	"v.io/x/lib/netconfig"
 )
 
-// AddrIfc represents a network address and the network interface that
-// hosts it.
-type AddrIfc struct {
-	// Network address
-	Addr net.Addr
+var (
+	ErrUnsupportedProtocol   = errors.New("unsupported protocol")
+	ErrFailedToParseIPAddr   = errors.New("failed to parse IP address")
+	ErrUnspecifiedIPAddr     = errors.New("unspecified (i.e. zero) IP address")
+	ErrFailedToFindInterface = errors.New("failed to find a network interface")
+)
 
-	// The name of the network interface this address is hosted on, empty
-	// if this information is not available.
-	Name string
-
-	// The IPRoutes of the network interface this address is hosted on,
-	// nil if this information is not available.
-	IPRoutes []*netconfig.IPRoute
+type netAddr struct {
+	network string
+	addr    string
 }
 
-func (a *AddrIfc) String() string {
-	if a.IPRoutes != nil {
-		r := fmt.Sprintf("%s: %s[", a.Addr, a.Name)
-		for _, rt := range a.IPRoutes {
+func (hp *netAddr) Network() string {
+	return hp.network
+}
+
+func (hp *netAddr) String() string {
+	return hp.addr
+}
+
+func NewNetAddr(network, protocol string) net.Addr {
+	return &netAddr{network, protocol}
+}
+
+// address represents a network address and the network interface that
+// hosts it. It implements the Address interface.
+type address struct {
+	addr net.Addr
+	ifc  NetworkInterface
+}
+
+// Implements Address
+func (a *address) Network() string {
+	return a.addr.Network()
+}
+
+// Implements Address
+func (a *address) String() string {
+	return a.addr.String()
+}
+
+func (a *address) DebugString() string {
+	return fmt.Sprintf("[%s:%s %s:%d]", a.addr.Network(), a.addr.String(), a.ifc.Name(), a.ifc.Index())
+}
+
+// Implements Address
+func (a *address) Interface() NetworkInterface {
+	return a.ifc
+}
+
+// ipifc represents a network interface and associated routing information for
+// IP networks.
+type ipifc struct {
+	// local copies of net.Interface data
+	name         string
+	index, mtu   int
+	hardwareAddr net.HardwareAddr
+	flags        net.Flags
+
+	// copy of addresses so that we don't have to call into
+	// the net package to get them again
+	addrs []net.Addr
+	// The IPRoutes of the network interface this address is hosted on,
+	// nil if this information is not available.
+	ipRoutes IPRouteList
+}
+
+// return a comma separated string of network addresses
+func addrsToStr(addrs []net.Addr) string {
+	r := ""
+	for _, a := range addrs {
+		r += a.String() + " "
+	}
+	return strings.TrimRight(r, " ")
+}
+
+// Implements NetworkInterface
+func (ifc ipifc) String() string {
+	r := fmt.Sprintf("(%s:%d %s flags[%s], mtu[%d], hw:[%s])", ifc.name, ifc.index, addrsToStr(ifc.addrs), ifc.flags, ifc.mtu, ifc.hardwareAddr)
+	if len(ifc.ipRoutes) > 0 {
+		r += " ["
+		for _, rt := range ifc.ipRoutes {
 			src := ""
 			if rt.PreferredSource != nil {
 				src = ", src: " + rt.PreferredSource.String()
@@ -91,35 +159,92 @@ func (a *AddrIfc) String() string {
 		}
 		r = strings.TrimSuffix(r, ", ")
 		r += "]"
-		return r
 	}
-	return a.Addr.String()
+	return r
 }
 
-func (a *AddrIfc) Address() net.Addr {
-	return a.Addr
+// Implements NetworkInterface
+func (a ipifc) Addrs() []net.Addr {
+	return a.addrs
 }
 
-func (a *AddrIfc) InterfaceIndex() int {
-	if len(a.IPRoutes) == 0 {
-		return -1
-	}
-	return a.IPRoutes[0].IfcIndex
+// Implements NetworkInterface
+func (a ipifc) Index() int {
+	return a.index
 }
 
-func (a *AddrIfc) InterfaceName() string {
-	return a.Name
+// Implements NetworkInterface
+func (a ipifc) Name() string {
+	return a.name
 }
 
-func (a *AddrIfc) Networks() []net.Addr {
+// Implements NetworkInterface
+func (a ipifc) MTU() int {
+	return a.mtu
+}
+
+// Implements NetworkInterface
+func (a ipifc) HardwareAddr() net.HardwareAddr {
+	return a.hardwareAddr
+}
+
+// Implements NetworkInterface
+func (a ipifc) Flags() net.Flags {
+	return a.flags
+}
+
+// Implements NetworkInterface
+func (a ipifc) Networks() []net.Addr {
 	nets := []net.Addr{}
-	for _, r := range a.IPRoutes {
+	for _, r := range a.ipRoutes {
 		nets = append(nets, &r.Net)
 	}
 	return nets
 }
 
-type AddrList []rpc.Address
+// Implements IPNetworkInterface
+func (a ipifc) IPRoutes() IPRouteList {
+	routes := make(IPRouteList, len(a.ipRoutes))
+	copy(routes, a.ipRoutes)
+	return routes
+}
+
+// Network interface represents a network interface.
+type NetworkInterface interface {
+	// Addrs returns the addresses hosted by this interface.
+	Addrs() []net.Addr
+	// Index returns the index of this interface.
+	Index() int
+	// Name returns the name of this interface, e.g., "en0", "lo0", "eth0.100"
+	Name() string
+	// MTU returns the maximum transmission unit
+	MTU() int
+	// HardwareAddr returns the hardware address in IEEE MAC-48, EUI-48 and EUI-64 form
+	HardwareAddr() net.HardwareAddr
+	// Flags returns the flags for the interface e.g., FlagUp, FlagLoopback, FlagMulticast
+	Flags() net.Flags
+	// Networks returns the set of networks accessible over this interface.
+	Networks() []net.Addr
+	// String returns a string representation of the interface.
+	String() string
+}
+
+// IPNetworkInterface represents a network interface supporting IP protocols.
+type IPNetworkInterface interface {
+	NetworkInterface
+	IPRoutes() IPRouteList
+}
+
+// Address represents a network address and the interface that hosts it.
+type Address interface {
+	// Address returns the network address this instance represents.
+	net.Addr
+	Interface() NetworkInterface
+	DebugString() string
+}
+
+// AddrList is a slice of Addresses.
+type AddrList []Address
 
 func (al AddrList) String() string {
 	r := ""
@@ -129,45 +254,219 @@ func (al AddrList) String() string {
 	return strings.TrimRight(r, " ")
 }
 
-// GetAll gets all of the available addresses on the device, including
-// loopback addresses, non-IP protocols etc.
-func GetAll() (AddrList, error) {
+// RouteTable represents the set of currently available network interfaces
+// and the routes on each such interface. It is index by the index number
+// of each interface.
+type RouteTable map[int]IPRouteList
+
+type netstateCache struct {
+	mu         sync.RWMutex
+	current    bool
+	interfaces []NetworkInterface
+	routes     RouteTable
+}
+
+func (cache *netstateCache) invalidate() {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+	cache.current = false
+}
+
+func (cache *netstateCache) refresh() error {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+
+	if cache.current {
+		return nil
+
+	}
+
 	interfaces, err := net.Interfaces()
+	if err != nil {
+		return err
+	}
+	routes := netconfig.GetIPRoutes(false)
+
+	cache.interfaces = make([]NetworkInterface, len(interfaces))
+	for i, ifc := range interfaces {
+		addrs, err := ifc.Addrs()
+		if err != nil {
+			return err
+		}
+		cache.interfaces[i] = &ipifc{
+			name:         ifc.Name,
+			index:        ifc.Index,
+			mtu:          ifc.MTU,
+			flags:        ifc.Flags,
+			hardwareAddr: ifc.HardwareAddr,
+			addrs:        addrs,
+		}
+	}
+
+	cache.routes = make(RouteTable)
+	for _, r := range routes {
+		cache.routes[r.IfcIndex] = append(cache.routes[r.IfcIndex], r)
+	}
+	cache.current = true
+	return nil
+}
+
+func (cache *netstateCache) getNetState() ([]NetworkInterface, RouteTable, error) {
+	if err := cache.refresh(); err != nil {
+		return nil, nil, err
+	}
+	cache.mu.RLock()
+	defer cache.mu.RUnlock()
+
+	ifcs := make([]NetworkInterface, len(cache.interfaces))
+	copy(ifcs, cache.interfaces)
+
+	rt := make(RouteTable)
+	for k, v := range cache.routes {
+		rt[k] = make(IPRouteList, len(v))
+		copy(rt[k], v)
+	}
+	return ifcs, rt, nil
+}
+
+// Allow this to be overwritten by tests.
+var internalCache *netstateCache
+
+func init() {
+	internalCache = &netstateCache{}
+}
+
+// InvalidateCache invalidates any cached network state.
+func InvalidateCache() {
+	internalCache.invalidate()
+}
+
+// GetNetState returns the current set of interfaces and their routes.
+func GetNetState() ([]NetworkInterface, RouteTable, error) {
+	return internalCache.getNetState()
+}
+
+// GetAllAddresses gets all of the available addresses on the device, including
+// loopback addresses, non-IP protocols etc. The IP interface addresses
+// returned are in CIDR form.
+// GetAllAddressses caches the state of network interfaces and route tables to avoid
+// expensive system calls (for routing information), the cache is invalidated
+// by the Invalidate function which should be called whenever the network state
+// may have changed (e.g. following a dhcp change).
+func GetAllAddresses() (AddrList, error) {
+	interfaces, routeTable, err := internalCache.getNetState()
 	if err != nil {
 		return nil, err
 	}
-	routes := netconfig.GetIPRoutes(false)
-	routeTable := make(map[int][]*netconfig.IPRoute)
-	for _, r := range routes {
-		routeTable[r.IfcIndex] = append(routeTable[r.IfcIndex], r)
-	}
 	var all AddrList
 	for _, ifc := range interfaces {
-		addrs, err := ifc.Addrs()
-		if err != nil {
-			continue
+		for _, a := range ifc.Addrs() {
+			na := &address{
+				addr: a,
+				ifc:  fillInterfaceInfo(ifc, routeTable[ifc.Index()]),
+			}
+			all = append(all, na)
 		}
-		for _, a := range addrs {
-			all = append(all, &AddrIfc{a, ifc.Name, routeTable[ifc.Index]})
-		}
+
 	}
 	return all, nil
+}
+
+// InterfaceList represents a list of network interfaces.
+type InterfaceList []NetworkInterface
+
+func fillInterfaceInfo(ifc NetworkInterface, rl IPRouteList) ipifc {
+	n := ipifc{
+		name:         ifc.Name(),
+		index:        ifc.Index(),
+		mtu:          ifc.MTU(),
+		flags:        ifc.Flags(),
+		hardwareAddr: ifc.HardwareAddr(),
+		addrs:        ifc.Addrs(),
+	}
+	if rl != nil {
+		n.ipRoutes = rl
+	}
+	return n
+}
+
+// GetAllInterfaces returns a list of all of the network interfaces on this
+// device. It uses the same cache as GetAllAddresses.
+func GetAllInterfaces() (InterfaceList, error) {
+	interfaces, routeTable, err := internalCache.getNetState()
+	r := []NetworkInterface{}
+	for _, ifc := range interfaces {
+		ipifc := fillInterfaceInfo(ifc, routeTable[ifc.Index()])
+		r = append(r, &ipifc)
+	}
+	return r, err
+}
+
+func (ifcl InterfaceList) String() string {
+	r := ""
+	for _, ifc := range ifcl {
+		r += fmt.Sprintf("%s, ", ifc)
+	}
+	return strings.TrimRight(r, ", ")
 }
 
 // GetAccessibleIPs returns all of the accessible IP addresses on the device
 // - i.e. excluding loopback and unspecified addresses.
 // The IP addresses returned will be host addresses.
 func GetAccessibleIPs() (AddrList, error) {
-	all, err := GetAll()
+	all, err := GetAllAddresses()
 	if err != nil {
 		return nil, err
 	}
-	return all.Map(ConvertAccessibleIPHost), nil
+
+	convertAccessible := func(a Address) Address {
+		ah := WithIPHost(a)
+		if !IsAccessibleIP(ah) {
+			return nil
+		}
+		return WithIPHost(ah)
+	}
+
+	return all.Map(convertAccessible), nil
+}
+
+// AsNetAddrs returns al as a slice of net.Addrs by changing the type
+// of the slice that contains them and not by copying them.
+func (al AddrList) AsNetAddrs() []net.Addr {
+	r := make([]net.Addr, len(al))
+	for i, a := range al {
+		r[i] = a
+	}
+	return r
+}
+
+// ConvertToAddresses attempts to convert a slice of net.Addr's into
+// an AddrList. It does so as follows:
+// - using type assertion if the net.Addr instance is also an instance
+//   of Address.
+// - using AddressFromAddr.
+// - filling in just the address portion of Address without any interface
+//   information.
+func ConvertToAddresses(addrs []net.Addr) AddrList {
+	r := []Address{}
+	for _, addr := range addrs {
+		if a, ok := addr.(Address); ok {
+			r = append(r, a)
+			continue
+		}
+		if a, err := AddressFromAddr(addr); err == nil {
+			r = append(r, a)
+			continue
+		} else {
+			r = append(r, &address{addr: addr})
+		}
+	}
+	return r
 }
 
 // AddressPredicate defines the function signature for predicate functions
 // to be used with AddrList
-type AddressPredicate func(a rpc.Address) bool
+type AddressPredicate func(a Address) bool
 
 // Filter returns all of the addresses for which the predicate
 // function is true.
@@ -181,7 +480,7 @@ func (al AddrList) Filter(predicate AddressPredicate) AddrList {
 	return r
 }
 
-type Mapper func(a rpc.Address) rpc.Address
+type Mapper func(a Address) Address
 
 // Map will apply the Mapper function to all of the items in its receiver
 // and return a new AddrList containing all of the non-nil results from
@@ -196,37 +495,90 @@ func (al AddrList) Map(mapper Mapper) AddrList {
 	return ral
 }
 
-// ConvertToIPHost converts the network address component of an rpc.Address into
-// an instance with a net.Addr that contains an IP host address (as opposed to a
-// network CIDR for example).
-func ConvertToIPHost(a rpc.Address) rpc.Address {
-	aifc, ok := a.(*AddrIfc)
-	if !ok {
-		return nil
-	}
-	aifc.Addr = AsIPAddr(aifc.Addr)
+// WithIPHost returns an instance of Address with the network
+// address component being an instance with a net.Addr that contains an
+// IP host address (as opposed to a network CIDR for example).
+func WithIPHost(a Address) Address {
+	aifc := &address{}
+	aifc.addr = AsIPAddr(a)
+	aifc.ifc = ipifcFromNetIfc(a.Interface().(IPNetworkInterface))
 	return aifc
 }
 
-// ConvertAccessibleIPHost converts the network address component of an rpc.Address
-// into an instance with a net.Addr that contains an IP host address (as opposed to a
-// network CIDR for example) with filtering out a loopback or non-accessible IPs.
-func ConvertAccessibleIPHost(a rpc.Address) rpc.Address {
-	if !IsAccessibleIP(a) {
-		return nil
-	}
-	aifc, ok := a.(*AddrIfc)
+// WithIPHostAndPort returns an instance of Address with the network
+// address component being an instance of net.Addr that contains an
+// IP host and port in : notation.
+func WithIPHostAndPort(a Address, port string) Address {
+	aifc, ok := a.(*address)
 	if !ok {
 		return nil
 	}
-	if ip := AsIPAddr(aifc.Addr); ip != nil {
-		aifc.Addr = ip
+	aifc.addr = AsIPAddr(aifc.addr)
+	hostAndPort := a.String()
+	if len(port) > 0 {
+		hostAndPort = net.JoinHostPort(hostAndPort, port)
 	}
+	aifc.addr = &netAddr{a.Network(), hostAndPort}
 	return aifc
+}
+
+func ipifcFromNetIfc(ifc IPNetworkInterface) ipifc {
+	return ipifc{
+		name:         ifc.Name(),
+		index:        ifc.Index(),
+		mtu:          ifc.MTU(),
+		flags:        ifc.Flags(),
+		hardwareAddr: ifc.HardwareAddr(),
+		addrs:        ifc.Addrs(),
+		ipRoutes:     ifc.IPRoutes(),
+	}
+}
+
+// AddressFromAddr creates an instance of Address given the suppied
+// net.Addr.  It will search through the available network interfaces
+// to find the interface that hosts this address.
+// It currently supports only IP protocols.
+func AddressFromAddr(addr net.Addr) (Address, error) {
+	if !IsIPProtocol(addr.Network()) {
+		return nil, ErrUnsupportedProtocol
+	}
+	ip := net.ParseIP(addr.String())
+	if ip == nil {
+		return nil, ErrFailedToParseIPAddr
+	}
+	return AddressFromIP(ip)
+}
+
+// AddressFromIP creates an instance of Address given the supplied
+// IP address. It will search through the available network interfaces
+// to find the interface that hosts this IP address.
+func AddressFromIP(ip net.IP) (Address, error) {
+	if ip.IsUnspecified() {
+		return nil, ErrUnspecifiedIPAddr
+	}
+	ifcs, _, err := internalCache.getNetState()
+	if err != nil {
+		return nil, err
+	}
+	for _, ifc := range ifcs {
+		for _, ifaddr := range ifc.Addrs() {
+			if !IsIPProtocol(ifaddr.Network()) {
+				continue
+			}
+			cip := AsIP(ifaddr)
+			if ip.Equal(cip) {
+				addr := &address{addr: &net.IPAddr{IP: ip}}
+				addr.ifc = ipifcFromNetIfc(ifc.(IPNetworkInterface))
+				return addr, nil
+			}
+		}
+	}
+	return nil, ErrFailedToFindInterface
 }
 
 // IsIPProtocol returns true if its parameter is one of the allowed
-// network/protocol values for IP.
+// network/protocol values for IP. It considers the vanadium specific
+// websockect protocols (wsh, wsh4, wsh6) as being IP.
 func IsIPProtocol(n string) bool {
 	// Removed the training IP version number.
 	n = strings.TrimRightFunc(n, func(r rune) bool { return r == '4' || r == '6' })
@@ -238,16 +590,27 @@ func IsIPProtocol(n string) bool {
 	}
 }
 
-// AsIPAddr returns its argument as a net.IPAddr if that's possible.
+// AsIPAddr returns its argument as a net.IPAddr if that's possible. If
+// the address is an IP in host:port notation it will use the host portion
+// only.
 func AsIPAddr(a net.Addr) *net.IPAddr {
-	if v, ok := a.(*net.IPAddr); ok {
+	switch v := a.(type) {
+	case *net.IPAddr:
 		return v
-	}
-	if ipn, ok := a.(*net.IPNet); ok {
-		return &net.IPAddr{IP: ipn.IP}
+	case *net.IPNet:
+		return &net.IPAddr{IP: v.IP}
+	case *address:
+		return AsIPAddr(v.addr)
 	}
 	if IsIPProtocol(a.Network()) {
 		if r := net.ParseIP(a.String()); r != nil {
+			return &net.IPAddr{IP: r}
+		}
+		if r, _, _ := net.ParseCIDR(a.String()); r != nil {
+			return &net.IPAddr{IP: r}
+		}
+		host, _, _ := net.SplitHostPort(a.String())
+		if r := net.ParseIP(host); r != nil {
 			return &net.IPAddr{IP: r}
 		}
 	}
@@ -264,16 +627,16 @@ func AsIP(a net.Addr) net.IP {
 }
 
 // IsUnspecified returns true if its argument is an unspecified IP address
-func IsUnspecifiedIP(a rpc.Address) bool {
-	if ip := AsIP(a.Address()); ip != nil {
+func IsUnspecifiedIP(a Address) bool {
+	if ip := AsIP(a); ip != nil {
 		return ip.IsUnspecified()
 	}
 	return false
 }
 
 // IsLoopback returns true if its argument is a loopback IP address
-func IsLoopbackIP(a rpc.Address) bool {
-	if ip := AsIP(a.Address()); ip != nil && !ip.IsUnspecified() {
+func IsLoopbackIP(a Address) bool {
+	if ip := AsIP(a); ip != nil && !ip.IsUnspecified() {
 		return ip.IsLoopback()
 	}
 	return false
@@ -281,16 +644,16 @@ func IsLoopbackIP(a rpc.Address) bool {
 
 // IsAccessible returns true if its argument is an accessible (non-loopback)
 // IP address.
-func IsAccessibleIP(a rpc.Address) bool {
-	if ip := AsIP(a.Address()); ip != nil && !ip.IsUnspecified() {
+func IsAccessibleIP(a Address) bool {
+	if ip := AsIP(a); ip != nil && !ip.IsUnspecified() {
 		return !ip.IsLoopback()
 	}
 	return false
 }
 
 // IsUnicastIP returns true if its argument is a unicast IP address.
-func IsUnicastIP(a rpc.Address) bool {
-	if ip := AsIP(a.Address()); ip != nil && !ip.IsUnspecified() {
+func IsUnicastIP(a Address) bool {
+	if ip := AsIP(a); ip != nil && !ip.IsUnspecified() {
 		// ipv4 or v6
 		return !(ip.IsMulticast() || ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast())
 	}
@@ -298,8 +661,8 @@ func IsUnicastIP(a rpc.Address) bool {
 }
 
 // IsUnicastIPv4 returns true if its argument is a unicast IP4 address
-func IsUnicastIPv4(a rpc.Address) bool {
-	if ip := AsIP(a.Address()); ip != nil && ip.To4() != nil {
+func IsUnicastIPv4(a Address) bool {
+	if ip := AsIP(a); ip != nil && ip.To4() != nil {
 		return !ip.IsUnspecified() && !ip.IsMulticast()
 	}
 	return false
@@ -307,8 +670,8 @@ func IsUnicastIPv4(a rpc.Address) bool {
 
 // IsPublicUnicastIPv4 returns true if its argument is a globally routable,
 // public IPv4 unicast address.
-func IsPublicUnicastIPv4(a rpc.Address) bool {
-	if ip := AsIP(a.Address()); ip != nil && !ip.IsUnspecified() {
+func IsPublicUnicastIPv4(a Address) bool {
+	if ip := AsIP(a); ip != nil && !ip.IsUnspecified() {
 		if t := ip.To4(); t != nil && IsGloballyRoutableIP(t) {
 			return !ip.IsMulticast()
 		}
@@ -317,8 +680,8 @@ func IsPublicUnicastIPv4(a rpc.Address) bool {
 }
 
 // IsUnicastIPv6 returns true if its argument is a unicast IPv6 address
-func IsUnicastIPv6(a rpc.Address) bool {
-	if ip := AsIP(a.Address()); ip != nil && ip.To4() == nil {
+func IsUnicastIPv6(a Address) bool {
+	if ip := AsIP(a); ip != nil && ip.To4() == nil {
 		return !ip.IsUnspecified() && !(ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast())
 	}
 	return false
@@ -326,8 +689,8 @@ func IsUnicastIPv6(a rpc.Address) bool {
 
 // IsUnicastIPv6 returns true if its argument is a globally routable IP6
 // address
-func IsPublicUnicastIPv6(a rpc.Address) bool {
-	if ip := AsIP(a.Address()); ip != nil && ip.To4() == nil {
+func IsPublicUnicastIPv6(a Address) bool {
+	if ip := AsIP(a); ip != nil && ip.To4() == nil {
 		if t := ip.To16(); t != nil && IsGloballyRoutableIP(t) {
 			return true
 		}
@@ -337,8 +700,8 @@ func IsPublicUnicastIPv6(a rpc.Address) bool {
 
 // IsPublicUnicastIP returns true if its argument is a global routable IPv4
 // or 6 address.
-func IsPublicUnicastIP(a rpc.Address) bool {
-	if ip := AsIP(a.Address()); ip != nil {
+func IsPublicUnicastIP(a Address) bool {
+	if ip := AsIP(a); ip != nil {
 		if t := ip.To4(); t != nil && IsGloballyRoutableIP(t) {
 			return true
 		}
@@ -354,8 +717,8 @@ func diffAB(a, b AddrList) AddrList {
 	for _, av := range a {
 		found := false
 		for _, bv := range b {
-			if av.Address().Network() == bv.Address().Network() &&
-				av.Address().String() == bv.Address().String() {
+			if av.Network() == bv.Network() &&
+				av.String() == bv.String() {
 				found = true
 				break
 			}
@@ -379,17 +742,16 @@ func FindRemoved(a, b AddrList) AddrList {
 	return diffAB(a, b)
 }
 
-// SameMachine returns true if the provided addr is on the device executing this
-// function.
+// SameMachine returns true if the provided addr is on the host
+// executing this function.
 func SameMachine(addr net.Addr) (bool, error) {
-	// The available interfaces may change between calls.
-	addrs, err := GetAll()
+	addrs, err := GetAllAddresses()
 	if err != nil {
 		return false, err
 	}
 	ips := make(map[string]struct{})
 	for _, a := range addrs {
-		ip, _, err := net.ParseCIDR(a.Address().String())
+		ip, _, err := net.ParseCIDR(a.String())
 		if err != nil {
 			return false, err
 		}

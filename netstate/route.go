@@ -6,42 +6,10 @@ package netstate
 
 import (
 	"fmt"
-	"net"
 	"strings"
-
-	"v.io/v23/rpc"
 
 	"v.io/x/lib/netconfig"
 )
-
-// Interface represents a network interface.
-type Interface struct {
-	Index int
-	Name  string
-}
-type InterfaceList []*Interface
-
-// GetInterfaces returns a list of all of the network interfaces on this
-// device.
-func GetInterfaces() (InterfaceList, error) {
-	ifcl := InterfaceList{}
-	interfaces, err := net.Interfaces()
-	if err != nil {
-		return nil, err
-	}
-	for _, ifc := range interfaces {
-		ifcl = append(ifcl, &Interface{ifc.Index, ifc.Name})
-	}
-	return ifcl, nil
-}
-
-func (ifcl InterfaceList) String() string {
-	r := ""
-	for _, ifc := range ifcl {
-		r += fmt.Sprintf("(%d: %s) ", ifc.Index, ifc.Name)
-	}
-	return strings.TrimRight(r, " ")
-}
 
 // IPRouteList is a slice of IPRoutes as returned by the netconfig package.
 type IPRouteList []*netconfig.IPRoute
@@ -56,10 +24,6 @@ func (rl IPRouteList) String() string {
 		r += fmt.Sprintf("(%d: net: %s, gw: %s%s) ", rt.IfcIndex, rt.Net, rt.Gateway, src)
 	}
 	return strings.TrimRight(r, " ")
-}
-
-func GetRoutes() IPRouteList {
-	return netconfig.GetIPRoutes(false)
 }
 
 // RoutePredicate defines the function signature for predicate functions
@@ -85,21 +49,21 @@ func IsDefaultRoute(r *netconfig.IPRoute) bool {
 
 // IsOnDefaultRoute returns true for addresses that are on an interface that
 // has a default route set for the supplied address.
-func IsOnDefaultRoute(a rpc.Address) bool {
-	aifc, ok := a.(*AddrIfc)
-	if !ok || len(aifc.IPRoutes) == 0 {
+func IsOnDefaultRoute(a Address) bool {
+	ipifc, ok := a.Interface().(IPNetworkInterface)
+	if !ok || len(ipifc.IPRoutes()) == 0 {
 		return false
 	}
 	ipv4 := IsUnicastIPv4(a)
-	for _, r := range aifc.IPRoutes {
+	for _, r := range ipifc.IPRoutes() {
 		// Ignore entries with a nil gateway.
 		if r.Gateway == nil {
 			continue
 		}
 		// We have a default route, so we check the gateway to make sure
 		// it matches the format of the default route.
-		if ipv4 {
-			return netconfig.IsDefaultIPv4Route(r) && r.Gateway.To4() != nil
+		if ipv4 && netconfig.IsDefaultIPv4Route(r) && r.Gateway.To4() != nil {
+			return true
 		}
 		if netconfig.IsDefaultIPv6Route(r) {
 			return true
