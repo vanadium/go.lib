@@ -1,0 +1,48 @@
+pkg netstate, func AsIP(net.Addr) net.IP
+pkg netstate, func AsIPAddr(net.Addr) *net.IPAddr
+pkg netstate, func ConvertAccessibleIPHost(rpc.Address) rpc.Address
+pkg netstate, func ConvertToIPHost(rpc.Address) rpc.Address
+pkg netstate, func FindAdded(AddrList, AddrList) AddrList
+pkg netstate, func FindRemoved(AddrList, AddrList) AddrList
+pkg netstate, func GetAccessibleIPs() (AddrList, error)
+pkg netstate, func GetAll() (AddrList, error)
+pkg netstate, func GetInterfaces() (InterfaceList, error)
+pkg netstate, func GetRoutes() IPRouteList
+pkg netstate, func IsAccessibleIP(rpc.Address) bool
+pkg netstate, func IsDefaultRoute(*netconfig.IPRoute) bool
+pkg netstate, func IsGloballyRoutableIP(net.IP) bool
+pkg netstate, func IsIPProtocol(string) bool
+pkg netstate, func IsLoopbackIP(rpc.Address) bool
+pkg netstate, func IsOnDefaultRoute(rpc.Address) bool
+pkg netstate, func IsPublicUnicastIP(rpc.Address) bool
+pkg netstate, func IsPublicUnicastIPv4(rpc.Address) bool
+pkg netstate, func IsPublicUnicastIPv6(rpc.Address) bool
+pkg netstate, func IsUnicastIP(rpc.Address) bool
+pkg netstate, func IsUnicastIPv4(rpc.Address) bool
+pkg netstate, func IsUnicastIPv6(rpc.Address) bool
+pkg netstate, func IsUnspecifiedIP(rpc.Address) bool
+pkg netstate, func SameMachine(net.Addr) (bool, error)
+pkg netstate, method (*AddrIfc) Address() net.Addr
+pkg netstate, method (*AddrIfc) InterfaceIndex() int
+pkg netstate, method (*AddrIfc) InterfaceName() string
+pkg netstate, method (*AddrIfc) Networks() []net.Addr
+pkg netstate, method (*AddrIfc) String() string
+pkg netstate, method (AddrList) Filter(AddressPredicate) AddrList
+pkg netstate, method (AddrList) Map(Mapper) AddrList
+pkg netstate, method (AddrList) String() string
+pkg netstate, method (IPRouteList) Filter(RoutePredicate) IPRouteList
+pkg netstate, method (IPRouteList) String() string
+pkg netstate, method (InterfaceList) String() string
+pkg netstate, type AddrIfc struct
+pkg netstate, type AddrIfc struct, Addr net.Addr
+pkg netstate, type AddrIfc struct, IPRoutes []*netconfig.IPRoute
+pkg netstate, type AddrIfc struct, Name string
+pkg netstate, type AddrList []rpc.Address
+pkg netstate, type AddressPredicate func(a rpc.Address) bool
+pkg netstate, type IPRouteList []*netconfig.IPRoute
+pkg netstate, type Interface struct
+pkg netstate, type Interface struct, Index int
+pkg netstate, type Interface struct, Name string
+pkg netstate, type InterfaceList []*Interface
+pkg netstate, type Mapper func(a rpc.Address) rpc.Address
+pkg netstate, type RoutePredicate func(r *netconfig.IPRoute) bool

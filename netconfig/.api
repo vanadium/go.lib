@@ -1,0 +1,14 @@
+pkg netconfig, const GROUPS C.RTMGRP_LINK
+pkg netconfig, func GetIPRoutes(bool) []*IPRoute
+pkg netconfig, func IsDefaultIPRoute(*IPRoute) bool
+pkg netconfig, func IsDefaultIPv4Route(*IPRoute) bool
+pkg netconfig, func IsDefaultIPv6Route(*IPRoute) bool
+pkg netconfig, func NewNetConfigWatcher() (NetConfigWatcher, error)
+pkg netconfig, type IPRoute struct
+pkg netconfig, type IPRoute struct, Gateway net.IP
+pkg netconfig, type IPRoute struct, IfcIndex int
+pkg netconfig, type IPRoute struct, Net net.IPNet
+pkg netconfig, type IPRoute struct, PreferredSource net.IP
+pkg netconfig, type NetConfigWatcher interface { Channel, Stop }
+pkg netconfig, type NetConfigWatcher interface, Channel() chan struct{}
+pkg netconfig, type NetConfigWatcher interface, Stop()

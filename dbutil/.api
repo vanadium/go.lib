@@ -1,0 +1,15 @@
+pkg dbutil, const SqlConfigFileDescription ideal-string
+pkg dbutil, const SqlCreateTableSuffix ideal-string
+pkg dbutil, func ActivateSqlConfigFromFile(string) (*ActiveSqlConfig, error)
+pkg dbutil, func NewSqlDBConnFromFile(string, string) (*sql.DB, error)
+pkg dbutil, func ParseSqlConfigFromFile(string) (*SqlConfig, error)
+pkg dbutil, method (*ActiveSqlConfig) NewSqlDBConn(string) (*sql.DB, error)
+pkg dbutil, method (*SqlConfig) Activate(string) (*ActiveSqlConfig, error)
+pkg dbutil, type ActiveSqlConfig struct
+pkg dbutil, type SqlConfig struct
+pkg dbutil, type SqlConfig struct, ClientCertPath string
+pkg dbutil, type SqlConfig struct, ClientKeyPath string
+pkg dbutil, type SqlConfig struct, DataSourceName string
+pkg dbutil, type SqlConfig struct, RootCertPath string
+pkg dbutil, type SqlConfig struct, TLSDisable bool
+pkg dbutil, type SqlConfig struct, TLSServerName string

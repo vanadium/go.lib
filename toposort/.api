@@ -1,0 +1,5 @@
+pkg toposort, func DumpCycles([][]interface{}, func(interface{}) string) string
+pkg toposort, method (*Sorter) AddEdge(interface{}, interface{})
+pkg toposort, method (*Sorter) AddNode(interface{})
+pkg toposort, method (*Sorter) Sort() ([]interface{}, [][]interface{})
+pkg toposort, type Sorter struct
