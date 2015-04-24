@@ -83,6 +83,13 @@ func PossibleAddresses(protocol, addr string, chooser AddressChooser) ([]net.Add
 			return []net.Addr{address}, unspecified, nil
 		}
 	}
+	if len(port) > 0 {
+		addPort := func(a Address) Address {
+			return WithIPHostAndPort(a, port)
+		}
+		withPort := ConvertToAddresses(chosen).Map(addPort)
+		chosen = withPort.AsNetAddrs()
+	}
 	return chosen, unspecified, nil
 }
 

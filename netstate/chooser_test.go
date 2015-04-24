@@ -73,6 +73,55 @@ func TestChooser(t *testing.T) {
 	}
 }
 
+func TestChooserWithPorts(t *testing.T) {
+	_, ifcs, rt := mockInterfacesAndRouteTable()
+	cleanup := netstate.CreateAndUseMockCache(ifcs, rt)
+	defer cleanup()
+
+	chooser := func(protocol string, addrs []net.Addr) ([]net.Addr, error) {
+		return addrs, nil
+	}
+
+	addrs, unspecified, err := netstate.PossibleAddresses("tcp", "0.0.0.0:30", chooser)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := unspecified, true; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	if got, want := len(addrs), 7; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	for _, a := range addrs {
+		_, port, _ := net.SplitHostPort(a.String())
+		if got, want := port, "30"; got != want {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	}
+
+	addrs, unspecified, err = netstate.PossibleAddresses("tcp", "192.168.1.10:31", chooser)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := unspecified, false; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	if got, want := len(addrs), 1; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	for _, a := range addrs {
+		_, port, _ := net.SplitHostPort(a.String())
+		if got, want := port, "31"; got != want {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	}
+
+}
+
 func TestChooserNoMatches(t *testing.T) {
 	_, ifcs, rt := mockInterfacesAndRouteTable()
 	cleanup := netstate.CreateAndUseMockCache(ifcs, rt)
