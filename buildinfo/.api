@@ -2,6 +2,8 @@ pkg buildinfo, func Info() *T
 pkg buildinfo, method (*T) String() string
 pkg buildinfo, type T struct
 pkg buildinfo, type T struct, BuildPlatform string
-pkg buildinfo, type T struct, BuildTimestamp string
+pkg buildinfo, type T struct, BuildTimestamp time.Time
 pkg buildinfo, type T struct, BuildUser string
 pkg buildinfo, type T struct, GoVersion string
+pkg buildinfo, type T struct, Manifest string
+pkg buildinfo, type T struct, Pristine bool
