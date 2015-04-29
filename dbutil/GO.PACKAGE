@@ -1,0 +1,5 @@
+{
+	"imports": [
+		{"allow": "github.com/go-sql-driver/mysql"}
+	]
+}

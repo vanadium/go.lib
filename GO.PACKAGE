@@ -1,0 +1,6 @@
+{
+	"imports": [
+		{"allow": "v.io/x/lib/..."},
+		{"deny": "..."}
+	]
+}

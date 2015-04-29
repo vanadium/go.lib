@@ -1,7 +1,5 @@
 {
-	"dependencies": {
-		"outgoing": [
-			{"allow": "github.com/cosmosnicolaou/llog"}
-		]
-	}
+	"imports": [
+		{"allow": "github.com/cosmosnicolaou/llog"}
+	]
 }
