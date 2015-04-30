@@ -1,32 +1,32 @@
-# This is the official list of people who can contribute
-# (and typically have contributed) code to the Vanadium repository.
+# People who have agreed to one of the CLAs and can contribute patches.
 # The AUTHORS file lists the copyright holders; this file
-# lists people. For example, Google employees are listed here
+# lists people.  For example, Google employees are listed here
 # but not in AUTHORS, because Google holds the copyright.
 #
-# The submission process automatically checks to make sure
-# that people submitting code are listed in this file (by email address).
+# https://developers.google.com/open-source/cla/individual
+# https://developers.google.com/open-source/cla/corporate
 #
-# Names should be added to this file only after verifying that
-# the individual or the individual's organization has agreed to
-# the appropriate Contributor License Agreement, found here:
-#
-#     http://code.google.com/legal/individual-cla-v1.0.html
-#     http://code.google.com/legal/corporate-cla-v1.0.html
-#
-# The agreement for individuals can be filled out on the web.
-#
-# When adding J Random Contributor's name to this file,
-# either J's name or J's organization's name should be
-# added to the AUTHORS file, depending on whether the
-# individual or corporate CLA was used.
-
-# Names should be added to this file like so:
+# Names should be added to this file as:
 #     Name <email address>
-#
-# An entry with two email addresses specifies that the
-# first address should be used in the submit logs and
-# that the second address should be recognized as the
-# same person when interacting with Rietveld.
-
-# Please keep the list sorted.
+Ali Ghassemi <aghassemi@google.com>
+Ankur Taly <ataly@google.com>
+Asim Shankar <ashankar@google.com>
+Benjamin Prosnitz <bprosnitz@google.com>
+Bogdan Caprita <caprita@google.com>
+Cosmos Nicolaou <cnicolaou@google.com>
+David Presotto <p@google.com>
+Ivan Pilat <ivanpi@google.com>
+James Ring <sjr@google.com>
+Jing Jin <jingjin@google.com>
+Jiri Simsa <jsimsa@google.com>
+Jungho Ahn <jhahn@google.com>
+Matt Rosencrantz <mattr@google.com>
+Mehrdad Afshari <leakycode@google.com>
+Nicolas LaCasse <nlacasse@google.com>
+Robert Kroeger <rjkroege@google.com>
+Robin Thellend <rthellend@google.com>
+Ryan Brown <ribrdb@google.com>
+Srdjan Petrovic <spetrovic@google.com>
+Suharsh Sivakumar <suharshs@google.com>
+Tilak Sharma <tilaks@google.com>
+Todd Wang <toddw@google.com>
