@@ -63,6 +63,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	_ "v.io/x/lib/metadata" // for the -v23.metadata flag
 	"v.io/x/lib/textutil"
 )
 
