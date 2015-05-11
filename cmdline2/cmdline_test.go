@@ -142,49 +142,261 @@ func runTestCases(t *testing.T, cmd *Command, tests []testCase) {
 	}
 }
 
-func TestNoChildrenOrRun(t *testing.T) {
+func TestNoChildrenOrRunner(t *testing.T) {
 	neither := &Command{
 		Name:  "neither",
 		Short: "Neither is invalid.",
 		Long:  "Neither has no commands and no runner.",
 	}
+	wantErr := `neither: CODE INVARIANT BROKEN; FIX YOUR CODE
+
+At least one of Children or Runner must be specified.
+`
 	tests := []testCase{
-		{
-			Args: []string{},
-			Err:  `neither: neither Children nor Run specified`,
-		},
-		{
-			Args: []string{"foo"},
-			Err:  `neither: neither Children nor Run specified`,
-		},
+		{Args: []string{}, Err: wantErr},
+		{Args: []string{"foo"}, Err: wantErr},
 	}
 	runTestCases(t, neither, tests)
+	parent := &Command{
+		Name:     "parent",
+		Short:    "parent",
+		Long:     "parent",
+		Children: []*Command{neither},
+	}
+	wantErr = "parent " + wantErr
+	tests = []testCase{
+		{Args: []string{}, Err: wantErr},
+		{Args: []string{"foo"}, Err: wantErr},
+	}
+	runTestCases(t, parent, tests)
 }
 
-func TestBothChildrenAndRun(t *testing.T) {
+func TestBothChildrenAndRunnerWithArgs(t *testing.T) {
 	child := &Command{
-		Name:  "child",
-		Short: "Child command.",
-		Long:  "Child command.",
+		Name:   "child",
+		Short:  "Child command.",
+		Long:   "Child command.",
+		Runner: RunnerFunc(runEcho),
 	}
 	both := &Command{
 		Name:     "both",
 		Short:    "Both is invalid.",
-		Long:     "Both has both commands and a runner.",
+		Long:     "Both has both commands and a runner with args.",
+		ArgsName: "[strings]",
+		ArgsLong: "[strings] are arbitrary strings that will be echoed.",
 		Children: []*Command{child},
 		Runner:   RunnerFunc(runEcho),
 	}
+	wantErr := `both: CODE INVARIANT BROKEN; FIX YOUR CODE
+
+Since both Children and Runner are specified, the Runner cannot take args.
+Otherwise a conflict between child names and runner args is possible.
+`
 	tests := []testCase{
+		{Args: []string{}, Err: wantErr},
+		{Args: []string{"foo"}, Err: wantErr},
+	}
+	runTestCases(t, both, tests)
+	parent := &Command{
+		Name:     "parent",
+		Short:    "parent",
+		Long:     "parent",
+		Children: []*Command{both},
+	}
+	wantErr = "parent " + wantErr
+	tests = []testCase{
+		{Args: []string{}, Err: wantErr},
+		{Args: []string{"foo"}, Err: wantErr},
+	}
+	runTestCases(t, parent, tests)
+}
+
+func TestBothChildrenAndRunnerNoArgs(t *testing.T) {
+	cmdEcho := &Command{
+		Name:     "echo",
+		Short:    "Print strings on stdout",
+		Long:     "Echo prints any strings passed in to stdout.",
+		Runner:   RunnerFunc(runEcho),
+		ArgsName: "[strings]",
+		ArgsLong: "[strings] are arbitrary strings that will be echoed.",
+	}
+	prog := &Command{
+		Name:     "cmdrun",
+		Short:    "Cmdrun program.",
+		Long:     "Cmdrun has the echo command and a Run function with no args.",
+		Children: []*Command{cmdEcho},
+		Runner:   RunnerFunc(runHello),
+	}
+	var tests = []testCase{
 		{
-			Args: []string{},
-			Err:  `both: both Children and Run specified`,
+			Args:   []string{},
+			Stdout: "Hello\n",
 		},
 		{
 			Args: []string{"foo"},
-			Err:  `both: both Children and Run specified`,
+			Err:  errUsageStr,
+			Stderr: `ERROR: cmdrun: unknown command "foo"
+
+Cmdrun has the echo command and a Run function with no args.
+
+Usage:
+   cmdrun
+   cmdrun <command>
+
+The cmdrun commands are:
+   echo        Print strings on stdout
+   help        Display help for commands or topics
+Run "cmdrun help [command]" for command usage.
+
+The global flags are:
+ -global1=
+   global test flag 1
+ -global2=0
+   global test flag 2
+`,
+		},
+		{
+			Args: []string{"help"},
+			Stdout: `Cmdrun has the echo command and a Run function with no args.
+
+Usage:
+   cmdrun
+   cmdrun <command>
+
+The cmdrun commands are:
+   echo        Print strings on stdout
+   help        Display help for commands or topics
+Run "cmdrun help [command]" for command usage.
+
+The global flags are:
+ -global1=
+   global test flag 1
+ -global2=0
+   global test flag 2
+`,
+		},
+		{
+			Args: []string{"help", "echo"},
+			Stdout: `Echo prints any strings passed in to stdout.
+
+Usage:
+   cmdrun echo [strings]
+
+[strings] are arbitrary strings that will be echoed.
+
+The global flags are:
+ -global1=
+   global test flag 1
+ -global2=0
+   global test flag 2
+`,
+		},
+		{
+			Args: []string{"help", "..."},
+			Stdout: `Cmdrun has the echo command and a Run function with no args.
+
+Usage:
+   cmdrun
+   cmdrun <command>
+
+The cmdrun commands are:
+   echo        Print strings on stdout
+   help        Display help for commands or topics
+Run "cmdrun help [command]" for command usage.
+
+The global flags are:
+ -global1=
+   global test flag 1
+ -global2=0
+   global test flag 2
+================================================================================
+Cmdrun echo
+
+Echo prints any strings passed in to stdout.
+
+Usage:
+   cmdrun echo [strings]
+
+[strings] are arbitrary strings that will be echoed.
+================================================================================
+Cmdrun help
+
+Help with no args displays the usage of the parent command.
+
+Help with args displays the usage of the specified sub-command or help topic.
+
+"help ..." recursively displays help for all commands and topics.
+
+Usage:
+   cmdrun help [flags] [command/topic ...]
+
+[command/topic ...] optionally identifies a specific sub-command or help topic.
+
+The cmdrun help flags are:
+ -style=compact
+   The formatting style for help output:
+      compact - Good for compact cmdline output.
+      full    - Good for cmdline output, shows all global flags.
+      godoc   - Good for godoc processing.
+   Override the default by setting the CMDLINE_STYLE environment variable.
+ -width=80
+   Format output to this target width in runes, or unlimited if width < 0.
+   Defaults to the terminal width if available.  Override the default by setting
+   the CMDLINE_WIDTH environment variable.
+`,
+		},
+		{
+			Args: []string{"help", "foo"},
+			Err:  errUsageStr,
+			Stderr: `ERROR: cmdrun: unknown command or topic "foo"
+
+Cmdrun has the echo command and a Run function with no args.
+
+Usage:
+   cmdrun
+   cmdrun <command>
+
+The cmdrun commands are:
+   echo        Print strings on stdout
+   help        Display help for commands or topics
+Run "cmdrun help [command]" for command usage.
+
+The global flags are:
+ -global1=
+   global test flag 1
+ -global2=0
+   global test flag 2
+`,
+		},
+		{
+			Args:   []string{"echo", "foo", "bar"},
+			Stdout: "[foo bar]\n",
+		},
+		{
+			Args: []string{"echo", "error"},
+			Err:  errEchoStr,
+		},
+		{
+			Args: []string{"echo", "bad_arg"},
+			Err:  errUsageStr,
+			Stderr: `ERROR: Invalid argument bad_arg
+
+Echo prints any strings passed in to stdout.
+
+Usage:
+   cmdrun echo [strings]
+
+[strings] are arbitrary strings that will be echoed.
+
+The global flags are:
+ -global1=
+   global test flag 1
+ -global2=0
+   global test flag 2
+`,
 		},
 	}
-	runTestCases(t, both, tests)
+	runTestCases(t, prog, tests)
 }
 
 func TestOneCommand(t *testing.T) {
@@ -1858,7 +2070,6 @@ The prog1 help flags are:
 `,
 		},
 	}
-
 	runTestCases(t, progHello1, tests)
 }
 
@@ -2007,7 +2218,7 @@ The global flags are:
 		},
 	}
 	runTestCases(t, prog, tests)
-	compactGlobalFlags = nil
+	nonHiddenGlobalFlags = nil
 }
 
 func TestHideGlobalFlagsRootNoChildren(t *testing.T) {
@@ -2051,5 +2262,55 @@ The global flags are:
 		},
 	}
 	runTestCases(t, prog, tests)
-	compactGlobalFlags = nil
+	nonHiddenGlobalFlags = nil
+}
+
+func TestRootCommandFlags(t *testing.T) {
+	root := &Command{
+		Name:   "root",
+		Short:  "Test root command flags.",
+		Long:   "Test root command flags.",
+		Runner: RunnerFunc(runHello),
+	}
+	rb := root.Flags.Bool("rbool", false, "rbool desc")
+	rs := root.Flags.String("rstring", "abc", "rstring desc")
+	origFlags := flag.CommandLine
+	// Parse and make sure the flags get set appropriately.
+	_, _, err := Parse(root, NewEnv(), []string{"-rbool=true", "-rstring=XYZ"})
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	if got, want := *rb, true; got != want {
+		t.Errorf("rbool got %v want %v", got, want)
+	}
+	if got, want := *rs, "XYZ"; got != want {
+		t.Errorf("rstring got %v want %v", got, want)
+	}
+	// Make sure we haven't changed the flag.CommandLine pointer, and that it's
+	// parsed, and it contains our root command flags.  These properties are
+	// important to ensure so that users can check whether the flags are already
+	// parsed to avoid double-parsing.  Even if they do call flag.Parse it'll
+	// succeed, as long as cmdline.Parse succeeded.
+	if got, want := flag.CommandLine, origFlags; got != want {
+		t.Errorf("flag.CommandLine pointer changed, got %p want %p", got, want)
+	}
+	if got, want := flag.CommandLine.Parsed(), true; got != want {
+		t.Errorf("flag.CommandLine.Parsed() got %v, want %v", got, want)
+	}
+	if name := "rbool"; flag.CommandLine.Lookup(name) == nil {
+		t.Errorf("flag.CommandLine.Lookup(%q) failed", name)
+	}
+	if name := "rstring"; flag.CommandLine.Lookup(name) == nil {
+		t.Errorf("flag.CommandLine.Lookup(%q) failed", name)
+	}
+	// Actually try double-parsing flag.CommandLine.
+	if err := flag.CommandLine.Parse([]string{"-rbool=false", "-rstring=123"}); err != nil {
+		t.Errorf("flag.CommandLine.Parse() failed: %v", err)
+	}
+	if got, want := *rb, false; got != want {
+		t.Errorf("rbool got %v want %v", got, want)
+	}
+	if got, want := *rs, "123"; got != want {
+		t.Errorf("rstring got %v want %v", got, want)
+	}
 }

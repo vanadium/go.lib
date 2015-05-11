@@ -23,16 +23,15 @@ type helpRunner struct {
 	*helpConfig
 }
 
-func makeHelpRunner(path []*Command, env *Env, globals *flag.FlagSet) helpRunner {
-	return helpRunner{path, &helpConfig{globals, env.style(), env.width()}}
+func makeHelpRunner(path []*Command, env *Env) helpRunner {
+	return helpRunner{path, &helpConfig{env.style(), env.width()}}
 }
 
 // helpConfig holds configuration data for help.  The style and width may be
 // overriden by flags if the command returned by newCommand is parsed.
 type helpConfig struct {
-	globals *flag.FlagSet
-	style   style
-	width   int
+	style style
+	width int
 }
 
 // Run implements the Runner interface method.
@@ -202,13 +201,15 @@ func usage(w *textutil.LineWriter, path []*Command, config *helpConfig, firstCal
 	if countFlags(&cmd.Flags, nil, true) > 0 {
 		cmdPathF += " [flags]"
 	}
-	switch {
-	case len(children) > 0:
+	if cmd.Runner != nil {
+		if cmd.ArgsName != "" {
+			fmt.Fprintln(w, cmdPathF, cmd.ArgsName)
+		} else {
+			fmt.Fprintln(w, cmdPathF)
+		}
+	}
+	if len(children) > 0 {
 		fmt.Fprintln(w, cmdPathF, "<command>")
-	case cmd.ArgsName != "":
-		fmt.Fprintln(w, cmdPathF, cmd.ArgsName)
-	default:
-		fmt.Fprintln(w, cmdPathF)
 	}
 	// Commands.
 	const minNameWidth = 11
@@ -273,18 +274,18 @@ func flagsUsage(w *textutil.LineWriter, path []*Command, config *helpConfig, fir
 	if !firstCall {
 		return
 	}
-	hasCompact := countFlags(config.globals, compactGlobalFlags, true) > 0
-	hasFull := countFlags(config.globals, compactGlobalFlags, false) > 0
+	hasCompact := countFlags(globalFlags, nonHiddenGlobalFlags, true) > 0
+	hasFull := countFlags(globalFlags, nonHiddenGlobalFlags, false) > 0
 	if config.style != styleCompact {
 		// Non-compact style, always show all global flags.
 		if hasCompact || hasFull {
 			fmt.Fprintln(w)
 			fmt.Fprintln(w, "The global flags are:")
-			printFlags(w, config.globals, config.style, compactGlobalFlags, true)
+			printFlags(w, globalFlags, config.style, nonHiddenGlobalFlags, true)
 			if hasCompact && hasFull {
 				fmt.Fprintln(w)
 			}
-			printFlags(w, config.globals, config.style, compactGlobalFlags, false)
+			printFlags(w, globalFlags, config.style, nonHiddenGlobalFlags, false)
 		}
 		return
 	}
@@ -292,7 +293,7 @@ func flagsUsage(w *textutil.LineWriter, path []*Command, config *helpConfig, fir
 	if hasCompact {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "The global flags are:")
-		printFlags(w, config.globals, config.style, compactGlobalFlags, true)
+		printFlags(w, globalFlags, config.style, nonHiddenGlobalFlags, true)
 	}
 	if hasFull {
 		fmt.Fprintln(w)
@@ -354,7 +355,7 @@ func matchRegexps(regexps []*regexp.Regexp, name string) bool {
 	return false
 }
 
-var compactGlobalFlags []*regexp.Regexp
+var nonHiddenGlobalFlags []*regexp.Regexp
 
 // HideGlobalFlagsExcept hides global flags from the default compact-style usage
 // message, except for the given regexps.  Global flag names that match any of
@@ -363,10 +364,10 @@ var compactGlobalFlags []*regexp.Regexp
 //
 // All global flags are always shown in non-compact style usage messages.
 func HideGlobalFlagsExcept(regexps ...*regexp.Regexp) {
-	// NOTE: compactGlobalFlags is used as the argument to matchRegexps, where nil
-	// means "all names match" and empty means "no names match".
-	compactGlobalFlags = append(compactGlobalFlags, regexps...)
-	if compactGlobalFlags == nil {
-		compactGlobalFlags = []*regexp.Regexp{}
+	// NOTE: nonHiddenGlobalFlags is used as the argument to matchRegexps, where
+	// nil means "all names match" and empty means "no names match".
+	nonHiddenGlobalFlags = append(nonHiddenGlobalFlags, regexps...)
+	if nonHiddenGlobalFlags == nil {
+		nonHiddenGlobalFlags = []*regexp.Regexp{}
 	}
 }

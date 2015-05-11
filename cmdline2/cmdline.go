@@ -58,12 +58,16 @@ type Command struct {
 	ArgsName string       // Name of the args, shown in usage line.
 	ArgsLong string       // Long description of the args, shown in help.
 
-	// Children of the command - set for non-leaf commands in the tree.
-	// Exactly one of Children or Runner must be specified.
+	// Children of the command.
 	Children []*Command
 
-	// Runner that runs the command - set for leaf commands in the tree.
+	// Runner that runs the command.
 	// Use RunnerFunc to adapt regular functions into Runners.
+	//
+	// At least one of Children or Runner must be specified.  If both are
+	// specified, ArgsName and ArgsLong must be empty, meaning the Runner doesn't
+	// take any args.  Otherwise there's a possible conflict between child names
+	// and the runner args, and an error is returned from Parse.
 	Runner Runner
 
 	// Topics that provide additional info via the default help command.
@@ -139,23 +143,30 @@ func Main(root *Command) {
 //     return runner.Run(env, args)
 //   }
 //
-// Parse sets flag.CommandLine to the root flag set that was parsed, so that
-// subsequent calls to flag.Parsed return true.
+// Parse merges root flags into flag.CommandLine and sets ContinueOnError, so
+// that subsequent calls to flag.Parsed return true.
 func Parse(root *Command, env *Env, args []string) (Runner, []string, error) {
+	if globalFlags == nil {
+		// Initialize our global flags to a cleaned copy.  We don't want the merging
+		// in parseFlags to contaminate the global flags, even if Parse is called
+		// multiple times, so we keep a single package-level copy.
+		cleanFlags(flag.CommandLine)
+		globalFlags = copyFlags(flag.CommandLine)
+	}
 	// Set env.Usage to the usage of the root command, in case the parse fails.
 	path := []*Command{root}
-	env.Usage = makeHelpRunner(path, env, flag.CommandLine).usageFunc
+	env.Usage = makeHelpRunner(path, env).usageFunc
 	if err := cleanTree(path); err != nil {
 		return nil, nil, err
 	}
-	cleanFlags(flag.CommandLine)
-	runner, args, globals, err := root.parse(nil, env, args, flag.CommandLine)
+	runner, args, err := root.parse(nil, env, args)
 	if err != nil {
 		return nil, nil, err
 	}
-	flag.CommandLine = globals
 	return runner, args, nil
 }
+
+var globalFlags *flag.FlagSet
 
 // ParseAndRun is a convenience that calls Parse, and then calls Run on the
 // returned runner with the given env and parsed args.
@@ -182,16 +193,26 @@ func cleanTree(path []*Command) error {
 		trimSpace(&cmd.Topics[tx].Long)
 	}
 	cleanFlags(&cmd.Flags)
-	// Check that exactly one of Children or Runner is specified, so that
-	// subsequent code can rely on this invariant.
+	// Check that our Children / Runner invariant is satisfied.  At least one must
+	// be specified, and if both are specified then ArgsName and ArgsLong must be
+	// empty, meaning the Runner doesn't take any args.
 	switch hasC, hasR := len(cmd.Children) > 0, cmd.Runner != nil; {
-	case hasC && hasR:
-		return fmt.Errorf("%v: both Children and Run specified", cmdPath)
 	case !hasC && !hasR:
-		return fmt.Errorf("%v: neither Children nor Run specified", cmdPath)
+		return fmt.Errorf(`%v: CODE INVARIANT BROKEN; FIX YOUR CODE
+
+At least one of Children or Runner must be specified.
+`, cmdPath)
+	case hasC && hasR && (cmd.ArgsName != "" || cmd.ArgsLong != ""):
+		return fmt.Errorf(`%v: CODE INVARIANT BROKEN; FIX YOUR CODE
+
+Since both Children and Runner are specified, the Runner cannot take args.
+Otherwise a conflict between child names and runner args is possible.
+`, cmdPath)
 	}
 	for _, child := range cmd.Children {
-		cleanTree(append(path, child))
+		if err := cleanTree(append(path, child)); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -210,58 +231,93 @@ func pathName(path []*Command) string {
 	return name
 }
 
-func (cmd *Command) parse(path []*Command, env *Env, args []string, globals *flag.FlagSet) (Runner, []string, *flag.FlagSet, error) {
+func (cmd *Command) parse(path []*Command, env *Env, args []string) (Runner, []string, error) {
 	path = append(path, cmd)
 	cmdPath := pathName(path)
-	runHelp := makeHelpRunner(path, env, globals)
+	runHelp := makeHelpRunner(path, env)
 	env.Usage = runHelp.usageFunc
-	// Parse the merged command-specific and global flags.
-	flags := newSilentFlagSet(cmd.Name)
-	mergeFlags(flags, &cmd.Flags)
-	mergeFlags(flags, globals)
-	switch err := flags.Parse(args); {
+	// Parse flags and retrieve the args remaining after the parse.
+	args, err := parseFlags(path, env, args)
+	switch {
 	case err == flag.ErrHelp:
-		return runHelp, nil, flags, nil
+		return runHelp, nil, nil
 	case err != nil:
-		return nil, nil, nil, env.UsageErrorf("%s: %v", cmdPath, err)
+		return nil, nil, env.UsageErrorf("%s: %v", cmdPath, err)
 	}
-	// Look for matching children.
-	args = flags.Args()
-	if len(cmd.Children) > 0 {
-		if len(args) == 0 {
-			return nil, nil, nil, env.UsageErrorf("%s: no command specified", cmdPath)
+	// First handle the no-args case.
+	if len(args) == 0 {
+		if cmd.Runner != nil {
+			return cmd.Runner, nil, nil
 		}
-		subName, subArgs := args[0], args[1:]
+		return nil, nil, env.UsageErrorf("%s: no command specified", cmdPath)
+	}
+	// INVARIANT: len(args) > 0
+	// Look for matching children.
+	subName, subArgs := args[0], args[1:]
+	if len(cmd.Children) > 0 {
 		for _, child := range cmd.Children {
 			if child.Name == subName {
-				runner, args, _, err := child.parse(path, env, subArgs, globals)
-				return runner, args, flags, err
+				return child.parse(path, env, subArgs)
 			}
 		}
 		// Every non-leaf command gets a default help command.
 		if helpName == subName {
-			runner, args, _, err := runHelp.newCommand().parse(path, env, subArgs, globals)
-			return runner, args, flags, err
+			return runHelp.newCommand().parse(path, env, subArgs)
 		}
-		return nil, nil, nil, env.UsageErrorf("%s: unknown command %q", cmdPath, subName)
 	}
-	// We've reached a leaf command.
-	if len(args) > 0 && cmd.ArgsName == "" {
-		return nil, nil, nil, env.UsageErrorf("%s: doesn't take arguments", cmdPath)
+	// No matching children, check various error cases.
+	switch {
+	case cmd.Runner == nil:
+		return nil, nil, env.UsageErrorf("%s: unknown command %q", cmdPath, subName)
+	case cmd.ArgsName == "":
+		if len(cmd.Children) > 0 {
+			return nil, nil, env.UsageErrorf("%s: unknown command %q", cmdPath, subName)
+		}
+		return nil, nil, env.UsageErrorf("%s: doesn't take arguments", cmdPath)
 	}
-	return cmd.Runner, args, flags, nil
+	// INVARIANT: cmd.Runner != nil && len(args) > 0 && cmd.ArgsName != ""
+	return cmd.Runner, args, nil
 }
 
-func newSilentFlagSet(name string) *flag.FlagSet {
+func parseFlags(path []*Command, env *Env, args []string) ([]string, error) {
+	cmd, isRoot := path[len(path)-1], len(path) == 1
+	// Parse the merged command-specific and global flags.
+	var flags *flag.FlagSet
+	if isRoot {
+		// The root command is special, due to the pitfall described above in the
+		// package doc.  Merge into flag.CommandLine and use that for parsing.  This
+		// ensures that subsequent calls to flag.Parsed will return true, so the
+		// user can check whether flags have already been parsed.  Global flags take
+		// precedence over command flags for the root command.
+		flags = flag.CommandLine
+		mergeFlags(flags, &cmd.Flags)
+	} else {
+		// Command flags take precedence over global flags for non-root commands.
+		flags = copyFlags(&cmd.Flags)
+		mergeFlags(flags, globalFlags)
+	}
 	// Silence the many different ways flags.Parse can produce ugly output; we
 	// just want it to return any errors and handle the output ourselves.
 	//   1) Set flag.ContinueOnError so that Parse() doesn't exit or panic.
 	//   2) Discard all output (can't be nil, that means stderr).
 	//   3) Set an empty Usage (can't be nil, that means use the default).
-	flags := flag.NewFlagSet(name, flag.ContinueOnError)
+	flags.Init(cmd.Name, flag.ContinueOnError)
 	flags.SetOutput(ioutil.Discard)
 	flags.Usage = func() {}
-	return flags
+	if isRoot {
+		// If this is the root command, we must remember to undo the above changes
+		// on flag.CommandLine after the parse.  We don't know the original settings
+		// of these values, so we just blindly set back to the default values.
+		defer func() {
+			flags.Init(cmd.Name, flag.ExitOnError)
+			flags.SetOutput(nil)
+			flags.Usage = func() { env.Usage(env.Stderr) }
+		}()
+	}
+	if err := flags.Parse(args); err != nil {
+		return nil, err
+	}
+	return flags.Args(), nil
 }
 
 func mergeFlags(dst, src *flag.FlagSet) {
@@ -272,6 +328,12 @@ func mergeFlags(dst, src *flag.FlagSet) {
 			dst.Var(f.Value, f.Name, f.Usage)
 		}
 	})
+}
+
+func copyFlags(flags *flag.FlagSet) *flag.FlagSet {
+	cp := new(flag.FlagSet)
+	mergeFlags(cp, flags)
+	return cp
 }
 
 // ErrExitCode may be returned by Runner.Run to cause the program to exit with a
