@@ -1,12 +1,13 @@
 pkg cmdline, const ErrUsage ErrExitCode
+pkg cmdline, func ExitCode(error, io.Writer) int
 pkg cmdline, func HideGlobalFlagsExcept(...*regexp.Regexp)
-pkg cmdline, method (*Command) Execute([]string) error
-pkg cmdline, method (*Command) Init(*Command, io.Writer, io.Writer)
-pkg cmdline, method (*Command) Main() int
-pkg cmdline, method (*Command) Stderr() io.Writer
-pkg cmdline, method (*Command) Stdout() io.Writer
-pkg cmdline, method (*Command) UsageErrorf(string, ...interface{}) error
+pkg cmdline, func Main(*Command)
+pkg cmdline, func NewEnv() *Env
+pkg cmdline, func Parse(*Command, *Env, []string) (Runner, []string, error)
+pkg cmdline, func ParseAndRun(*Command, *Env, []string) error
+pkg cmdline, method (*Env) UsageErrorf(string, ...interface{}) error
 pkg cmdline, method (ErrExitCode) Error() string
+pkg cmdline, method (RunnerFunc) Run(*Env, []string) error
 pkg cmdline, type Command struct
 pkg cmdline, type Command struct, ArgsLong string
 pkg cmdline, type Command struct, ArgsName string
@@ -14,11 +15,18 @@ pkg cmdline, type Command struct, Children []*Command
 pkg cmdline, type Command struct, Flags flag.FlagSet
 pkg cmdline, type Command struct, Long string
 pkg cmdline, type Command struct, Name string
-pkg cmdline, type Command struct, Run Runner
+pkg cmdline, type Command struct, Runner Runner
 pkg cmdline, type Command struct, Short string
 pkg cmdline, type Command struct, Topics []Topic
+pkg cmdline, type Env struct
+pkg cmdline, type Env struct, Stderr io.Writer
+pkg cmdline, type Env struct, Stdin io.Reader
+pkg cmdline, type Env struct, Stdout io.Writer
+pkg cmdline, type Env struct, Usage func(io.Writer)
 pkg cmdline, type ErrExitCode int
-pkg cmdline, type Runner func(cmd *Command, args []string) error
+pkg cmdline, type Runner interface { Run }
+pkg cmdline, type Runner interface, Run(*Env, []string) error
+pkg cmdline, type RunnerFunc func(*Env, []string) error
 pkg cmdline, type Topic struct
 pkg cmdline, type Topic struct, Long string
 pkg cmdline, type Topic struct, Name string

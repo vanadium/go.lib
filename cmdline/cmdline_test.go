@@ -15,20 +15,26 @@ import (
 	"testing"
 )
 
+func init() {
+	os.Setenv("CMDLINE_WIDTH", "80") // make sure the formatting stays the same.
+}
+
 var (
-	errEcho           = errors.New("echo error")
+	errEchoStr        = "echo error"
 	flagExtra         bool
 	optNoNewline      bool
 	flagTopLevelExtra bool
+
+	errUsageStr = fmt.Sprint(ErrUsage)
 )
 
 // runEcho is used to implement commands for our tests.
-func runEcho(cmd *Command, args []string) error {
+func runEcho(env *Env, args []string) error {
 	if len(args) == 1 {
 		if args[0] == "error" {
-			return errEcho
+			return errors.New(errEchoStr)
 		} else if args[0] == "bad_arg" {
-			return cmd.UsageErrorf("Invalid argument %v", args[0])
+			return env.UsageErrorf("Invalid argument %v", args[0])
 		}
 	}
 	if flagExtra {
@@ -38,56 +44,54 @@ func runEcho(cmd *Command, args []string) error {
 		args = append(args, "tlextra")
 	}
 	if optNoNewline {
-		fmt.Fprint(cmd.Stdout(), args)
+		fmt.Fprint(env.Stdout, args)
 	} else {
-		fmt.Fprintln(cmd.Stdout(), args)
+		fmt.Fprintln(env.Stdout, args)
 	}
 	return nil
 }
 
 // runHello is another function for test commands.
-func runHello(cmd *Command, args []string) error {
+func runHello(env *Env, args []string) error {
 	if flagTopLevelExtra {
 		args = append(args, "tlextra")
 	}
-	fmt.Fprintln(cmd.Stdout(), strings.Join(append([]string{"Hello"}, args...), " "))
+	fmt.Fprintln(env.Stdout, strings.Join(append([]string{"Hello"}, args...), " "))
 	return nil
 }
 
 type testCase struct {
 	Args        []string
 	Envs        map[string]string
-	Err         error
+	Err         string
 	Stdout      string
 	Stderr      string
 	GlobalFlag1 string
 	GlobalFlag2 int64
 }
 
-func init() {
-	os.Setenv("CMDLINE_WIDTH", "80") // make sure the formatting stays the same.
-
-}
-
-func stripOutput(got string) string {
+func stripTestFlags(got string) string {
 	// The global flags include the flags from the testing package, so strip them
 	// out before the comparison.
 	re := regexp.MustCompile(" -test[^\n]+\n(?:   [^\n]+\n)+")
 	return re.ReplaceAllLiteralString(got, "")
 }
 
+func errString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return fmt.Sprint(err)
+}
+
 func runTestCases(t *testing.T, cmd *Command, tests []testCase) {
 	for _, test := range tests {
 		// Reset global variables before running each test case.
-		var stdout bytes.Buffer
-		var stderr bytes.Buffer
-		flagExtra = false
-		flagTopLevelExtra = false
-		optNoNewline = false
+		var stdout, stderr bytes.Buffer
+		flagExtra, flagTopLevelExtra, optNoNewline = false, false, false
 		origEnvs := make(map[string]string)
 
-		fmt.Fprintf(os.Stderr, "running test %v %v\n", test.Args, test.Envs)
-		os.Args = append([]string{os.Args[0]}, test.Args...)
+		// Set a fresh flag.CommandLine and fresh envvars for each run.
 		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 		for k, v := range test.Envs {
 			origEnvs[k] = os.Getenv(k)
@@ -99,20 +103,25 @@ func runTestCases(t *testing.T, cmd *Command, tests []testCase) {
 		var globalFlag1 string
 		flag.StringVar(&globalFlag1, "global1", "", "global test flag 1")
 		globalFlag2 := flag.Int64("global2", 0, "global test flag 2")
+		if flag.CommandLine.Parsed() {
+			t.Errorf("flag.CommandLine should not be parsed yet")
+		}
 
-		// Run the execute function and check against expected results.
-		cmd.Init(nil, &stdout, &stderr)
-		// It should be legal to parse global flags after Init.
-		if test.Err == nil {
-			flag.Parse()
+		// Parse and run the command and check against expected results.
+		parseOK := false
+		env := &Env{Stdout: &stdout, Stderr: &stderr}
+		runner, args, err := Parse(cmd, env, test.Args)
+		if err == nil {
+			err = runner.Run(env, args)
+			parseOK = true
 		}
-		if err := cmd.Execute(test.Args); err != test.Err {
-			t.Errorf("Ran with args %q envs %q\n GOT error:\n%q\nWANT error:\n%q", test.Args, test.Envs, err, test.Err)
+		if got, want := errString(err), test.Err; got != want {
+			t.Errorf("Ran with args %q envs %q\n GOT error:\n%q\nWANT error:\n%q", test.Args, test.Envs, got, want)
 		}
-		if got, want := stripOutput(stdout.String()), test.Stdout; got != want {
+		if got, want := stripTestFlags(stdout.String()), test.Stdout; got != want {
 			t.Errorf("Ran with args %q envs %q\n GOT stdout:\n%q\nWANT stdout:\n%q", test.Args, test.Envs, got, want)
 		}
-		if got, want := stripOutput(stderr.String()), test.Stderr; got != want {
+		if got, want := stripTestFlags(stderr.String()), test.Stderr; got != want {
 			t.Errorf("Ran with args %q envs %q\n GOT stderr:\n%q\nWANT stderr:\n%q", test.Args, test.Envs, got, want)
 		}
 		if got, want := globalFlag1, test.GlobalFlag1; got != want {
@@ -122,6 +131,9 @@ func runTestCases(t *testing.T, cmd *Command, tests []testCase) {
 			t.Errorf("global2 flag got %q, want %q", got, want)
 		}
 
+		if parseOK && !flag.CommandLine.Parsed() {
+			t.Errorf("flag.CommandLine should be parsed by now")
+		}
 		for k, v := range origEnvs {
 			if err := os.Setenv(k, v); err != nil {
 				t.Fatalf("os.Setenv(%v, %v) failed: %v", k, v, err)
@@ -130,40 +142,251 @@ func runTestCases(t *testing.T, cmd *Command, tests []testCase) {
 	}
 }
 
-func TestNoCommands(t *testing.T) {
-	cmd := &Command{
-		Name:  "nocmds",
-		Short: "Nocmds is invalid.",
-		Long:  "Nocmds has no commands and no run function.",
+func TestNoChildrenOrRunner(t *testing.T) {
+	neither := &Command{
+		Name:  "neither",
+		Short: "Neither is invalid.",
+		Long:  "Neither has no commands and no runner.",
 	}
+	wantErr := `neither: CODE INVARIANT BROKEN; FIX YOUR CODE
 
+At least one of Children or Runner must be specified.
+`
+	tests := []testCase{
+		{Args: []string{}, Err: wantErr},
+		{Args: []string{"foo"}, Err: wantErr},
+	}
+	runTestCases(t, neither, tests)
+	parent := &Command{
+		Name:     "parent",
+		Short:    "parent",
+		Long:     "parent",
+		Children: []*Command{neither},
+	}
+	wantErr = "parent " + wantErr
+	tests = []testCase{
+		{Args: []string{}, Err: wantErr},
+		{Args: []string{"foo"}, Err: wantErr},
+	}
+	runTestCases(t, parent, tests)
+}
+
+func TestBothChildrenAndRunnerWithArgs(t *testing.T) {
+	child := &Command{
+		Name:   "child",
+		Short:  "Child command.",
+		Long:   "Child command.",
+		Runner: RunnerFunc(runEcho),
+	}
+	both := &Command{
+		Name:     "both",
+		Short:    "Both is invalid.",
+		Long:     "Both has both commands and a runner with args.",
+		ArgsName: "[strings]",
+		ArgsLong: "[strings] are arbitrary strings that will be echoed.",
+		Children: []*Command{child},
+		Runner:   RunnerFunc(runEcho),
+	}
+	wantErr := `both: CODE INVARIANT BROKEN; FIX YOUR CODE
+
+Since both Children and Runner are specified, the Runner cannot take args.
+Otherwise a conflict between child names and runner args is possible.
+`
+	tests := []testCase{
+		{Args: []string{}, Err: wantErr},
+		{Args: []string{"foo"}, Err: wantErr},
+	}
+	runTestCases(t, both, tests)
+	parent := &Command{
+		Name:     "parent",
+		Short:    "parent",
+		Long:     "parent",
+		Children: []*Command{both},
+	}
+	wantErr = "parent " + wantErr
+	tests = []testCase{
+		{Args: []string{}, Err: wantErr},
+		{Args: []string{"foo"}, Err: wantErr},
+	}
+	runTestCases(t, parent, tests)
+}
+
+func TestBothChildrenAndRunnerNoArgs(t *testing.T) {
+	cmdEcho := &Command{
+		Name:     "echo",
+		Short:    "Print strings on stdout",
+		Long:     "Echo prints any strings passed in to stdout.",
+		Runner:   RunnerFunc(runEcho),
+		ArgsName: "[strings]",
+		ArgsLong: "[strings] are arbitrary strings that will be echoed.",
+	}
+	prog := &Command{
+		Name:     "cmdrun",
+		Short:    "Cmdrun program.",
+		Long:     "Cmdrun has the echo command and a Run function with no args.",
+		Children: []*Command{cmdEcho},
+		Runner:   RunnerFunc(runHello),
+	}
 	var tests = []testCase{
 		{
-			Args: []string{},
-			Err:  ErrUsage,
-			Stderr: `ERROR: nocmds: neither Children nor Run is specified
-
-Nocmds has no commands and no run function.
-
-Usage:
-   nocmds [ERROR: neither Children nor Run is specified]
-
-The global flags are:
- -global1=
-   global test flag 1
- -global2=0
-   global test flag 2
-`,
+			Args:   []string{},
+			Stdout: "Hello\n",
 		},
 		{
 			Args: []string{"foo"},
-			Err:  ErrUsage,
-			Stderr: `ERROR: nocmds: neither Children nor Run is specified
+			Err:  errUsageStr,
+			Stderr: `ERROR: cmdrun: unknown command "foo"
 
-Nocmds has no commands and no run function.
+Cmdrun has the echo command and a Run function with no args.
 
 Usage:
-   nocmds [ERROR: neither Children nor Run is specified]
+   cmdrun
+   cmdrun <command>
+
+The cmdrun commands are:
+   echo        Print strings on stdout
+   help        Display help for commands or topics
+Run "cmdrun help [command]" for command usage.
+
+The global flags are:
+ -global1=
+   global test flag 1
+ -global2=0
+   global test flag 2
+`,
+		},
+		{
+			Args: []string{"help"},
+			Stdout: `Cmdrun has the echo command and a Run function with no args.
+
+Usage:
+   cmdrun
+   cmdrun <command>
+
+The cmdrun commands are:
+   echo        Print strings on stdout
+   help        Display help for commands or topics
+Run "cmdrun help [command]" for command usage.
+
+The global flags are:
+ -global1=
+   global test flag 1
+ -global2=0
+   global test flag 2
+`,
+		},
+		{
+			Args: []string{"help", "echo"},
+			Stdout: `Echo prints any strings passed in to stdout.
+
+Usage:
+   cmdrun echo [strings]
+
+[strings] are arbitrary strings that will be echoed.
+
+The global flags are:
+ -global1=
+   global test flag 1
+ -global2=0
+   global test flag 2
+`,
+		},
+		{
+			Args: []string{"help", "..."},
+			Stdout: `Cmdrun has the echo command and a Run function with no args.
+
+Usage:
+   cmdrun
+   cmdrun <command>
+
+The cmdrun commands are:
+   echo        Print strings on stdout
+   help        Display help for commands or topics
+Run "cmdrun help [command]" for command usage.
+
+The global flags are:
+ -global1=
+   global test flag 1
+ -global2=0
+   global test flag 2
+================================================================================
+Cmdrun echo
+
+Echo prints any strings passed in to stdout.
+
+Usage:
+   cmdrun echo [strings]
+
+[strings] are arbitrary strings that will be echoed.
+================================================================================
+Cmdrun help
+
+Help with no args displays the usage of the parent command.
+
+Help with args displays the usage of the specified sub-command or help topic.
+
+"help ..." recursively displays help for all commands and topics.
+
+Usage:
+   cmdrun help [flags] [command/topic ...]
+
+[command/topic ...] optionally identifies a specific sub-command or help topic.
+
+The cmdrun help flags are:
+ -style=compact
+   The formatting style for help output:
+      compact - Good for compact cmdline output.
+      full    - Good for cmdline output, shows all global flags.
+      godoc   - Good for godoc processing.
+   Override the default by setting the CMDLINE_STYLE environment variable.
+ -width=80
+   Format output to this target width in runes, or unlimited if width < 0.
+   Defaults to the terminal width if available.  Override the default by setting
+   the CMDLINE_WIDTH environment variable.
+`,
+		},
+		{
+			Args: []string{"help", "foo"},
+			Err:  errUsageStr,
+			Stderr: `ERROR: cmdrun: unknown command or topic "foo"
+
+Cmdrun has the echo command and a Run function with no args.
+
+Usage:
+   cmdrun
+   cmdrun <command>
+
+The cmdrun commands are:
+   echo        Print strings on stdout
+   help        Display help for commands or topics
+Run "cmdrun help [command]" for command usage.
+
+The global flags are:
+ -global1=
+   global test flag 1
+ -global2=0
+   global test flag 2
+`,
+		},
+		{
+			Args:   []string{"echo", "foo", "bar"},
+			Stdout: "[foo bar]\n",
+		},
+		{
+			Args: []string{"echo", "error"},
+			Err:  errEchoStr,
+		},
+		{
+			Args: []string{"echo", "bad_arg"},
+			Err:  errUsageStr,
+			Stderr: `ERROR: Invalid argument bad_arg
+
+Echo prints any strings passed in to stdout.
+
+Usage:
+   cmdrun echo [strings]
+
+[strings] are arbitrary strings that will be echoed.
 
 The global flags are:
  -global1=
@@ -173,7 +396,7 @@ The global flags are:
 `,
 		},
 	}
-	runTestCases(t, cmd, tests)
+	runTestCases(t, prog, tests)
 }
 
 func TestOneCommand(t *testing.T) {
@@ -183,11 +406,10 @@ func TestOneCommand(t *testing.T) {
 		Long: `
 Echo prints any strings passed in to stdout.
 `,
-		Run:      runEcho,
+		Runner:   RunnerFunc(runEcho),
 		ArgsName: "[strings]",
 		ArgsLong: "[strings] are arbitrary strings that will be echoed.",
 	}
-
 	prog := &Command{
 		Name:     "onecmd",
 		Short:    "Onecmd program.",
@@ -195,10 +417,10 @@ Echo prints any strings passed in to stdout.
 		Children: []*Command{cmdEcho},
 	}
 
-	var tests = []testCase{
+	tests := []testCase{
 		{
 			Args: []string{},
-			Err:  ErrUsage,
+			Err:  errUsageStr,
 			Stderr: `ERROR: onecmd: no command specified
 
 Onecmd only has the echo command.
@@ -220,7 +442,7 @@ The global flags are:
 		},
 		{
 			Args: []string{"foo"},
-			Err:  ErrUsage,
+			Err:  errUsageStr,
 			Stderr: `ERROR: onecmd: unknown command "foo"
 
 Onecmd only has the echo command.
@@ -283,11 +505,6 @@ Help with args displays the usage of the specified sub-command or help topic.
 
 "help ..." recursively displays help for all commands and topics.
 
-Output is formatted to a target width in runes, determined by checking the
-CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
-back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
-the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
-
 Usage:
    onecmd help [flags] [command/topic ...]
 
@@ -300,6 +517,10 @@ The onecmd help flags are:
       full    - Good for cmdline output, shows all global flags.
       godoc   - Good for godoc processing.
    Override the default by setting the CMDLINE_STYLE environment variable.
+ -width=80
+   Format output to this target width in runes, or unlimited if width < 0.
+   Defaults to the terminal width if available.  Override the default by setting
+   the CMDLINE_WIDTH environment variable.
 
 The global flags are:
  -global1=
@@ -343,11 +564,6 @@ Help with args displays the usage of the specified sub-command or help topic.
 
 "help ..." recursively displays help for all commands and topics.
 
-Output is formatted to a target width in runes, determined by checking the
-CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
-back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
-the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
-
 Usage:
    onecmd help [flags] [command/topic ...]
 
@@ -360,11 +576,15 @@ The onecmd help flags are:
       full    - Good for cmdline output, shows all global flags.
       godoc   - Good for godoc processing.
    Override the default by setting the CMDLINE_STYLE environment variable.
+ -width=80
+   Format output to this target width in runes, or unlimited if width < 0.
+   Defaults to the terminal width if available.  Override the default by setting
+   the CMDLINE_WIDTH environment variable.
 `,
 		},
 		{
 			Args: []string{"help", "foo"},
-			Err:  ErrUsage,
+			Err:  errUsageStr,
 			Stderr: `ERROR: onecmd: unknown command or topic "foo"
 
 Onecmd only has the echo command.
@@ -390,11 +610,11 @@ The global flags are:
 		},
 		{
 			Args: []string{"echo", "error"},
-			Err:  errEcho,
+			Err:  errEchoStr,
 		},
 		{
 			Args: []string{"echo", "bad_arg"},
-			Err:  ErrUsage,
+			Err:  errUsageStr,
 			Stderr: `ERROR: Invalid argument bad_arg
 
 Echo prints any strings passed in to stdout.
@@ -417,9 +637,9 @@ The global flags are:
 
 func TestMultiCommands(t *testing.T) {
 	cmdEcho := &Command{
-		Run:   runEcho,
-		Name:  "echo",
-		Short: "Print strings on stdout",
+		Runner: RunnerFunc(runEcho),
+		Name:   "echo",
+		Short:  "Print strings on stdout",
 		Long: `
 Echo prints any strings passed in to stdout.
 `,
@@ -427,9 +647,9 @@ Echo prints any strings passed in to stdout.
 		ArgsLong: "[strings] are arbitrary strings that will be echoed.",
 	}
 	var cmdEchoOpt = &Command{
-		Run:   runEcho,
-		Name:  "echoopt",
-		Short: "Print strings on stdout, with opts",
+		Runner: RunnerFunc(runEcho),
+		Name:   "echoopt",
+		Short:  "Print strings on stdout, with opts",
 		// Try varying number of header/trailer newlines around the long description.
 		Long: `Echoopt prints any args passed in to stdout.
 
@@ -451,7 +671,7 @@ Echo prints any strings passed in to stdout.
 	var tests = []testCase{
 		{
 			Args: []string{},
-			Err:  ErrUsage,
+			Err:  errUsageStr,
 			Stderr: `ERROR: multi: no command specified
 
 Multi has two variants of echo.
@@ -553,11 +773,6 @@ Help with args displays the usage of the specified sub-command or help topic.
 
 "help ..." recursively displays help for all commands and topics.
 
-Output is formatted to a target width in runes, determined by checking the
-CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
-back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
-the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
-
 Usage:
    multi help [flags] [command/topic ...]
 
@@ -570,6 +785,10 @@ The multi help flags are:
       full    - Good for cmdline output, shows all global flags.
       godoc   - Good for godoc processing.
    Override the default by setting the CMDLINE_STYLE environment variable.
+ -width=80
+   Format output to this target width in runes, or unlimited if width < 0.
+   Defaults to the terminal width if available.  Override the default by setting
+   the CMDLINE_WIDTH environment variable.
 `,
 		},
 		{
@@ -610,7 +829,7 @@ The global flags are:
 		},
 		{
 			Args: []string{"help", "foo"},
-			Err:  ErrUsage,
+			Err:  errUsageStr,
 			Stderr: `ERROR: multi: unknown command or topic "foo"
 
 Multi has two variants of echo.
@@ -645,7 +864,7 @@ The global flags are:
 		},
 		{
 			Args: []string{"echo", "error"},
-			Err:  errEcho,
+			Err:  errEchoStr,
 		},
 		{
 			Args:   []string{"echoopt", "foo", "bar"},
@@ -681,11 +900,11 @@ The global flags are:
 		},
 		{
 			Args: []string{"echoopt", "error"},
-			Err:  errEcho,
+			Err:  errEchoStr,
 		},
 		{
 			Args: []string{"echo", "-n", "foo", "bar"},
-			Err:  ErrUsage,
+			Err:  errUsageStr,
 			Stderr: `ERROR: multi echo: flag provided but not defined: -n
 
 Echo prints any strings passed in to stdout.
@@ -704,7 +923,7 @@ The global flags are:
 		},
 		{
 			Args: []string{"-nosuchflag", "echo", "foo", "bar"},
-			Err:  ErrUsage,
+			Err:  errUsageStr,
 			Stderr: `ERROR: multi: flag provided but not defined: -nosuchflag
 
 Multi has two variants of echo.
@@ -735,9 +954,9 @@ The global flags are:
 
 func TestMultiLevelCommands(t *testing.T) {
 	cmdEcho := &Command{
-		Run:   runEcho,
-		Name:  "echo",
-		Short: "Print strings on stdout",
+		Runner: RunnerFunc(runEcho),
+		Name:   "echo",
+		Short:  "Print strings on stdout",
 		Long: `
 Echo prints any strings passed in to stdout.
 `,
@@ -745,9 +964,9 @@ Echo prints any strings passed in to stdout.
 		ArgsLong: "[strings] are arbitrary strings that will be echoed.",
 	}
 	cmdEchoOpt := &Command{
-		Run:   runEcho,
-		Name:  "echoopt",
-		Short: "Print strings on stdout, with opts",
+		Runner: RunnerFunc(runEcho),
+		Name:   "echoopt",
+		Short:  "Print strings on stdout, with opts",
 		// Try varying number of header/trailer newlines around the long description.
 		Long: `Echoopt prints any args passed in to stdout.
 
@@ -758,9 +977,9 @@ Echo prints any strings passed in to stdout.
 	}
 	cmdEchoOpt.Flags.BoolVar(&optNoNewline, "n", false, "Do not output trailing newline")
 	cmdHello := &Command{
-		Run:   runHello,
-		Name:  "hello",
-		Short: "Print strings on stdout preceded by \"Hello\"",
+		Runner: RunnerFunc(runHello),
+		Name:   "hello",
+		Short:  "Print strings on stdout preceded by \"Hello\"",
 		Long: `
 Hello prints any strings passed in to stdout preceded by "Hello".
 `,
@@ -792,7 +1011,7 @@ Hello prints any strings passed in to stdout preceded by "Hello".
 	var tests = []testCase{
 		{
 			Args: []string{},
-			Err:  ErrUsage,
+			Err:  errUsageStr,
 			Stderr: `ERROR: toplevelprog: no command specified
 
 Toplevelprog has the echo subprogram and the hello command.
@@ -940,11 +1159,6 @@ Help with args displays the usage of the specified sub-command or help topic.
 
 "help ..." recursively displays help for all commands and topics.
 
-Output is formatted to a target width in runes, determined by checking the
-CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
-back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
-the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
-
 Usage:
    toplevelprog help [flags] [command/topic ...]
 
@@ -957,6 +1171,10 @@ The toplevelprog help flags are:
       full    - Good for cmdline output, shows all global flags.
       godoc   - Good for godoc processing.
    Override the default by setting the CMDLINE_STYLE environment variable.
+ -width=80
+   Format output to this target width in runes, or unlimited if width < 0.
+   Defaults to the terminal width if available.  Override the default by setting
+   the CMDLINE_WIDTH environment variable.
 ================================================================================
 Toplevelprog topic1 - help topic
 
@@ -1062,11 +1280,6 @@ Help with args displays the usage of the specified sub-command or help topic.
 
 "help ..." recursively displays help for all commands and topics.
 
-Output is formatted to a target width in runes, determined by checking the
-CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
-back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
-the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
-
 Usage:
    toplevelprog echoprog help [flags] [command/topic ...]
 
@@ -1079,6 +1292,10 @@ The toplevelprog echoprog help flags are:
       full    - Good for cmdline output, shows all global flags.
       godoc   - Good for godoc processing.
    Override the default by setting the CMDLINE_STYLE environment variable.
+ -width=80
+   Format output to this target width in runes, or unlimited if width < 0.
+   Defaults to the terminal width if available.  Override the default by setting
+   the CMDLINE_WIDTH environment variable.
 ================================================================================
 Toplevelprog echoprog topic3 - help topic
 
@@ -1133,7 +1350,7 @@ The global flags are:
 		},
 		{
 			Args: []string{"help", "foo"},
-			Err:  ErrUsage,
+			Err:  errUsageStr,
 			Stderr: `ERROR: toplevelprog: unknown command or topic "foo"
 
 Toplevelprog has the echo subprogram and the hello command.
@@ -1173,7 +1390,7 @@ The global flags are:
 		},
 		{
 			Args: []string{"echoprog", "echo", "error"},
-			Err:  errEcho,
+			Err:  errEchoStr,
 		},
 		{
 			Args:   []string{"echoprog", "echoopt", "foo", "bar"},
@@ -1193,7 +1410,7 @@ The global flags are:
 		},
 		{
 			Args: []string{"echoprog", "echoopt", "error"},
-			Err:  errEcho,
+			Err:  errEchoStr,
 		},
 		{
 			Args:   []string{"--tlextra", "echoprog", "-extra", "echoopt", "foo", "bar"},
@@ -1209,7 +1426,7 @@ The global flags are:
 		},
 		{
 			Args: []string{"hello", "--extra", "foo", "bar"},
-			Err:  ErrUsage,
+			Err:  errUsageStr,
 			Stderr: `ERROR: toplevelprog hello: flag provided but not defined: -extra
 
 Hello prints any strings passed in to stdout preceded by "Hello".
@@ -1228,7 +1445,7 @@ The global flags are:
 		},
 		{
 			Args: []string{"-extra", "echoprog", "echoopt", "foo", "bar"},
-			Err:  ErrUsage,
+			Err:  errUsageStr,
 			Stderr: `ERROR: toplevelprog: flag provided but not defined: -extra
 
 Toplevelprog has the echo subprogram and the hello command.
@@ -1271,7 +1488,7 @@ Hello prints any strings passed in to stdout preceded by "Hello".
 `,
 		ArgsName: "[strings]",
 		ArgsLong: "[strings] are arbitrary strings that will be printed.",
-		Run:      runHello,
+		Runner:   RunnerFunc(runHello),
 	}
 	cmdHello12 := &Command{
 		Name:  "hello12",
@@ -1281,7 +1498,7 @@ Hello prints any strings passed in to stdout preceded by "Hello".
 `,
 		ArgsName: "[strings]",
 		ArgsLong: "[strings] are arbitrary strings that will be printed.",
-		Run:      runHello,
+		Runner:   RunnerFunc(runHello),
 	}
 	cmdHello21 := &Command{
 		Name:  "hello21",
@@ -1291,7 +1508,7 @@ Hello prints any strings passed in to stdout preceded by "Hello".
 `,
 		ArgsName: "[strings]",
 		ArgsLong: "[strings] are arbitrary strings that will be printed.",
-		Run:      runHello,
+		Runner:   RunnerFunc(runHello),
 	}
 	cmdHello22 := &Command{
 		Name:  "hello22",
@@ -1301,7 +1518,7 @@ Hello prints any strings passed in to stdout preceded by "Hello".
 `,
 		ArgsName: "[strings]",
 		ArgsLong: "[strings] are arbitrary strings that will be printed.",
-		Run:      runHello,
+		Runner:   RunnerFunc(runHello),
 	}
 	cmdHello31 := &Command{
 		Name:  "hello31",
@@ -1311,7 +1528,7 @@ Hello prints any strings passed in to stdout preceded by "Hello".
 `,
 		ArgsName: "[strings]",
 		ArgsLong: "[strings] are arbitrary strings that will be printed.",
-		Run:      runHello,
+		Runner:   RunnerFunc(runHello),
 	}
 	cmdHello32 := &Command{
 		Name:  "hello32",
@@ -1321,7 +1538,7 @@ Hello prints any strings passed in to stdout preceded by "Hello".
 `,
 		ArgsName: "[strings]",
 		ArgsLong: "[strings] are arbitrary strings that will be printed.",
-		Run:      runHello,
+		Runner:   RunnerFunc(runHello),
 	}
 	progHello3 := &Command{
 		Name:     "prog3",
@@ -1345,7 +1562,7 @@ Hello prints any strings passed in to stdout preceded by "Hello".
 	var tests = []testCase{
 		{
 			Args: []string{},
-			Err:  ErrUsage,
+			Err:  errUsageStr,
 			Stderr: `ERROR: prog1: no command specified
 
 Prog1 has two variants of hello and a subprogram prog2.
@@ -1493,11 +1710,6 @@ Help with args displays the usage of the specified sub-command or help topic.
 
 "help ..." recursively displays help for all commands and topics.
 
-Output is formatted to a target width in runes, determined by checking the
-CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
-back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
-the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
-
 Usage:
    prog1 help [flags] [command/topic ...]
 
@@ -1510,6 +1722,10 @@ The prog1 help flags are:
       full    - Good for cmdline output, shows all global flags.
       godoc   - Good for godoc processing.
    Override the default by setting the CMDLINE_STYLE environment variable.
+ -width=80
+   Format output to this target width in runes, or unlimited if width < 0.
+   Defaults to the terminal width if available.  Override the default by setting
+   the CMDLINE_WIDTH environment variable.
 `,
 		},
 		{
@@ -1587,11 +1803,6 @@ Help with args displays the usage of the specified sub-command or help topic.
 
 "help ..." recursively displays help for all commands and topics.
 
-Output is formatted to a target width in runes, determined by checking the
-CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
-back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
-the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
-
 Usage:
    prog1 prog2 help [flags] [command/topic ...]
 
@@ -1604,6 +1815,10 @@ The prog1 prog2 help flags are:
       full    - Good for cmdline output, shows all global flags.
       godoc   - Good for godoc processing.
    Override the default by setting the CMDLINE_STYLE environment variable.
+ -width=80
+   Format output to this target width in runes, or unlimited if width < 0.
+   Defaults to the terminal width if available.  Override the default by setting
+   the CMDLINE_WIDTH environment variable.
 `,
 		},
 		{
@@ -1651,11 +1866,6 @@ Help with args displays the usage of the specified sub-command or help topic.
 
 "help ..." recursively displays help for all commands and topics.
 
-Output is formatted to a target width in runes, determined by checking the
-CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
-back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
-the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
-
 Usage:
    prog1 prog2 prog3 help [flags] [command/topic ...]
 
@@ -1668,6 +1878,10 @@ The prog1 prog2 prog3 help flags are:
       full    - Good for cmdline output, shows all global flags.
       godoc   - Good for godoc processing.
    Override the default by setting the CMDLINE_STYLE environment variable.
+ -width=80
+   Format output to this target width in runes, or unlimited if width < 0.
+   Defaults to the terminal width if available.  Override the default by setting
+   the CMDLINE_WIDTH environment variable.
 `,
 		},
 		{
@@ -1715,11 +1929,6 @@ Help with args displays the usage of the specified sub-command or help topic.
 
 "help ..." recursively displays help for all commands and topics.
 
-Output is formatted to a target width in runes, determined by checking the
-CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
-back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
-the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
-
 Usage:
    prog1 prog2 prog3 help [flags] [command/topic ...]
 
@@ -1732,6 +1941,10 @@ The prog1 prog2 prog3 help flags are:
       full    - Good for cmdline output, shows all global flags.
       godoc   - Good for godoc processing.
    Override the default by setting the CMDLINE_STYLE environment variable.
+ -width=80
+   Format output to this target width in runes, or unlimited if width < 0.
+   Defaults to the terminal width if available.  Override the default by setting
+   the CMDLINE_WIDTH environment variable.
 `,
 		},
 		{
@@ -1838,11 +2051,6 @@ Help with args displays the usage of the specified sub-command or help topic.
 
 "help ..." recursively displays help for all commands and topics.
 
-Output is formatted to a target width in runes, determined by checking the
-CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
-back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
-the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
-
 Usage:
    prog1 help [flags] [command/topic ...]
 
@@ -1855,400 +2063,28 @@ The prog1 help flags are:
       full    - Good for cmdline output, shows all global flags.
       godoc   - Good for godoc processing.
    Override the default by setting the CMDLINE_STYLE environment variable.
+ -width=<terminal width>
+   Format output to this target width in runes, or unlimited if width < 0.
+   Defaults to the terminal width if available.  Override the default by setting
+   the CMDLINE_WIDTH environment variable.
 `,
 		},
 	}
-
 	runTestCases(t, progHello1, tests)
-}
-
-func TestCommandAndArgs(t *testing.T) {
-	cmdEcho := &Command{
-		Name:  "echo",
-		Short: "Print strings on stdout",
-		Long: `
-Echo prints any strings passed in to stdout.
-`,
-		Run:      runEcho,
-		ArgsName: "[strings]",
-		ArgsLong: "[strings] are arbitrary strings that will be echoed.",
-	}
-
-	prog := &Command{
-		Name:     "cmdargs",
-		Short:    "Cmdargs program.",
-		Long:     "Cmdargs has the echo command and a Run function with args.",
-		Children: []*Command{cmdEcho},
-		Run:      runHello,
-		ArgsName: "[strings]",
-		ArgsLong: "[strings] are arbitrary strings that will be printed.",
-	}
-
-	var tests = []testCase{
-		{
-			Args:   []string{},
-			Stdout: "Hello\n",
-		},
-		{
-			Args:   []string{"foo"},
-			Stdout: "Hello foo\n",
-		},
-		{
-			Args: []string{"help"},
-			Stdout: `Cmdargs has the echo command and a Run function with args.
-
-Usage:
-   cmdargs <command>
-   cmdargs [strings]
-
-The cmdargs commands are:
-   echo        Print strings on stdout
-   help        Display help for commands or topics
-Run "cmdargs help [command]" for command usage.
-
-[strings] are arbitrary strings that will be printed.
-
-The global flags are:
- -global1=
-   global test flag 1
- -global2=0
-   global test flag 2
-`,
-		},
-		{
-			Args: []string{"help", "echo"},
-			Stdout: `Echo prints any strings passed in to stdout.
-
-Usage:
-   cmdargs echo [strings]
-
-[strings] are arbitrary strings that will be echoed.
-
-The global flags are:
- -global1=
-   global test flag 1
- -global2=0
-   global test flag 2
-`,
-		},
-		{
-			Args: []string{"help", "..."},
-			Stdout: `Cmdargs has the echo command and a Run function with args.
-
-Usage:
-   cmdargs <command>
-   cmdargs [strings]
-
-The cmdargs commands are:
-   echo        Print strings on stdout
-   help        Display help for commands or topics
-Run "cmdargs help [command]" for command usage.
-
-[strings] are arbitrary strings that will be printed.
-
-The global flags are:
- -global1=
-   global test flag 1
- -global2=0
-   global test flag 2
-================================================================================
-Cmdargs echo
-
-Echo prints any strings passed in to stdout.
-
-Usage:
-   cmdargs echo [strings]
-
-[strings] are arbitrary strings that will be echoed.
-================================================================================
-Cmdargs help
-
-Help with no args displays the usage of the parent command.
-
-Help with args displays the usage of the specified sub-command or help topic.
-
-"help ..." recursively displays help for all commands and topics.
-
-Output is formatted to a target width in runes, determined by checking the
-CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
-back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
-the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
-
-Usage:
-   cmdargs help [flags] [command/topic ...]
-
-[command/topic ...] optionally identifies a specific sub-command or help topic.
-
-The cmdargs help flags are:
- -style=compact
-   The formatting style for help output:
-      compact - Good for compact cmdline output.
-      full    - Good for cmdline output, shows all global flags.
-      godoc   - Good for godoc processing.
-   Override the default by setting the CMDLINE_STYLE environment variable.
-`,
-		},
-		{
-			Args: []string{"help", "foo"},
-			Err:  ErrUsage,
-			Stderr: `ERROR: cmdargs: unknown command or topic "foo"
-
-Cmdargs has the echo command and a Run function with args.
-
-Usage:
-   cmdargs <command>
-   cmdargs [strings]
-
-The cmdargs commands are:
-   echo        Print strings on stdout
-   help        Display help for commands or topics
-Run "cmdargs help [command]" for command usage.
-
-[strings] are arbitrary strings that will be printed.
-
-The global flags are:
- -global1=
-   global test flag 1
- -global2=0
-   global test flag 2
-`,
-		},
-		{
-			Args:   []string{"echo", "foo", "bar"},
-			Stdout: "[foo bar]\n",
-		},
-		{
-			Args: []string{"echo", "error"},
-			Err:  errEcho,
-		},
-		{
-			Args: []string{"echo", "bad_arg"},
-			Err:  ErrUsage,
-			Stderr: `ERROR: Invalid argument bad_arg
-
-Echo prints any strings passed in to stdout.
-
-Usage:
-   cmdargs echo [strings]
-
-[strings] are arbitrary strings that will be echoed.
-
-The global flags are:
- -global1=
-   global test flag 1
- -global2=0
-   global test flag 2
-`,
-		},
-	}
-	runTestCases(t, prog, tests)
-}
-
-func TestCommandAndRunNoArgs(t *testing.T) {
-	cmdEcho := &Command{
-		Name:  "echo",
-		Short: "Print strings on stdout",
-		Long: `
-Echo prints any strings passed in to stdout.
-`,
-		Run:      runEcho,
-		ArgsName: "[strings]",
-		ArgsLong: "[strings] are arbitrary strings that will be echoed.",
-	}
-
-	prog := &Command{
-		Name:     "cmdrun",
-		Short:    "Cmdrun program.",
-		Long:     "Cmdrun has the echo command and a Run function with no args.",
-		Children: []*Command{cmdEcho},
-		Run:      runHello,
-	}
-
-	var tests = []testCase{
-		{
-			Args:   []string{},
-			Stdout: "Hello\n",
-		},
-		{
-			Args: []string{"foo"},
-			Err:  ErrUsage,
-			Stderr: `ERROR: cmdrun: unknown command "foo"
-
-Cmdrun has the echo command and a Run function with no args.
-
-Usage:
-   cmdrun <command>
-   cmdrun
-
-The cmdrun commands are:
-   echo        Print strings on stdout
-   help        Display help for commands or topics
-Run "cmdrun help [command]" for command usage.
-
-The global flags are:
- -global1=
-   global test flag 1
- -global2=0
-   global test flag 2
-`,
-		},
-		{
-			Args: []string{"help"},
-			Stdout: `Cmdrun has the echo command and a Run function with no args.
-
-Usage:
-   cmdrun <command>
-   cmdrun
-
-The cmdrun commands are:
-   echo        Print strings on stdout
-   help        Display help for commands or topics
-Run "cmdrun help [command]" for command usage.
-
-The global flags are:
- -global1=
-   global test flag 1
- -global2=0
-   global test flag 2
-`,
-		},
-		{
-			Args: []string{"help", "echo"},
-			Stdout: `Echo prints any strings passed in to stdout.
-
-Usage:
-   cmdrun echo [strings]
-
-[strings] are arbitrary strings that will be echoed.
-
-The global flags are:
- -global1=
-   global test flag 1
- -global2=0
-   global test flag 2
-`,
-		},
-		{
-			Args: []string{"help", "..."},
-			Stdout: `Cmdrun has the echo command and a Run function with no args.
-
-Usage:
-   cmdrun <command>
-   cmdrun
-
-The cmdrun commands are:
-   echo        Print strings on stdout
-   help        Display help for commands or topics
-Run "cmdrun help [command]" for command usage.
-
-The global flags are:
- -global1=
-   global test flag 1
- -global2=0
-   global test flag 2
-================================================================================
-Cmdrun echo
-
-Echo prints any strings passed in to stdout.
-
-Usage:
-   cmdrun echo [strings]
-
-[strings] are arbitrary strings that will be echoed.
-================================================================================
-Cmdrun help
-
-Help with no args displays the usage of the parent command.
-
-Help with args displays the usage of the specified sub-command or help topic.
-
-"help ..." recursively displays help for all commands and topics.
-
-Output is formatted to a target width in runes, determined by checking the
-CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
-back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
-the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
-
-Usage:
-   cmdrun help [flags] [command/topic ...]
-
-[command/topic ...] optionally identifies a specific sub-command or help topic.
-
-The cmdrun help flags are:
- -style=compact
-   The formatting style for help output:
-      compact - Good for compact cmdline output.
-      full    - Good for cmdline output, shows all global flags.
-      godoc   - Good for godoc processing.
-   Override the default by setting the CMDLINE_STYLE environment variable.
-`,
-		},
-		{
-			Args: []string{"help", "foo"},
-			Err:  ErrUsage,
-			Stderr: `ERROR: cmdrun: unknown command or topic "foo"
-
-Cmdrun has the echo command and a Run function with no args.
-
-Usage:
-   cmdrun <command>
-   cmdrun
-
-The cmdrun commands are:
-   echo        Print strings on stdout
-   help        Display help for commands or topics
-Run "cmdrun help [command]" for command usage.
-
-The global flags are:
- -global1=
-   global test flag 1
- -global2=0
-   global test flag 2
-`,
-		},
-		{
-			Args:   []string{"echo", "foo", "bar"},
-			Stdout: "[foo bar]\n",
-		},
-		{
-			Args: []string{"echo", "error"},
-			Err:  errEcho,
-		},
-		{
-			Args: []string{"echo", "bad_arg"},
-			Err:  ErrUsage,
-			Stderr: `ERROR: Invalid argument bad_arg
-
-Echo prints any strings passed in to stdout.
-
-Usage:
-   cmdrun echo [strings]
-
-[strings] are arbitrary strings that will be echoed.
-
-The global flags are:
- -global1=
-   global test flag 1
- -global2=0
-   global test flag 2
-`,
-		},
-	}
-	runTestCases(t, prog, tests)
 }
 
 func TestLongCommands(t *testing.T) {
 	cmdLong := &Command{
-		Name:  "thisisaverylongcommand",
-		Short: "the short description of the very long command is very long, and will have to be wrapped",
-		Long:  "The long description of the very long command is also very long, and will similarly have to be wrapped",
-		Run:   runEcho,
+		Name:   "thisisaverylongcommand",
+		Short:  "the short description of the very long command is very long, and will have to be wrapped",
+		Long:   "The long description of the very long command is also very long, and will similarly have to be wrapped",
+		Runner: RunnerFunc(runEcho),
 	}
 	cmdShort := &Command{
-		Name:  "x",
-		Short: "description of short command.",
-		Long:  "blah blah blah",
-		Run:   runEcho,
+		Name:   "x",
+		Short:  "description of short command.",
+		Long:   "blah blah blah",
+		Runner: RunnerFunc(runEcho),
 	}
 	prog := &Command{
 		Name:     "program",
@@ -2300,10 +2136,10 @@ The global flags are:
 func TestHideGlobalFlags(t *testing.T) {
 	HideGlobalFlagsExcept(regexp.MustCompile(`^global2$`))
 	cmdChild := &Command{
-		Name:  "child",
-		Short: "description of child command.",
-		Long:  "blah blah blah",
-		Run:   runEcho,
+		Name:   "child",
+		Short:  "description of child command.",
+		Long:   "blah blah blah",
+		Runner: RunnerFunc(runEcho),
 	}
 	prog := &Command{
 		Name:     "program",
@@ -2382,16 +2218,16 @@ The global flags are:
 		},
 	}
 	runTestCases(t, prog, tests)
-	compactGlobalFlags = nil
+	nonHiddenGlobalFlags = nil
 }
 
 func TestHideGlobalFlagsRootNoChildren(t *testing.T) {
 	HideGlobalFlagsExcept(regexp.MustCompile(`^global2$`))
 	prog := &Command{
-		Name:  "program",
-		Short: "Test hiding global flags, root no children.",
-		Long:  "Test hiding global flags, root no children.",
-		Run:   runEcho,
+		Name:   "program",
+		Short:  "Test hiding global flags, root no children.",
+		Long:   "Test hiding global flags, root no children.",
+		Runner: RunnerFunc(runEcho),
 	}
 	var tests = []testCase{
 		{
@@ -2426,5 +2262,55 @@ The global flags are:
 		},
 	}
 	runTestCases(t, prog, tests)
-	compactGlobalFlags = nil
+	nonHiddenGlobalFlags = nil
+}
+
+func TestRootCommandFlags(t *testing.T) {
+	root := &Command{
+		Name:   "root",
+		Short:  "Test root command flags.",
+		Long:   "Test root command flags.",
+		Runner: RunnerFunc(runHello),
+	}
+	rb := root.Flags.Bool("rbool", false, "rbool desc")
+	rs := root.Flags.String("rstring", "abc", "rstring desc")
+	origFlags := flag.CommandLine
+	// Parse and make sure the flags get set appropriately.
+	_, _, err := Parse(root, NewEnv(), []string{"-rbool=true", "-rstring=XYZ"})
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	if got, want := *rb, true; got != want {
+		t.Errorf("rbool got %v want %v", got, want)
+	}
+	if got, want := *rs, "XYZ"; got != want {
+		t.Errorf("rstring got %v want %v", got, want)
+	}
+	// Make sure we haven't changed the flag.CommandLine pointer, and that it's
+	// parsed, and it contains our root command flags.  These properties are
+	// important to ensure so that users can check whether the flags are already
+	// parsed to avoid double-parsing.  Even if they do call flag.Parse it'll
+	// succeed, as long as cmdline.Parse succeeded.
+	if got, want := flag.CommandLine, origFlags; got != want {
+		t.Errorf("flag.CommandLine pointer changed, got %p want %p", got, want)
+	}
+	if got, want := flag.CommandLine.Parsed(), true; got != want {
+		t.Errorf("flag.CommandLine.Parsed() got %v, want %v", got, want)
+	}
+	if name := "rbool"; flag.CommandLine.Lookup(name) == nil {
+		t.Errorf("flag.CommandLine.Lookup(%q) failed", name)
+	}
+	if name := "rstring"; flag.CommandLine.Lookup(name) == nil {
+		t.Errorf("flag.CommandLine.Lookup(%q) failed", name)
+	}
+	// Actually try double-parsing flag.CommandLine.
+	if err := flag.CommandLine.Parse([]string{"-rbool=false", "-rstring=123"}); err != nil {
+		t.Errorf("flag.CommandLine.Parse() failed: %v", err)
+	}
+	if got, want := *rb, false; got != want {
+		t.Errorf("rbool got %v want %v", got, want)
+	}
+	if got, want := *rs, "123"; got != want {
+		t.Errorf("rstring got %v want %v", got, want)
+	}
 }

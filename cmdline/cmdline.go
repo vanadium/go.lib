@@ -5,50 +5,34 @@
 // Package cmdline implements a data-driven mechanism for writing command-line
 // programs with built-in support for help.
 //
-// Commands may be linked together to form a command tree.  Since commands may
-// be arbitrarily nested within other commands, it's easy to create wrapper
+// Commands are linked together to form a command tree.  Since commands may be
+// arbitrarily nested within other commands, it's easy to create wrapper
 // programs that invoke existing commands.
 //
 // The syntax for each command-line program is:
 //
 //   command [flags] [subcommand [flags]]* [args]
 //
-// Each sequence of flags on the command-line is associated with the command
-// that immediately precedes them.  Flags registered on flag.CommandLine are
-// considered global flags, and are allowed anywhere a command-specific flag is
-// allowed.
+// Each sequence of flags is associated with the command that immediately
+// precedes it.  Flags registered on flag.CommandLine are considered global
+// flags, and are allowed anywhere a command-specific flag is allowed.
 //
-// Caveats
+// Pretty usage documentation is automatically generated, and accessible either
+// via the standard -h / -help flags from the Go flag package, or a special help
+// command.  The help command is automatically appended to commands that already
+// have at least one child, and don't already have a "help" child.
 //
-// Registering flags on the root command may be tricky to get right, if
-// flag.Parse is called.  The problem is that flags registered on the root
-// command must be merged into flag.CommandLine first, before flag.Parse is
-// called, so that all root flags are known during the parse.  The merging
-// occurs in the Command.Init method, which is called by the Command.Main
-// method, and it's easy to get the ordering wrong.
+// Pitfalls
 //
-//   // Example pitfall of registering flags on the root command.
-//   func main() {
-//     flag.Parse()
-//     os.Exit(rootcmd.Main())
-//   }
+// The cmdline package must be in full control of flag parsing.  Typically you
+// call cmdline.Main in your main function, and flag parsing is taken care of.
+// If a more complicated ordering is required, you can call cmdline.Parse and
+// then handle any special initialization.
 //
-// In the example we're calling flag.Parse() before we call rootcmd.Main().
-// Thus the root flags are not known during the parse, so the parse will fail if
-// any root flags appear in os.Args.  One workaround is to call Init before the
-// parse.
-//
-//   // Example of calling Init and Execute separately.
-//   func main() {
-//     rootcmd.Init(nil, os.Stdout, os.Stderr)
-//     flag.Parse()
-//     err := rootcmd.Execute(os.Args[1:])
-//     // ... handle err
-//   }
-//
-// Another workaround is to avoid registering flags on the root command
-// altogether, either by registering the flags on a subcommand, or by
-// registering the flags on flag.CommandLine.
+// The problem is that flags registered on the root command must be merged
+// together with the global flags for the root command to be parsed.  If
+// flag.Parse is called before cmdline.Main or cmdline.Parse, it will fail if
+// any root command flags are specified on the command line.
 package cmdline
 
 import (
@@ -57,36 +41,15 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"regexp"
-	"strconv"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 
 	_ "v.io/x/lib/metadata" // for the -v23.metadata flag
-	"v.io/x/lib/textutil"
 )
-
-// ErrExitCode may be returned by the Run function of a Command to cause the
-// program to exit with a specific error code.
-type ErrExitCode int
-
-func (x ErrExitCode) Error() string {
-	return fmt.Sprintf("exit code %d", x)
-}
-
-// ErrUsage is returned to indicate an error in command usage; e.g. unknown
-// flags, subcommands or args.  It corresponds to exit code 1.
-const ErrUsage = ErrExitCode(1)
-
-// Runner is a function that can be used as the Run method of a Command.
-type Runner func(cmd *Command, args []string) error
 
 // Command represents a single command in a command-line program.  A program
 // with subcommands is represented as a root Command with children representing
 // each subcommand.  The command graph must be a tree; each command may either
-// have exactly one parent (a sub-command), or no parent (the root), and cycles
-// are not allowed.  This makes it easier to display the usage for subcommands.
+// have no parent (the root) or exactly one parent, and cycles are not allowed.
 type Command struct {
 	Name     string       // Name of the command.
 	Short    string       // Short description, shown in help called on parent.
@@ -95,587 +58,312 @@ type Command struct {
 	ArgsName string       // Name of the args, shown in usage line.
 	ArgsLong string       // Long description of the args, shown in help.
 
-	// Children of the command.  The framework will match args[0] against each
-	// child's name, and call Run on the first matching child.
+	// Children of the command.
 	Children []*Command
 
-	// Run is a function that runs cmd with args.  If both Children and Run are
-	// specified, Run will only be called if none of the children match.  It is an
-	// error if neither is specified.  The special ErrExitCode error may be
-	// returned to indicate the command should exit with a specific exit code.
-	Run Runner
+	// Runner that runs the command.
+	// Use RunnerFunc to adapt regular functions into Runners.
+	//
+	// At least one of Children or Runner must be specified.  If both are
+	// specified, ArgsName and ArgsLong must be empty, meaning the Runner doesn't
+	// take any args.  Otherwise there's a possible conflict between child names
+	// and the runner args, and an error is returned from Parse.
+	Runner Runner
 
 	// Topics that provide additional info via the default help command.
 	Topics []Topic
-
-	// parent holds the parent of this Command, or nil if this is the root.
-	parent *Command
-
-	// stdout and stderr are set through Init.
-	stdout, stderr io.Writer
-
-	// globalFlags is the set of global flags (flag.CommandLine before any
-	// merging is performed by this package).
-	globalFlags *flag.FlagSet
-
-	// parseFlags holds the merged flags used for parsing.  Each command starts
-	// with its own Flags, and we merge in all global flags.  If the same flag is
-	// specified in both sets, the command's own flag wins.
-	parseFlags *flag.FlagSet
-
-	// isDefaultHelp indicates whether this is the the default help command
-	// provided by the framework.
-	isDefaultHelp bool
-
-	// TODO(toddw): If necessary we can add alias support, e.g. for abbreviations.
-	//   Alias map[string]string
 }
 
-// Topic represents an additional help topic that is accessed via the default
-// help command.
+// Runner is the interface for running commands.  Return ErrExitCode to indicate
+// the command should exit with a specific exit code.
+type Runner interface {
+	Run(env *Env, args []string) error
+}
+
+// RunnerFunc is an adapter that turns regular functions into Runners.
+type RunnerFunc func(*Env, []string) error
+
+// Run implements the Runner interface method by calling f(env, args).
+func (f RunnerFunc) Run(env *Env, args []string) error {
+	return f(env, args)
+}
+
+// Topic represents a help topic that is accessed via the help command.
 type Topic struct {
 	Name  string // Name of the topic.
 	Short string // Short description, shown in help for the command.
 	Long  string // Long description, shown in help for this topic.
 }
 
-// style describes the formatting style for usage descriptions.
-type style int
-
-const (
-	styleCompact style = iota // Default style, good for compact cmdline output.
-	styleFull                 // Similar to compact but shows global flags.
-	styleGoDoc                // Style good for godoc processing.
-)
-
-// String returns the human-readable representation of the style.
-func (s *style) String() string {
-	switch *s {
-	case styleCompact:
-		return "compact"
-	case styleFull:
-		return "full"
-	case styleGoDoc:
-		return "godoc"
-	default:
-		panic(fmt.Errorf("unhandled style %d", *s))
-	}
+// Main implements the main function for the command tree rooted at root.
+//
+// It initializes a new environment from the underlying operating system, parses
+// os.Args[1:] against the root command, and runs the resulting runner.  Calls
+// os.Exit with an exit code that is 0 for success, or non-zero for errors.
+//
+// Most main packages should be implemented as follows:
+//
+//   var root := &cmdline.Command{...}
+//
+//   func main() {
+//     cmdline.Main(root)
+//   }
+func Main(root *Command) {
+	env := NewEnv()
+	err := ParseAndRun(root, env, os.Args[1:])
+	os.Exit(ExitCode(err, env.Stderr))
 }
 
-// Set implements the flag.Value interface method.
-func (s *style) Set(value string) error {
-	switch value {
-	case "compact":
-		*s = styleCompact
-	case "full":
-		*s = styleFull
-	case "godoc":
-		*s = styleGoDoc
-	default:
-		return fmt.Errorf("unknown style %q", value)
+// Parse parses args against the command tree rooted at root down to a leaf
+// command.  A single path through the command tree is traversed, based on the
+// sub-commands specified in args.  Global and command-specific flags are parsed
+// as the tree is traversed.
+//
+// On success returns the runner corresponding to the leaf command, along with
+// the args to pass to the runner.  In addition the env.Usage function is set to
+// produce a usage message corresponding to the leaf command.
+//
+// Most main packages should just call Main.  Parse should only be used if
+// special processing is required after parsing the args, and before the runner
+// is run.  An example:
+//
+//   var root := &cmdline.Command{...}
+//
+//   func main() {
+//     env := cmdline.NewEnv()
+//     os.Exit(cmdline.ExitCode(parseAndRun(env), env.Stderr))
+//   }
+//
+//   func parseAndRun(env *cmdline.Env) error {
+//     runner, args, err := cmdline.Parse(env, root, os.Args[1:])
+//     if err != nil {
+//       return err
+//     }
+//     // ... perform initialization that might parse flags ...
+//     return runner.Run(env, args)
+//   }
+//
+// Parse merges root flags into flag.CommandLine and sets ContinueOnError, so
+// that subsequent calls to flag.Parsed return true.
+func Parse(root *Command, env *Env, args []string) (Runner, []string, error) {
+	if globalFlags == nil {
+		// Initialize our global flags to a cleaned copy.  We don't want the merging
+		// in parseFlags to contaminate the global flags, even if Parse is called
+		// multiple times, so we keep a single package-level copy.
+		cleanFlags(flag.CommandLine)
+		globalFlags = copyFlags(flag.CommandLine)
+	}
+	// Set env.Usage to the usage of the root command, in case the parse fails.
+	path := []*Command{root}
+	env.Usage = makeHelpRunner(path, env).usageFunc
+	if err := cleanTree(path); err != nil {
+		return nil, nil, err
+	}
+	runner, args, err := root.parse(nil, env, args)
+	if err != nil {
+		return nil, nil, err
+	}
+	return runner, args, nil
+}
+
+var globalFlags *flag.FlagSet
+
+// ParseAndRun is a convenience that calls Parse, and then calls Run on the
+// returned runner with the given env and parsed args.
+func ParseAndRun(root *Command, env *Env, args []string) error {
+	runner, args, err := Parse(root, env, args)
+	if err != nil {
+		return err
+	}
+	return runner.Run(env, args)
+}
+
+func trimSpace(s *string) { *s = strings.TrimSpace(*s) }
+
+func cleanTree(path []*Command) error {
+	cmd, cmdPath := path[len(path)-1], pathName(path)
+	trimSpace(&cmd.Name)
+	trimSpace(&cmd.Short)
+	trimSpace(&cmd.Long)
+	trimSpace(&cmd.ArgsName)
+	trimSpace(&cmd.ArgsLong)
+	for tx := range cmd.Topics {
+		trimSpace(&cmd.Topics[tx].Name)
+		trimSpace(&cmd.Topics[tx].Short)
+		trimSpace(&cmd.Topics[tx].Long)
+	}
+	cleanFlags(&cmd.Flags)
+	// Check that our Children / Runner invariant is satisfied.  At least one must
+	// be specified, and if both are specified then ArgsName and ArgsLong must be
+	// empty, meaning the Runner doesn't take any args.
+	switch hasC, hasR := len(cmd.Children) > 0, cmd.Runner != nil; {
+	case !hasC && !hasR:
+		return fmt.Errorf(`%v: CODE INVARIANT BROKEN; FIX YOUR CODE
+
+At least one of Children or Runner must be specified.
+`, cmdPath)
+	case hasC && hasR && (cmd.ArgsName != "" || cmd.ArgsLong != ""):
+		return fmt.Errorf(`%v: CODE INVARIANT BROKEN; FIX YOUR CODE
+
+Since both Children and Runner are specified, the Runner cannot take args.
+Otherwise a conflict between child names and runner args is possible.
+`, cmdPath)
+	}
+	for _, child := range cmd.Children {
+		if err := cleanTree(append(path, child)); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-// styleFromEnv returns the style value specified by the CMDLINE_STYLE
-// environment variable, falling back on styleCompact.
-func styleFromEnv() style {
-	style := styleCompact
-	style.Set(os.Getenv("CMDLINE_STYLE"))
-	return style
-}
-
-// Stdout is where output goes.  Typically os.Stdout.
-func (cmd *Command) Stdout() io.Writer {
-	return cmd.stdout
-}
-
-// Stderr is where error messages go.  Typically os.Stderr
-func (cmd *Command) Stderr() io.Writer {
-	return cmd.stderr
-}
-
-// UsageErrorf prints the error message represented by the printf-style format
-// string and args, followed by the usage description of cmd.  Returns ErrUsage
-// to make it easy to use from within the cmd.Run function.
-func (cmd *Command) UsageErrorf(format string, v ...interface{}) error {
-	fmt.Fprint(cmd.stderr, "ERROR: ")
-	fmt.Fprintf(cmd.stderr, format, v...)
-	fmt.Fprint(cmd.stderr, "\n\n")
-	cmd.writeUsage(cmd.stderr)
-	return ErrUsage
-}
-
-// Have a reasonable default for the output width in runes.
-const defaultWidth = 80
-
-func outputWidth() int {
-	if width, err := strconv.Atoi(os.Getenv("CMDLINE_WIDTH")); err == nil && width != 0 {
-		return width
-	}
-	if _, width, err := textutil.TerminalSize(); err == nil && width != 0 {
-		return width
-	}
-	return defaultWidth
-}
-
-func (cmd *Command) writeUsage(w io.Writer) {
-	lineWriter := textutil.NewUTF8LineWriter(w, outputWidth())
-	cmd.usage(lineWriter, styleFromEnv(), true)
-	lineWriter.Flush()
-}
-
-// usage prints the usage of cmd to the writer.  The firstCall boolean is set to
-// false when printing usage for multiple commands, and is used to avoid
-// printing redundant information (e.g. help command, global flags).
-func (cmd *Command) usage(w *textutil.LineWriter, style style, firstCall bool) {
-	fmt.Fprintln(w, cmd.Long)
-	fmt.Fprintln(w)
-	// Usage line.
-	hasFlags := numFlags(&cmd.Flags, nil, true) > 0
-	fmt.Fprintln(w, "Usage:")
-	path := cmd.namePath()
-	pathf := "   " + path
-	if hasFlags {
-		pathf += " [flags]"
-	}
-	if len(cmd.Children) > 0 {
-		fmt.Fprintln(w, pathf, "<command>")
-	}
-	if cmd.Run != nil {
-		if cmd.ArgsName != "" {
-			fmt.Fprintln(w, pathf, cmd.ArgsName)
-		} else {
-			fmt.Fprintln(w, pathf)
-		}
-	}
-	if len(cmd.Children) == 0 && cmd.Run == nil {
-		// This is a specification error.
-		fmt.Fprintln(w, pathf, "[ERROR: neither Children nor Run is specified]")
-	}
-	// Commands.
-	const minNameWidth = 11
-	if len(cmd.Children) > 0 {
-		fmt.Fprintln(w)
-		fmt.Fprintln(w, "The", path, "commands are:")
-		nameWidth := minNameWidth
-		for _, child := range cmd.Children {
-			if len(child.Name) > nameWidth {
-				nameWidth = len(child.Name)
-			}
-		}
-		// Print as a table with aligned columns Name and Short.
-		w.SetIndents(spaces(3), spaces(3+nameWidth+1))
-		for _, child := range cmd.Children {
-			// Don't repeatedly list default help command.
-			if firstCall || !child.isDefaultHelp {
-				fmt.Fprintf(w, "%-[1]*[2]s %[3]s", nameWidth, child.Name, child.Short)
-				w.Flush()
-			}
-		}
-		w.SetIndents()
-		if firstCall && style != styleGoDoc {
-			fmt.Fprintf(w, "Run \"%s help [command]\" for command usage.\n", path)
-		}
-	}
-	// Args.
-	if cmd.Run != nil && cmd.ArgsLong != "" {
-		fmt.Fprintln(w)
-		fmt.Fprintln(w, cmd.ArgsLong)
-	}
-	// Help topics.
-	if len(cmd.Topics) > 0 {
-		fmt.Fprintln(w)
-		fmt.Fprintln(w, "The", path, "additional help topics are:")
-		nameWidth := minNameWidth
-		for _, topic := range cmd.Topics {
-			if len(topic.Name) > nameWidth {
-				nameWidth = len(topic.Name)
-			}
-		}
-		// Print as a table with aligned columns Name and Short.
-		w.SetIndents(spaces(3), spaces(3+nameWidth+1))
-		for _, topic := range cmd.Topics {
-			fmt.Fprintf(w, "%-[1]*[2]s %[3]s", nameWidth, topic.Name, topic.Short)
-			w.Flush()
-		}
-		w.SetIndents()
-		if firstCall && style != styleGoDoc {
-			fmt.Fprintf(w, "Run \"%s help [topic]\" for topic details.\n", path)
-		}
-	}
-	// Flags.
-	if hasFlags {
-		fmt.Fprintln(w)
-		fmt.Fprintln(w, "The", path, "flags are:")
-		printFlags(w, &cmd.Flags, style, nil, true)
-	}
-	// Global flags.
-	hasCompact := numFlags(cmd.globalFlags, compactGlobalFlags, true) > 0
-	hasFull := numFlags(cmd.globalFlags, compactGlobalFlags, false) > 0
-	if firstCall {
-		if style == styleCompact {
-			if hasCompact {
-				fmt.Fprintln(w)
-				fmt.Fprintln(w, "The global flags are:")
-				printFlags(w, cmd.globalFlags, style, compactGlobalFlags, true)
-			}
-			if hasFull {
-				fmt.Fprintln(w)
-				fullhelp := fmt.Sprintf(`Run "%s help -style=full" to show all global flags.`, path)
-				if len(cmd.Children) == 0 {
-					if cmd.parent != nil {
-						fullhelp = fmt.Sprintf(`Run "%s help -style=full %s" to show all global flags.`, cmd.parent.namePath(), cmd.Name)
-					} else {
-						fullhelp = fmt.Sprintf(`Run "CMDLINE_STYLE=full %s -help" to show all global flags.`, path)
-					}
-				}
-				fmt.Fprintln(w, fullhelp)
-			}
-		} else {
-			if hasCompact || hasFull {
-				fmt.Fprintln(w)
-				fmt.Fprintln(w, "The global flags are:")
-				printFlags(w, cmd.globalFlags, style, compactGlobalFlags, true)
-				if hasCompact && hasFull {
-					fmt.Fprintln(w)
-				}
-				printFlags(w, cmd.globalFlags, style, compactGlobalFlags, false)
-			}
-		}
-	}
-}
-
-// namePath returns the path of command names up to cmd.
-func (cmd *Command) namePath() string {
-	var path []string
-	for ; cmd != nil; cmd = cmd.parent {
-		path = append([]string{cmd.Name}, path...)
-	}
-	return strings.Join(path, " ")
-}
-
-func numFlags(set *flag.FlagSet, regexps []*regexp.Regexp, match bool) (num int) {
-	set.VisitAll(func(f *flag.Flag) {
-		if match == matchRegexps(regexps, f.Name) {
-			num++
-		}
-	})
-	return
-}
-
-func printFlags(w *textutil.LineWriter, set *flag.FlagSet, style style, regexps []*regexp.Regexp, match bool) {
-	set.VisitAll(func(f *flag.Flag) {
-		if match != matchRegexps(regexps, f.Name) {
-			return
-		}
-		value := f.Value.String()
-		if style == styleGoDoc {
-			// When using styleGoDoc we use the default value, so that e.g. regular
-			// help will show "/usr/home/me/foo" while godoc will show "$HOME/foo".
-			value = f.DefValue
-		}
-		fmt.Fprintf(w, " -%s=%v", f.Name, value)
-		w.SetIndents(spaces(3))
-		fmt.Fprintln(w, f.Usage)
-		w.SetIndents()
+func cleanFlags(flags *flag.FlagSet) {
+	flags.VisitAll(func(f *flag.Flag) {
+		trimSpace(&f.Usage)
 	})
 }
 
-func spaces(count int) string {
-	return strings.Repeat(" ", count)
+func pathName(path []*Command) string {
+	name := path[0].Name
+	for _, cmd := range path[1:] {
+		name += " " + cmd.Name
+	}
+	return name
 }
 
-func matchRegexps(regexps []*regexp.Regexp, name string) bool {
-	// We distinguish nil regexps from empty regexps; the former means "all names
-	// match", while the latter means "no names match".
-	if regexps == nil {
-		return true
+func (cmd *Command) parse(path []*Command, env *Env, args []string) (Runner, []string, error) {
+	path = append(path, cmd)
+	cmdPath := pathName(path)
+	runHelp := makeHelpRunner(path, env)
+	env.Usage = runHelp.usageFunc
+	// Parse flags and retrieve the args remaining after the parse.
+	args, err := parseFlags(path, env, args)
+	switch {
+	case err == flag.ErrHelp:
+		return runHelp, nil, nil
+	case err != nil:
+		return nil, nil, env.UsageErrorf("%s: %v", cmdPath, err)
 	}
-	for _, r := range regexps {
-		if r.MatchString(name) {
-			return true
-		}
-	}
-	return false
-}
-
-var compactGlobalFlags []*regexp.Regexp
-
-// HideGlobalFlagsExcept hides global flags from the default compact-style usage
-// message, except for the given regexps.  Global flag names that match any of
-// the regexps will still be shown in the compact usage message.  Multiple calls
-// behave as if all regexps were provided in a single call.
-//
-// All global flags are always shown in non-compact style usage messages.
-func HideGlobalFlagsExcept(regexps ...*regexp.Regexp) {
-	compactGlobalFlags = append(compactGlobalFlags, regexps...)
-	if compactGlobalFlags == nil {
-		compactGlobalFlags = []*regexp.Regexp{}
-	}
-}
-
-// newDefaultHelp creates a new default help command.  We need to create new
-// instances since the parent for each help command is different.
-func newDefaultHelp() *Command {
-	helpStyle := styleFromEnv()
-	help := &Command{
-		Name:  helpName,
-		Short: "Display help for commands or topics",
-		Long: `
-Help with no args displays the usage of the parent command.
-
-Help with args displays the usage of the specified sub-command or help topic.
-
-"help ..." recursively displays help for all commands and topics.
-
-Output is formatted to a target width in runes, determined by checking the
-CMDLINE_WIDTH environment variable, falling back on the terminal width, falling
-back on 80 chars.  By setting CMDLINE_WIDTH=x, if x > 0 the width is x, if x < 0
-the width is unlimited, and if x == 0 or is unset one of the fallbacks is used.
-`,
-		ArgsName: "[command/topic ...]",
-		ArgsLong: `
-[command/topic ...] optionally identifies a specific sub-command or help topic.
-`,
-		Run: func(cmd *Command, args []string) error {
-			// Help applies to its parent - e.g. "foo help" applies to the foo command.
-			lineWriter := textutil.NewUTF8LineWriter(cmd.stdout, outputWidth())
-			defer lineWriter.Flush()
-			return runHelp(lineWriter, cmd.parent, args, helpStyle)
-		},
-		isDefaultHelp: true,
-	}
-	help.Flags.Var(&helpStyle, "style", `
-The formatting style for help output:
-   compact - Good for compact cmdline output.
-   full    - Good for cmdline output, shows all global flags.
-   godoc   - Good for godoc processing.
-Override the default by setting the CMDLINE_STYLE environment variable.
-`)
-	return help
-}
-
-const helpName = "help"
-
-// runHelp runs the "help" command.
-func runHelp(w *textutil.LineWriter, cmd *Command, args []string, style style) error {
+	// First handle the no-args case.
 	if len(args) == 0 {
-		cmd.usage(w, style, true)
-		return nil
+		if cmd.Runner != nil {
+			return cmd.Runner, nil, nil
+		}
+		return nil, nil, env.UsageErrorf("%s: no command specified", cmdPath)
 	}
-	if args[0] == "..." {
-		recursiveHelp(w, cmd, style, true)
-		return nil
-	}
-	// Try to display help for the subcommand.
+	// INVARIANT: len(args) > 0
+	// Look for matching children.
 	subName, subArgs := args[0], args[1:]
-	for _, child := range cmd.Children {
-		if child.Name == subName {
-			return runHelp(w, child, subArgs, style)
+	if len(cmd.Children) > 0 {
+		for _, child := range cmd.Children {
+			if child.Name == subName {
+				return child.parse(path, env, subArgs)
+			}
+		}
+		// Every non-leaf command gets a default help command.
+		if helpName == subName {
+			return runHelp.newCommand().parse(path, env, subArgs)
 		}
 	}
-	// Try to display help for the help topic.
-	for _, topic := range cmd.Topics {
-		if topic.Name == subName {
-			fmt.Fprintln(w, topic.Long)
-			return nil
+	// No matching children, check various error cases.
+	switch {
+	case cmd.Runner == nil:
+		return nil, nil, env.UsageErrorf("%s: unknown command %q", cmdPath, subName)
+	case cmd.ArgsName == "":
+		if len(cmd.Children) > 0 {
+			return nil, nil, env.UsageErrorf("%s: unknown command %q", cmdPath, subName)
 		}
+		return nil, nil, env.UsageErrorf("%s: doesn't take arguments", cmdPath)
 	}
-	return cmd.UsageErrorf("%s: unknown command or topic %q", cmd.namePath(), subName)
+	// INVARIANT: cmd.Runner != nil && len(args) > 0 && cmd.ArgsName != ""
+	return cmd.Runner, args, nil
 }
 
-// recursiveHelp prints help recursively via DFS from this cmd onward.
-func recursiveHelp(w *textutil.LineWriter, cmd *Command, style style, firstCall bool) {
-	if !firstCall {
-		lineBreak(w, style)
-		header := godocSectionHeader(cmd.namePath())
-		fmt.Fprintln(w, header)
-		fmt.Fprintln(w)
-	}
-	cmd.usage(w, style, firstCall)
-	for _, child := range cmd.Children {
-		// Don't repeatedly print default help command.
-		if !child.isDefaultHelp || firstCall {
-			recursiveHelp(w, child, style, false)
-		}
-	}
-	for _, topic := range cmd.Topics {
-		lineBreak(w, style)
-		header := godocSectionHeader(cmd.namePath() + " " + topic.Name + " - help topic")
-		fmt.Fprintln(w, header)
-		fmt.Fprintln(w)
-		fmt.Fprintln(w, topic.Long)
-	}
-}
-
-func godocSectionHeader(s string) string {
-	// The first rune must be uppercase for godoc to recognize the string as a
-	// section header, which is linked to the table of contents.
-	if s == "" {
-		return ""
-	}
-	r, n := utf8.DecodeRuneInString(s)
-	return string(unicode.ToUpper(r)) + s[n:]
-}
-
-func lineBreak(w *textutil.LineWriter, style style) {
-	w.Flush()
-	switch style {
-	case styleCompact, styleFull:
-		width := w.Width()
-		if width < 0 {
-			// If the user has chosen an "unlimited" word-wrapping width, we still
-			// need a reasonable width for our visual line break.
-			width = defaultWidth
-		}
-		fmt.Fprintln(w, strings.Repeat("=", width))
-	case styleGoDoc:
-		fmt.Fprintln(w)
-	}
-	w.Flush()
-}
-
-func trimNewlines(s *string) { *s = strings.Trim(*s, "\n") }
-
-// Init initializes all nodes in the command tree rooted at cmd.  Init must be
-// called before Execute.
-func (cmd *Command) Init(parent *Command, stdout, stderr io.Writer) {
-	cmd.parent = parent
-	cmd.stdout = stdout
-	cmd.stderr = stderr
-	if parent == nil {
-		cmd.globalFlags = copyFlags(os.Args[0], flag.CommandLine)
+func parseFlags(path []*Command, env *Env, args []string) ([]string, error) {
+	cmd, isRoot := path[len(path)-1], len(path) == 1
+	// Parse the merged command-specific and global flags.
+	var flags *flag.FlagSet
+	if isRoot {
+		// The root command is special, due to the pitfall described above in the
+		// package doc.  Merge into flag.CommandLine and use that for parsing.  This
+		// ensures that subsequent calls to flag.Parsed will return true, so the
+		// user can check whether flags have already been parsed.  Global flags take
+		// precedence over command flags for the root command.
+		flags = flag.CommandLine
+		mergeFlags(flags, &cmd.Flags)
 	} else {
-		cmd.globalFlags = parent.globalFlags
+		// Command flags take precedence over global flags for non-root commands.
+		flags = copyFlags(&cmd.Flags)
+		mergeFlags(flags, globalFlags)
 	}
-	trimNewlines(&cmd.Short)
-	trimNewlines(&cmd.Long)
-	trimNewlines(&cmd.ArgsLong)
-	for tx := range cmd.Topics {
-		trimNewlines(&cmd.Topics[tx].Short)
-		trimNewlines(&cmd.Topics[tx].Long)
-	}
-	// Add help command, if it doesn't already exist.
-	hasHelp := false
-	for _, child := range cmd.Children {
-		if child.Name == helpName {
-			hasHelp = true
-			break
-		}
-	}
-	if !hasHelp && cmd.Name != helpName && len(cmd.Children) > 0 {
-		cmd.Children = append(cmd.Children, newDefaultHelp())
-	}
-	// Merge command-specific and global flags into parseFlags.  We want to handle
-	// all error output ourselves, so we:
+	// Silence the many different ways flags.Parse can produce ugly output; we
+	// just want it to return any errors and handle the output ourselves.
 	//   1) Set flag.ContinueOnError so that Parse() doesn't exit or panic.
 	//   2) Discard all output (can't be nil, that means stderr).
-	//   3) Set an empty Usage function (can't be nil, that means default).
-	cmd.parseFlags = flag.NewFlagSet(cmd.Name, flag.ContinueOnError)
-	cmd.parseFlags.SetOutput(ioutil.Discard)
-	cmd.parseFlags.Usage = emptyUsage
-	mergeFlags(cmd.parseFlags, &cmd.Flags)
-	mergeFlags(cmd.parseFlags, cmd.globalFlags)
-	// If this is the root command, also merge the commands flags into the global
-	// flag set.  This allows people to call flag.Parse without failing on undefined
-	// flags that were declared in a top-level command.
-	if parent == nil {
-		mergeFlags(flag.CommandLine, &cmd.Flags)
+	//   3) Set an empty Usage (can't be nil, that means use the default).
+	flags.Init(cmd.Name, flag.ContinueOnError)
+	flags.SetOutput(ioutil.Discard)
+	flags.Usage = func() {}
+	if isRoot {
+		// If this is the root command, we must remember to undo the above changes
+		// on flag.CommandLine after the parse.  We don't know the original settings
+		// of these values, so we just blindly set back to the default values.
+		defer func() {
+			flags.Init(cmd.Name, flag.ExitOnError)
+			flags.SetOutput(nil)
+			flags.Usage = func() { env.Usage(env.Stderr) }
+		}()
 	}
-	// Call children recursively.
-	for _, child := range cmd.Children {
-		child.Init(cmd, stdout, stderr)
+	if err := flags.Parse(args); err != nil {
+		return nil, err
 	}
-}
-
-func copyFlags(name string, src *flag.FlagSet) *flag.FlagSet {
-	cpy := flag.NewFlagSet(name, flag.ContinueOnError)
-	src.VisitAll(func(f *flag.Flag) {
-		trimNewlines(&f.Usage)
-		cpy.Var(f.Value, f.Name, f.Usage)
-	})
-	return cpy
+	return flags.Args(), nil
 }
 
 func mergeFlags(dst, src *flag.FlagSet) {
 	src.VisitAll(func(f *flag.Flag) {
-		trimNewlines(&f.Usage)
+		// If there is a collision in flag names, the existing flag in dst wins.
+		// Note that flag.Var will panic if it sees a collision.
 		if dst.Lookup(f.Name) == nil {
 			dst.Var(f.Value, f.Name, f.Usage)
 		}
 	})
 }
 
-func emptyUsage() {}
-
-// Execute the command with the given args.  The returned error is ErrUsage if
-// there are usage errors, otherwise it is whatever the leaf command returns
-// from its Run function.
-func (cmd *Command) Execute(args []string) error {
-	path := cmd.namePath()
-	// Parse the merged flags.
-	if err := cmd.parseFlags.Parse(args); err != nil {
-		if err == flag.ErrHelp {
-			cmd.writeUsage(cmd.stdout)
-			return nil
-		}
-		return cmd.UsageErrorf("%s: %v", path, err)
-	}
-	args = cmd.parseFlags.Args()
-	// Look for matching children.
-	if len(args) > 0 {
-		subName, subArgs := args[0], args[1:]
-		for _, child := range cmd.Children {
-			if child.Name == subName {
-				return child.Execute(subArgs)
-			}
-		}
-	}
-	// No matching children, try Run.
-	if cmd.Run != nil {
-		if cmd.ArgsName == "" && len(args) > 0 {
-			if len(cmd.Children) > 0 {
-				return cmd.UsageErrorf("%s: unknown command %q", path, args[0])
-			}
-			return cmd.UsageErrorf("%s doesn't take any arguments", path)
-		}
-		return cmd.Run(cmd, args)
-	}
-	switch {
-	case len(cmd.Children) == 0:
-		return cmd.UsageErrorf("%s: neither Children nor Run is specified", path)
-	case len(args) > 0:
-		return cmd.UsageErrorf("%s: unknown command %q", path, args[0])
-	default:
-		return cmd.UsageErrorf("%s: no command specified", path)
-	}
+func copyFlags(flags *flag.FlagSet) *flag.FlagSet {
+	cp := new(flag.FlagSet)
+	mergeFlags(cp, flags)
+	return cp
 }
 
-// Main executes the command tree rooted at cmd, writing output to os.Stdout,
-// writing errors to os.Stderr, and getting args from os.Args.  We return
-// an appropriate exit code depending on whether there were errors or not.
-// Users should call os.Exit(exitCode).
-//
-// Many main packages can use this simple pattern:
-//
-//   var cmd := &cmdline.Command{
-//     ...
-//   }
-//
-//   func main() {
-//     os.Exit(cmd.Main())
-//   }
-//
-func (cmd *Command) Main() (exitCode int) {
-	cmd.Init(nil, os.Stdout, os.Stderr)
-	if err := cmd.Execute(os.Args[1:]); err != nil {
-		if code, ok := err.(ErrExitCode); ok {
-			return int(code)
-		}
-		// We don't print "ERROR: exit code N" above to avoid cluttering stderr.
-		fmt.Fprintln(os.Stderr, "ERROR:", err)
-		return 2
+// ErrExitCode may be returned by Runner.Run to cause the program to exit with a
+// specific error code.
+type ErrExitCode int
+
+// Error implements the error interface method.
+func (x ErrExitCode) Error() string {
+	return fmt.Sprintf("exit code %d", x)
+}
+
+// ErrUsage indicates an error in command usage; e.g. unknown flags, subcommands
+// or args.  It corresponds to exit code 2.
+const ErrUsage = ErrExitCode(2)
+
+// ExitCode returns the exit code corresponding to err.
+//   0:    if err == nil
+//   code: if err is ErrExitCode(code)
+//   1:    all other errors
+// Writes the error message for "all other errors" to w, if w is non-nil.
+func ExitCode(err error, w io.Writer) int {
+	if err == nil {
+		return 0
 	}
-	return 0
+	if code, ok := err.(ErrExitCode); ok {
+		return int(code)
+	}
+	if w != nil {
+		// We don't print "ERROR: exit code N" above to avoid cluttering the output.
+		fmt.Fprintf(w, "ERROR: %v\n", err)
+	}
+	return 1
 }
