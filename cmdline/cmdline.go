@@ -156,7 +156,8 @@ func Parse(root *Command, env *Env, args []string) (Runner, []string, error) {
 	// Set env.Usage to the usage of the root command, in case the parse fails.
 	path := []*Command{root}
 	env.Usage = makeHelpRunner(path, env).usageFunc
-	if err := cleanTree(path); err != nil {
+	cleanTree(root)
+	if err := checkTreeInvariants(path); err != nil {
 		return nil, nil, err
 	}
 	runner, args, err := root.parse(nil, env, args)
@@ -180,8 +181,7 @@ func ParseAndRun(root *Command, env *Env, args []string) error {
 
 func trimSpace(s *string) { *s = strings.TrimSpace(*s) }
 
-func cleanTree(path []*Command) error {
-	cmd, cmdPath := path[len(path)-1], pathName(path)
+func cleanTree(cmd *Command) {
 	trimSpace(&cmd.Name)
 	trimSpace(&cmd.Short)
 	trimSpace(&cmd.Long)
@@ -193,6 +193,52 @@ func cleanTree(path []*Command) error {
 		trimSpace(&cmd.Topics[tx].Long)
 	}
 	cleanFlags(&cmd.Flags)
+	for _, child := range cmd.Children {
+		cleanTree(child)
+	}
+}
+
+func cleanFlags(flags *flag.FlagSet) {
+	flags.VisitAll(func(f *flag.Flag) {
+		trimSpace(&f.Usage)
+	})
+}
+
+func checkTreeInvariants(path []*Command) error {
+	cmd, cmdPath := path[len(path)-1], pathName(path)
+	// Check that the root name is non-empty.
+	if cmdPath == "" {
+		return fmt.Errorf(`CODE INVARIANT BROKEN; FIX YOUR CODE
+
+Root command name cannot be empty.`)
+	}
+	// Check that the children and topic names are non-empty and unique.
+	seen := make(map[string]bool)
+	checkName := func(name string) error {
+		if name == "" {
+			return fmt.Errorf(`%v: CODE INVARIANT BROKEN; FIX YOUR CODE
+
+Command and topic names cannot be empty.`, cmdPath)
+		}
+		if seen[name] {
+			return fmt.Errorf(`%v: CODE INVARIANT BROKEN; FIX YOUR CODE
+
+Each command must have unique children and topic names.
+Saw %q multiple times.`, cmdPath, name)
+		}
+		seen[name] = true
+		return nil
+	}
+	for _, child := range cmd.Children {
+		if err := checkName(child.Name); err != nil {
+			return err
+		}
+	}
+	for _, topic := range cmd.Topics {
+		if err := checkName(topic.Name); err != nil {
+			return err
+		}
+	}
 	// Check that our Children / Runner invariant is satisfied.  At least one must
 	// be specified, and if both are specified then ArgsName and ArgsLong must be
 	// empty, meaning the Runner doesn't take any args.
@@ -200,27 +246,20 @@ func cleanTree(path []*Command) error {
 	case !hasC && !hasR:
 		return fmt.Errorf(`%v: CODE INVARIANT BROKEN; FIX YOUR CODE
 
-At least one of Children or Runner must be specified.
-`, cmdPath)
+At least one of Children or Runner must be specified.`, cmdPath)
 	case hasC && hasR && (cmd.ArgsName != "" || cmd.ArgsLong != ""):
 		return fmt.Errorf(`%v: CODE INVARIANT BROKEN; FIX YOUR CODE
 
 Since both Children and Runner are specified, the Runner cannot take args.
-Otherwise a conflict between child names and runner args is possible.
-`, cmdPath)
+Otherwise a conflict between child names and runner args is possible.`, cmdPath)
 	}
+	// Check recursively for all children
 	for _, child := range cmd.Children {
-		if err := cleanTree(append(path, child)); err != nil {
+		if err := checkTreeInvariants(append(path, child)); err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-func cleanFlags(flags *flag.FlagSet) {
-	flags.VisitAll(func(f *flag.Flag) {
-		trimSpace(&f.Usage)
-	})
 }
 
 func pathName(path []*Command) string {

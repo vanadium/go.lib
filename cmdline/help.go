@@ -84,7 +84,7 @@ the CMDLINE_WIDTH environment variable.
 	// Override default values, so that the godoc style shows good defaults.
 	help.Flags.Lookup("style").DefValue = "compact"
 	help.Flags.Lookup("width").DefValue = "<terminal width>"
-	cleanTree([]*Command{help})
+	cleanTree(help)
 	return help
 }
 

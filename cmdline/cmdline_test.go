@@ -142,6 +142,134 @@ func runTestCases(t *testing.T, cmd *Command, tests []testCase) {
 	}
 }
 
+func TestEmptyRootName(t *testing.T) {
+	noname := &Command{
+		Name:   "",
+		Short:  "Empty root name",
+		Long:   "Empty root name.",
+		Runner: RunnerFunc(runHello),
+	}
+	wantErr := `CODE INVARIANT BROKEN; FIX YOUR CODE
+
+Root command name cannot be empty.`
+	tests := []testCase{
+		{Args: []string{}, Err: wantErr},
+		{Args: []string{"foo"}, Err: wantErr},
+	}
+	runTestCases(t, noname, tests)
+}
+
+func TestEmptyTopicName(t *testing.T) {
+	topic := Topic{
+		Name:  "",
+		Short: "noname",
+		Long:  "noname",
+	}
+	parent := &Command{
+		Name:   "parent",
+		Short:  "parent",
+		Long:   "parent",
+		Topics: []Topic{topic},
+	}
+	wantErr := `parent: CODE INVARIANT BROKEN; FIX YOUR CODE
+
+Command and topic names cannot be empty.`
+	tests := []testCase{
+		{Args: []string{}, Err: wantErr},
+		{Args: []string{"foo"}, Err: wantErr},
+	}
+	runTestCases(t, parent, tests)
+	grandparent := &Command{
+		Name:     "grandparent",
+		Short:    "grandparent",
+		Long:     "grandparent",
+		Children: []*Command{parent},
+	}
+	wantErr = "grandparent " + wantErr
+	tests = []testCase{
+		{Args: []string{}, Err: wantErr},
+		{Args: []string{"foo"}, Err: wantErr},
+	}
+	runTestCases(t, grandparent, tests)
+}
+
+func TestEmptyChildName(t *testing.T) {
+	child := &Command{
+		Name:   "",
+		Short:  "Empty child name",
+		Long:   "Empty child name.",
+		Runner: RunnerFunc(runHello),
+	}
+	parent := &Command{
+		Name:     "parent",
+		Short:    "parent",
+		Long:     "parent",
+		Children: []*Command{child},
+	}
+	wantErr := `parent: CODE INVARIANT BROKEN; FIX YOUR CODE
+
+Command and topic names cannot be empty.`
+	tests := []testCase{
+		{Args: []string{}, Err: wantErr},
+		{Args: []string{"foo"}, Err: wantErr},
+	}
+	runTestCases(t, parent, tests)
+	grandparent := &Command{
+		Name:     "grandparent",
+		Short:    "grandparent",
+		Long:     "grandparent",
+		Children: []*Command{parent},
+	}
+	wantErr = "grandparent " + wantErr
+	tests = []testCase{
+		{Args: []string{}, Err: wantErr},
+		{Args: []string{"foo"}, Err: wantErr},
+	}
+	runTestCases(t, grandparent, tests)
+}
+
+func TestDuplicateNames(t *testing.T) {
+	child := &Command{
+		Name:   "duplicate",
+		Short:  "Dup command name",
+		Long:   "Dup command name.",
+		Runner: RunnerFunc(runHello),
+	}
+	topic := Topic{
+		Name:  "duplicate",
+		Short: "Dup topic name",
+		Long:  "Dup topic name.",
+	}
+	parent := &Command{
+		Name:     "parent",
+		Short:    "parent",
+		Long:     "parent",
+		Children: []*Command{child},
+		Topics:   []Topic{topic},
+	}
+	wantErr := `parent: CODE INVARIANT BROKEN; FIX YOUR CODE
+
+Each command must have unique children and topic names.
+Saw "duplicate" multiple times.`
+	tests := []testCase{
+		{Args: []string{}, Err: wantErr},
+		{Args: []string{"foo"}, Err: wantErr},
+	}
+	runTestCases(t, parent, tests)
+	grandparent := &Command{
+		Name:     "grandparent",
+		Short:    "grandparent",
+		Long:     "grandparent",
+		Children: []*Command{parent},
+	}
+	wantErr = "grandparent " + wantErr
+	tests = []testCase{
+		{Args: []string{}, Err: wantErr},
+		{Args: []string{"foo"}, Err: wantErr},
+	}
+	runTestCases(t, grandparent, tests)
+}
+
 func TestNoChildrenOrRunner(t *testing.T) {
 	neither := &Command{
 		Name:  "neither",
@@ -150,8 +278,7 @@ func TestNoChildrenOrRunner(t *testing.T) {
 	}
 	wantErr := `neither: CODE INVARIANT BROKEN; FIX YOUR CODE
 
-At least one of Children or Runner must be specified.
-`
+At least one of Children or Runner must be specified.`
 	tests := []testCase{
 		{Args: []string{}, Err: wantErr},
 		{Args: []string{"foo"}, Err: wantErr},
@@ -190,8 +317,7 @@ func TestBothChildrenAndRunnerWithArgs(t *testing.T) {
 	wantErr := `both: CODE INVARIANT BROKEN; FIX YOUR CODE
 
 Since both Children and Runner are specified, the Runner cannot take args.
-Otherwise a conflict between child names and runner args is possible.
-`
+Otherwise a conflict between child names and runner args is possible.`
 	tests := []testCase{
 		{Args: []string{}, Err: wantErr},
 		{Args: []string{"foo"}, Err: wantErr},
