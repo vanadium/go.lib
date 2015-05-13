@@ -2,27 +2,27 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Command gendoc can be used for generating detailed godoc comments
-// for cmdline-based tools. The user specifies the cmdline-based tool
-// source file directory <dir> using the first command-line argument
-// and gendoc executes the tool with flags that generate detailed
-// godoc comment and output it to <dir>/doc.go. If more than one
-// command-line argument is provided, they are passed through to the
-// tool the gendoc executes.
+// Command gendoc can be used for generating detailed godoc comments for
+// cmdline-based tools.  The user specifies the cmdline-based tool source file
+// directory <dir> using the first command-line argument and gendoc executes the
+// tool with flags that generate detailed godoc comment and output it to
+// <dir>/doc.go.  If more than one command-line argument is provided, they are
+// passed through to the tool the gendoc executes.
 //
-// NOTE: The reason this command is located in under a testdata
-// directory is to enforce its idiomatic use through "go run
-// <path>/testdata/gendoc.go <dir> [args]".
+// NOTE: The reason this command is located under a testdata directory is to
+// enforce its idiomatic use through "go run <path>/testdata/gendoc.go <dir>
+// [args]".
 //
-// NOTE: The gendoc command itself is not based on the cmdline library
-// to avoid non-trivial bootstrapping. In particular, if the
-// compilation of gendoc requires GOPATH to contain the vanadium Go
-// workspaces, then running the gendoc command requires the v23 tool,
-// which in turn my depend on the gendoc command.
+// NOTE: The gendoc command itself is not based on the cmdline library to avoid
+// non-trivial bootstrapping.  In particular, if the compilation of gendoc
+// requires GOPATH to contain the vanadium Go workspaces, then running the
+// gendoc command requires the v23 tool, which in turn may depend on the gendoc
+// command.
 package main
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -31,18 +31,22 @@ import (
 	"strings"
 )
 
+var flagTags string
+
 func main() {
-	if err := generate(); err != nil {
+	flag.StringVar(&flagTags, "tags", "", "Tags for go build, also added as build constraints in the generated doc.go.")
+	flag.Parse()
+	if err := generate(flag.Args()); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func generate() error {
-	if got, want := len(os.Args[1:]), 1; got < want {
+func generate(args []string) error {
+	if got, want := len(args), 1; got < want {
 		return fmt.Errorf("gendoc requires at least one argument\nusage: gendoc <dir> [args]")
 	}
-	pkg := os.Args[1]
+	pkg, args := args[0], args[1:]
 
 	// Build the gendoc binary in a temporary folder.
 	tmpDir, err := ioutil.TempDir("", "")
@@ -51,20 +55,22 @@ func generate() error {
 	}
 	defer os.RemoveAll(tmpDir)
 	gendocBin := filepath.Join(tmpDir, "gendoc")
-	args := []string{"go", "build", "-o", gendocBin}
-	args = append(args, pkg)
-	buildCmd := exec.Command("v23", args...)
+	buildArgs := []string{"go", "build", "-a", "-tags=" + flagTags, "-o=" + gendocBin, pkg}
+	buildCmd := exec.Command("v23", buildArgs...)
 	if err := buildCmd.Run(); err != nil {
 		return fmt.Errorf("%q failed: %v\n", strings.Join(buildCmd.Args, " "), err)
 	}
 
 	// Use it to generate the documentation.
+	var tagsConstraint string
+	if flagTags != "" {
+		tagsConstraint = fmt.Sprintf("// +build %s\n\n", flagTags)
+	}
 	var out bytes.Buffer
 	env := os.Environ()
-	if len(os.Args) == 2 {
+	if len(args) == 0 {
 		args = []string{"help", "-style=godoc", "..."}
 	} else {
-		args = os.Args[2:]
 		env = append(env, "CMDLINE_STYLE=godoc")
 	}
 	runCmd := exec.Command(gendocBin, args...)
@@ -80,10 +86,10 @@ func generate() error {
 // This file was auto-generated via go generate.
 // DO NOT UPDATE MANUALLY
 
-/*
+%s/*
 %s*/
 package main
-`, out.String())
+`, tagsConstraint, out.String())
 
 	// Write the result to doc.go.
 	path, perm := filepath.Join(pkg, "doc.go"), os.FileMode(0644)
