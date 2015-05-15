@@ -9,15 +9,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 	"testing"
-)
 
-func init() {
-	os.Setenv("CMDLINE_WIDTH", "80") // make sure the formatting stays the same.
-}
+	"v.io/x/lib/envvar"
+)
 
 var (
 	errEchoStr        = "echo error"
@@ -62,7 +59,7 @@ func runHello(env *Env, args []string) error {
 
 type testCase struct {
 	Args        []string
-	Envs        map[string]string
+	Vars        map[string]string
 	Err         string
 	Stdout      string
 	Stderr      string
@@ -84,22 +81,18 @@ func errString(err error) string {
 	return fmt.Sprint(err)
 }
 
+var baseVars = map[string]string{
+	"CMDLINE_WIDTH": "80", // make sure formatting stays the same.
+}
+
 func runTestCases(t *testing.T, cmd *Command, tests []testCase) {
 	for _, test := range tests {
 		// Reset global variables before running each test case.
 		var stdout, stderr bytes.Buffer
 		flagExtra, flagTopLevelExtra, optNoNewline = false, false, false
-		origEnvs := make(map[string]string)
 
-		// Set a fresh flag.CommandLine and fresh envvars for each run.
-		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
-		for k, v := range test.Envs {
-			origEnvs[k] = os.Getenv(k)
-			if err := os.Setenv(k, v); err != nil {
-				t.Fatalf("os.Setenv(%v, %v) failed: %v", k, v, err)
-			}
-		}
-
+		// Start with a fresh flag.CommandLine for each run.
+		flag.CommandLine = flag.NewFlagSet("test", flag.ContinueOnError)
 		var globalFlag1 string
 		flag.StringVar(&globalFlag1, "global1", "", "global test flag 1")
 		globalFlag2 := flag.Int64("global2", 0, "global test flag 2")
@@ -109,20 +102,24 @@ func runTestCases(t *testing.T, cmd *Command, tests []testCase) {
 
 		// Parse and run the command and check against expected results.
 		parseOK := false
-		env := &Env{Stdout: &stdout, Stderr: &stderr}
+		env := &Env{
+			Stdout: &stdout,
+			Stderr: &stderr,
+			Vars:   envvar.MergeMaps(baseVars, test.Vars),
+		}
 		runner, args, err := Parse(cmd, env, test.Args)
 		if err == nil {
 			err = runner.Run(env, args)
 			parseOK = true
 		}
 		if got, want := errString(err), test.Err; got != want {
-			t.Errorf("Ran with args %q envs %q\n GOT error:\n%q\nWANT error:\n%q", test.Args, test.Envs, got, want)
+			t.Errorf("Ran with args %q vars %q\n GOT error:\n%q\nWANT error:\n%q", test.Args, test.Vars, got, want)
 		}
 		if got, want := stripTestFlags(stdout.String()), test.Stdout; got != want {
-			t.Errorf("Ran with args %q envs %q\n GOT stdout:\n%q\nWANT stdout:\n%q", test.Args, test.Envs, got, want)
+			t.Errorf("Ran with args %q vars %q\n GOT stdout:\n%q\nWANT stdout:\n%q", test.Args, test.Vars, got, want)
 		}
 		if got, want := stripTestFlags(stderr.String()), test.Stderr; got != want {
-			t.Errorf("Ran with args %q envs %q\n GOT stderr:\n%q\nWANT stderr:\n%q", test.Args, test.Envs, got, want)
+			t.Errorf("Ran with args %q vars %q\n GOT stderr:\n%q\nWANT stderr:\n%q", test.Args, test.Vars, got, want)
 		}
 		if got, want := globalFlag1, test.GlobalFlag1; got != want {
 			t.Errorf("global1 flag got %q, want %q", got, want)
@@ -133,11 +130,6 @@ func runTestCases(t *testing.T, cmd *Command, tests []testCase) {
 
 		if parseOK && !flag.CommandLine.Parsed() {
 			t.Errorf("flag.CommandLine should be parsed by now")
-		}
-		for k, v := range origEnvs {
-			if err := os.Setenv(k, v); err != nil {
-				t.Fatalf("os.Setenv(%v, %v) failed: %v", k, v, err)
-			}
 		}
 	}
 }
@@ -2372,7 +2364,7 @@ Run "CMDLINE_STYLE=full program -help" to show all global flags.
 		},
 		{
 			Args: []string{"-help"},
-			Envs: map[string]string{"CMDLINE_STYLE": "full"},
+			Vars: map[string]string{"CMDLINE_STYLE": "full"},
 			Stdout: `Test hiding global flags, root no children.
 
 Usage:

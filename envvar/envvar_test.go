@@ -424,7 +424,7 @@ func TestVarsFromOS(t *testing.T) {
 	if err := os.Setenv(testKey, testValue); err != nil {
 		t.Fatalf("Setenv(%q, %q) failed: %v", testKey, testValue, err)
 	}
-	defer os.Setenv(testKey, "")
+	defer os.Unsetenv(testKey)
 	vars := VarsFromOS()
 	if got, want := vars.Contains(testKey), true; got != want {
 		t.Errorf(`Contains(%q) got %v, want %v`, testKey, got, want)

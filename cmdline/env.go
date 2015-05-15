@@ -10,12 +10,18 @@ import (
 	"os"
 	"strconv"
 
+	"v.io/x/lib/envvar"
 	"v.io/x/lib/textutil"
 )
 
 // NewEnv returns a new environment with defaults based on the operating system.
 func NewEnv() *Env {
-	return &Env{Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr}
+	return &Env{
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+		Vars:   envvar.SliceToMap(os.Environ()),
+	}
 }
 
 // Env represents the environment for command parsing and running.  Typically
@@ -25,8 +31,7 @@ type Env struct {
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
-	// TODO(toddw): Add env vars, using a new "v.io/x/lib/envvar" package.
-	// Vars envvar.Vars
+	Vars   map[string]string // Environment variables
 
 	// Usage is a function that prints usage information to w.  Typically set by
 	// calls to Main or Parse to print usage of the leaf command.
@@ -56,8 +61,7 @@ func usageErrorf(w io.Writer, usage func(io.Writer), format string, args ...inte
 const defaultWidth = 80
 
 func (e *Env) width() int {
-	// TODO(toddw): Replace os.Getenv with lookup in env.Vars.
-	if width, err := strconv.Atoi(os.Getenv("CMDLINE_WIDTH")); err == nil && width != 0 {
+	if width, err := strconv.Atoi(e.Vars["CMDLINE_WIDTH"]); err == nil && width != 0 {
 		return width
 	}
 	if _, width, err := textutil.TerminalSize(); err == nil && width != 0 {
@@ -67,9 +71,8 @@ func (e *Env) width() int {
 }
 
 func (e *Env) style() style {
-	// TODO(toddw): Replace os.Getenv with lookup in env.Vars.
 	style := styleCompact
-	style.Set(os.Getenv("CMDLINE_STYLE"))
+	style.Set(e.Vars["CMDLINE_STYLE"])
 	return style
 }
 

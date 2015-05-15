@@ -42,8 +42,8 @@ func TestEnvUsageErrorf(t *testing.T) {
 
 func TestEnvWidth(t *testing.T) {
 	tests := []struct {
-		env  string
-		want int
+		value string
+		want  int
 	}{
 		{"123", 123},
 		{"-1", -1},
@@ -52,20 +52,25 @@ func TestEnvWidth(t *testing.T) {
 		{"foobar", defaultWidth},
 	}
 	for _, test := range tests {
-		if err := os.Setenv("CMDLINE_WIDTH", test.env); err != nil {
-			t.Errorf("Setenv(%q) failed: %v", test.env, err)
-			continue
+		// Test using a fake environment.
+		env := &Env{Vars: map[string]string{"CMDLINE_WIDTH": test.value}}
+		if got, want := env.width(), test.want; got != want {
+			t.Errorf("%q got %v, want %v", test.value, got, want)
 		}
-		if got, want := NewEnv().width(), test.want; got != want {
-			t.Errorf("%q got %v, want %v", test.env, got, want)
+		// Test using the OS environment.
+		if err := os.Setenv("CMDLINE_WIDTH", test.value); err != nil {
+			t.Errorf("Setenv(%q) failed: %v", test.value, err)
+		} else if got, want := NewEnv().width(), test.want; got != want {
+			t.Errorf("%q got %v, want %v", test.value, got, want)
 		}
 	}
+	os.Unsetenv("CMDLINE_WIDTH")
 }
 
 func TestEnvStyle(t *testing.T) {
 	tests := []struct {
-		env  string
-		want style
+		value string
+		want  style
 	}{
 		{"compact", styleCompact},
 		{"full", styleFull},
@@ -75,12 +80,17 @@ func TestEnvStyle(t *testing.T) {
 		{"foobar", styleCompact},
 	}
 	for _, test := range tests {
-		if err := os.Setenv("CMDLINE_STYLE", test.env); err != nil {
-			t.Errorf("Setenv(%q) failed: %v", test.env, err)
-			continue
+		// Test using a fake environment.
+		env := &Env{Vars: map[string]string{"CMDLINE_STYLE": test.value}}
+		if got, want := env.style(), test.want; got != want {
+			t.Errorf("%q got %v, want %v", test.value, got, want)
 		}
-		if got, want := NewEnv().style(), test.want; got != want {
-			t.Errorf("%q got %v, want %v", test.env, got, want)
+		// Test using the OS environment.
+		if err := os.Setenv("CMDLINE_STYLE", test.value); err != nil {
+			t.Errorf("Setenv(%q) failed: %v", test.value, err)
+		} else if got, want := NewEnv().style(), test.want; got != want {
+			t.Errorf("%q got %v, want %v", test.value, got, want)
 		}
 	}
+	os.Unsetenv("CMDLINE_STYLE")
 }
