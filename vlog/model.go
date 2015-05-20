@@ -7,7 +7,7 @@ package vlog
 import (
 	// TODO(cnicolaou): remove this dependency in the future. For now this
 	// saves us some code.
-	"github.com/cosmosnicolaou/llog"
+	"github.com/cosnicolaou/llog"
 )
 
 type InfoLog interface {
@@ -18,6 +18,14 @@ type InfoLog interface {
 	// Infoln logs to the INFO log.
 	// Arguments are handled in the manner of fmt.Printf; a newline is appended if missing.
 	Infof(format string, args ...interface{})
+
+	// InfoDepth acts as Info but uses depth to determine which call frame to log.
+	// A depth of 0 is equivalent to calling Info.
+	InfoDepth(depth int, args ...interface{})
+
+	// InfofDepth acts as Infof but uses depth to determine which call frame to log.
+	// A depth of 0 is equivalent to calling Infof.
+	InfofDepth(depth int, format string, args ...interface{})
 
 	// InfoStack logs the current goroutine's stack if the all parameter
 	// is false, or the stacks of all goroutines if it's true.
@@ -83,6 +91,14 @@ type ModuleSpec struct {
 	llog.ModuleSpec
 }
 
+// FilepathSpec allows for the setting of specific log levels for specific
+// files matched by a regular expression. The syntax is <re>=3,<re1>=2.
+// It can be set via the FilepathSpec optional parameter to Configure.
+// It implements the flag.Value interface to support command line option parsing.
+type FilepathSpec struct {
+	llog.FilepathSpec
+}
+
 // TraceLocation specifies the location, file:N, which when encountered will
 // cause logging to emit a stack trace.
 // It can be set via the TraceLocation optional parameter to Configure.
@@ -106,6 +122,10 @@ type Logger interface {
 	// Arguments are handled in the manner of fmt.Print; a newline is appended if missing.
 	Error(args ...interface{})
 
+	// ErrorDepth acts as Error but uses depth to determine which call frame to log.
+	// A depth of 0 is equivalent to calling Error.
+	ErrorDepth(depth int, args ...interface{})
+
 	// Errorf logs to the ERROR and INFO logs.
 	// Arguments are handled in the manner of fmt.Printf; a newline is appended if missing.
 	Errorf(format string, args ...interface{})
@@ -115,6 +135,10 @@ type Logger interface {
 	// Arguments are handled in the manner of fmt.Print; a newline is appended if missing.
 	Fatal(args ...interface{})
 
+	// FatalDepth acts as Fatal but uses depth to determine which call frame to log.
+	// A depth of 0 is equivalent to calling Fatal.
+	FatalDepth(depth int, args ...interface{})
+
 	// Fatalf logs to the FATAL, ERROR and INFO logs,
 	// including a stack trace of all running goroutines, then calls os.Exit(255).
 	// Arguments are handled in the manner of fmt.Printf; a newline is appended if missing.
@@ -122,6 +146,10 @@ type Logger interface {
 
 	// Panic is equivalent to Error() followed by a call to panic().
 	Panic(args ...interface{})
+
+	// PanicDepth acts as Panic but uses depth to determine which call frame to log.
+	// A depth of 0 is equivalent to calling Panic.
+	PanicDepth(depth int, args ...interface{})
 
 	// Panicf is equivalent to Errorf() followed by a call to panic().
 	Panicf(format string, args ...interface{})

@@ -37,10 +37,15 @@ func (_ MaxStackBufSize) LoggingOpt() {}
 
 // The syntax of the argument is a comma-separated list of pattern=N,
 // where pattern is a literal file name (minus the ".go" suffix) or
-// "glob" pattern and N is a V level. For instance,
-//	-gopher*=3
+// "glob" pattern and N is a V level. For instance, gopher*=3
 // sets the V level to 3 in all Go files whose names begin "gopher".
 func (_ ModuleSpec) LoggingOpt() {}
+
+// The syntax of the argument is a comma-separated list of regexp=N,
+// where pattern is a regular expression matched against the full path name
+// of files and N is a V level. For instance, myco.com/web/.*=3
+// sets the V level to 3 in all Go files whose path names match myco.com/web/.*".
+func (_ FilepathSpec) LoggingOpt() {}
 
 // Log events at or above this severity are logged to standard
 // error as well as to files.
