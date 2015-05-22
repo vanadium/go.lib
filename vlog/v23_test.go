@@ -4,27 +4,19 @@
 
 // This file was auto-generated via go generate.
 // DO NOT UPDATE MANUALLY
+
 package vlog_test
 
-import "fmt"
-import "testing"
-import "os"
+import (
+	"os"
+	"testing"
 
-import "v.io/x/ref/test"
-import "v.io/x/ref/test/modules"
-
-func init() {
-	modules.RegisterChild("child", ``, child)
-}
+	"v.io/x/ref/test"
+	"v.io/x/ref/test/modules"
+)
 
 func TestMain(m *testing.M) {
 	test.Init()
-	if modules.IsModulesChildProcess() {
-		if err := modules.Dispatch(); err != nil {
-			fmt.Fprintf(os.Stderr, "modules.Dispatch failed: %v\n", err)
-			os.Exit(1)
-		}
-		return
-	}
+	modules.DispatchAndExitIfChild()
 	os.Exit(m.Run())
 }

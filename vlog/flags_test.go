@@ -7,19 +7,17 @@ package vlog_test
 import (
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"v.io/x/lib/vlog"
-
 	"v.io/x/ref/test/modules"
 )
 
 //go:generate v23 test generate
 
-func child(stdin io.Reader, stdout, stderr io.Writer, env map[string]string, args ...string) error {
+var child = modules.Register(func(env *modules.Env, args ...string) error {
 	tmp := filepath.Join(os.TempDir(), "foo")
 	flag.Set("log_dir", tmp)
 	flag.Set("vmodule", "foo=2")
@@ -43,7 +41,7 @@ func child(stdin io.Reader, stdout, stderr io.Writer, env map[string]string, arg
 		return fmt.Errorf("max_stack_buf_size unexpectedly set to %v", v)
 	}
 	return nil
-}
+}, "child")
 
 func TestFlags(t *testing.T) {
 	sh, err := modules.NewShell(nil, nil, testing.Verbose(), t)
@@ -51,7 +49,7 @@ func TestFlags(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 	defer sh.Cleanup(nil, nil)
-	h, err := sh.Start("child", nil)
+	h, err := sh.Start(nil, child)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
