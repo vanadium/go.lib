@@ -2394,7 +2394,7 @@ func TestRootCommandFlags(t *testing.T) {
 	rs := root.Flags.String("rstring", "abc", "rstring desc")
 	origFlags := flag.CommandLine
 	// Parse and make sure the flags get set appropriately.
-	_, _, err := Parse(root, NewEnv(), []string{"-rbool=true", "-rstring=XYZ"})
+	_, _, err := Parse(root, EnvFromOS(), []string{"-rbool=true", "-rstring=XYZ"})
 	if err != nil {
 		t.Fatalf("Parse failed: %v", err)
 	}

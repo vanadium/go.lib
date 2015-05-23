@@ -60,7 +60,7 @@ func TestEnvWidth(t *testing.T) {
 		// Test using the OS environment.
 		if err := os.Setenv("CMDLINE_WIDTH", test.value); err != nil {
 			t.Errorf("Setenv(%q) failed: %v", test.value, err)
-		} else if got, want := NewEnv().width(), test.want; got != want {
+		} else if got, want := EnvFromOS().width(), test.want; got != want {
 			t.Errorf("%q got %v, want %v", test.value, got, want)
 		}
 	}
@@ -88,7 +88,7 @@ func TestEnvStyle(t *testing.T) {
 		// Test using the OS environment.
 		if err := os.Setenv("CMDLINE_STYLE", test.value); err != nil {
 			t.Errorf("Setenv(%q) failed: %v", test.value, err)
-		} else if got, want := NewEnv().style(), test.want; got != want {
+		} else if got, want := EnvFromOS().style(), test.want; got != want {
 			t.Errorf("%q got %v, want %v", test.value, got, want)
 		}
 	}

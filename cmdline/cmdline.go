@@ -109,7 +109,7 @@ type Topic struct {
 //     cmdline.Main(root)
 //   }
 func Main(root *Command) {
-	env := NewEnv()
+	env := EnvFromOS()
 	err := ParseAndRun(root, env, os.Args[1:])
 	os.Exit(ExitCode(err, env.Stderr))
 }
@@ -130,7 +130,7 @@ func Main(root *Command) {
 //   var root := &cmdline.Command{...}
 //
 //   func main() {
-//     env := cmdline.NewEnv()
+//     env := cmdline.EnvFromOS()
 //     os.Exit(cmdline.ExitCode(parseAndRun(env), env.Stderr))
 //   }
 //

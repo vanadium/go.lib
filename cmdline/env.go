@@ -14,8 +14,8 @@ import (
 	"v.io/x/lib/textutil"
 )
 
-// NewEnv returns a new environment with defaults based on the operating system.
-func NewEnv() *Env {
+// EnvFromOS returns a new environment based on the operating system.
+func EnvFromOS() *Env {
 	return &Env{
 		Stdin:  os.Stdin,
 		Stdout: os.Stdout,
@@ -25,7 +25,7 @@ func NewEnv() *Env {
 }
 
 // Env represents the environment for command parsing and running.  Typically
-// NewEnv is used to produce a default environment.  The environment may be
+// EnvFromOS is used to produce a default environment.  The environment may be
 // explicitly set for finer control; e.g. in tests.
 type Env struct {
 	Stdin  io.Reader

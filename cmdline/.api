@@ -1,8 +1,8 @@
 pkg cmdline, const ErrUsage ErrExitCode
+pkg cmdline, func EnvFromOS() *Env
 pkg cmdline, func ExitCode(error, io.Writer) int
 pkg cmdline, func HideGlobalFlagsExcept(...*regexp.Regexp)
 pkg cmdline, func Main(*Command)
-pkg cmdline, func NewEnv() *Env
 pkg cmdline, func Parse(*Command, *Env, []string) (Runner, []string, error)
 pkg cmdline, func ParseAndRun(*Command, *Env, []string) error
 pkg cmdline, method (*Env) UsageErrorf(string, ...interface{}) error
