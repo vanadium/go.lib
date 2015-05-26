@@ -1,5 +1,5 @@
 {
 	"imports": [
-		{"allow": "github.com/cosmosnicolaou/llog"}
+		{"allow": "github.com/cosnicolaou/llog"}
 	]
 }

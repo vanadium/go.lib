@@ -2,17 +2,22 @@ pkg vlog, func Configure(...LoggingOpts) error
 pkg vlog, func ConfigureLibraryLoggerFromFlags() error
 pkg vlog, func ConfigureLoggerFromFlags(Logger) error
 pkg vlog, func Error(...interface{})
+pkg vlog, func ErrorDepth(int, ...interface{})
 pkg vlog, func Errorf(string, ...interface{})
 pkg vlog, func Fatal(...interface{})
+pkg vlog, func FatalDepth(int, ...interface{})
 pkg vlog, func Fatalf(string, ...interface{})
 pkg vlog, func FlushLog()
 pkg vlog, func Info(...interface{})
+pkg vlog, func InfoDepth(int, ...interface{})
 pkg vlog, func InfoStack(bool)
 pkg vlog, func Infof(string, ...interface{})
+pkg vlog, func InfofDepth(int, string, ...interface{})
 pkg vlog, func LogCall(...interface{}) func(...interface{})
 pkg vlog, func LogCallf(string, ...interface{}) func(string, ...interface{})
 pkg vlog, func NewLogger(string) Logger
 pkg vlog, func Panic(...interface{})
+pkg vlog, func PanicDepth(int, ...interface{})
 pkg vlog, func Panicf(string, ...interface{})
 pkg vlog, func Stats() LevelStats
 pkg vlog, func V(Level) bool
@@ -25,6 +30,7 @@ pkg vlog, method (*StderrThreshold) Set(string) error
 pkg vlog, method (*StderrThreshold) String() string
 pkg vlog, method (AlsoLogToStderr) LoggingOpt()
 pkg vlog, method (AutoFlush) LoggingOpt()
+pkg vlog, method (FilepathSpec) LoggingOpt()
 pkg vlog, method (Level) LoggingOpt()
 pkg vlog, method (LogDir) LoggingOpt()
 pkg vlog, method (LogToStderr) LoggingOpt()
@@ -35,26 +41,35 @@ pkg vlog, method (StderrThreshold) LoggingOpt()
 pkg vlog, method (TraceLocation) LoggingOpt()
 pkg vlog, type AlsoLogToStderr bool
 pkg vlog, type AutoFlush bool
-pkg vlog, type InfoLog interface { Info, InfoStack, Infof }
+pkg vlog, type FilepathSpec struct
+pkg vlog, type FilepathSpec struct, embedded llog.FilepathSpec
+pkg vlog, type InfoLog interface { Info, InfoDepth, InfoStack, Infof, InfofDepth }
 pkg vlog, type InfoLog interface, Info(...interface{})
+pkg vlog, type InfoLog interface, InfoDepth(int, ...interface{})
 pkg vlog, type InfoLog interface, InfoStack(bool)
 pkg vlog, type InfoLog interface, Infof(string, ...interface{})
+pkg vlog, type InfoLog interface, InfofDepth(int, string, ...interface{})
 pkg vlog, type Level llog.Level
 pkg vlog, type LevelStats llog.Stats
 pkg vlog, type LogDir string
 pkg vlog, type LogToStderr bool
-pkg vlog, type Logger interface { Configure, Error, Errorf, Fatal, Fatalf, FlushLog, Info, InfoStack, Infof, LogDir, Panic, Panicf, Stats, V, VI }
+pkg vlog, type Logger interface { Configure, Error, ErrorDepth, Errorf, Fatal, FatalDepth, Fatalf, FlushLog, Info, InfoDepth, InfoStack, Infof, InfofDepth, LogDir, Panic, PanicDepth, Panicf, Stats, V, VI }
 pkg vlog, type Logger interface, Configure(...LoggingOpts) error
 pkg vlog, type Logger interface, Error(...interface{})
+pkg vlog, type Logger interface, ErrorDepth(int, ...interface{})
 pkg vlog, type Logger interface, Errorf(string, ...interface{})
 pkg vlog, type Logger interface, Fatal(...interface{})
+pkg vlog, type Logger interface, FatalDepth(int, ...interface{})
 pkg vlog, type Logger interface, Fatalf(string, ...interface{})
 pkg vlog, type Logger interface, FlushLog()
 pkg vlog, type Logger interface, Info(...interface{})
+pkg vlog, type Logger interface, InfoDepth(int, ...interface{})
 pkg vlog, type Logger interface, InfoStack(bool)
 pkg vlog, type Logger interface, Infof(string, ...interface{})
+pkg vlog, type Logger interface, InfofDepth(int, string, ...interface{})
 pkg vlog, type Logger interface, LogDir() string
 pkg vlog, type Logger interface, Panic(...interface{})
+pkg vlog, type Logger interface, PanicDepth(int, ...interface{})
 pkg vlog, type Logger interface, Panicf(string, ...interface{})
 pkg vlog, type Logger interface, Stats() LevelStats
 pkg vlog, type Logger interface, V(Level) bool
@@ -74,5 +89,5 @@ pkg vlog, type TraceLocation struct, embedded llog.TraceLocation
 pkg vlog, type Verbosity interface { V, VI }
 pkg vlog, type Verbosity interface, V(Level) bool
 pkg vlog, type Verbosity interface, VI(Level) InfoLog
-pkg vlog, var Configured error
+pkg vlog, var ErrConfigured error
 pkg vlog, var Log *logger

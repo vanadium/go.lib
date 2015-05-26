@@ -11,7 +11,7 @@ import (
 	"runtime"
 	"sync/atomic"
 
-	"github.com/cosmosnicolaou/llog"
+	"github.com/cosnicolaou/llog"
 )
 
 // logCallLogLevel is the log level beyond which calls are logged.

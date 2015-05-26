@@ -11,7 +11,7 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/cosmosnicolaou/llog"
+	"github.com/cosnicolaou/llog"
 )
 
 const (
@@ -34,8 +34,8 @@ func (l *logger) maybeFlush() {
 }
 
 var (
-	Log        *logger
-	Configured = errors.New("logger has already been configured")
+	Log           *logger
+	ErrConfigured = errors.New("logger has already been configured")
 )
 
 const stackSkip = 1
@@ -66,7 +66,7 @@ func (l *logger) Configure(opts ...LoggingOpts) error {
 		}
 	}
 	if l.configured && !override {
-		return Configured
+		return ErrConfigured
 	}
 	for _, o := range opts {
 		switch v := o.(type) {
@@ -87,6 +87,8 @@ func (l *logger) Configure(opts ...LoggingOpts) error {
 			}
 		case ModuleSpec:
 			l.log.SetVModule(v.ModuleSpec)
+		case FilepathSpec:
+			l.log.SetVFilepath(v.FilepathSpec)
 		case TraceLocation:
 			l.log.SetTraceLocation(v.TraceLocation)
 		case StderrThreshold:
@@ -127,6 +129,20 @@ func (l *logger) Infof(format string, args ...interface{}) {
 	l.maybeFlush()
 }
 
+// InfoDepth acts as Info but uses depth to determine which call frame to log.
+// A depth of 0 is equivalent to calling Info.
+func (l *logger) InfoDepth(depth int, args ...interface{}) {
+	l.log.PrintDepth(llog.InfoLog, depth, args...)
+	l.maybeFlush()
+}
+
+// InfofDepth acts as Infof but uses depth to determine which call frame to log.
+// A depth of 0 is equivalent to calling Infof.
+func (l *logger) InfofDepth(depth int, format string, args ...interface{}) {
+	l.log.PrintfDepth(llog.InfoLog, depth, format, args...)
+	l.maybeFlush()
+}
+
 func infoStack(l *logger, all bool) {
 	n := initialMaxStackBufSize
 	var trace []byte
@@ -155,9 +171,11 @@ func (l *logger) V(v Level) bool {
 
 type discardInfo struct{}
 
-func (_ *discardInfo) Info(args ...interface{})                 {}
-func (_ *discardInfo) Infof(format string, args ...interface{}) {}
-func (_ *discardInfo) InfoStack(all bool)                       {}
+func (_ *discardInfo) Info(...interface{})                          {}
+func (_ *discardInfo) Infof(_ string, _ ...interface{})             {}
+func (_ *discardInfo) InfoDepth(_ int, _ ...interface{})            {}
+func (_ *discardInfo) InfofDepth(_ int, _ string, _ ...interface{}) {}
+func (_ *discardInfo) InfoStack(_ bool)                             {}
 
 func (l *logger) VI(v Level) InfoLog {
 	if l.log.V(llog.Level(v)) {
@@ -178,6 +196,13 @@ func (l *logger) Error(args ...interface{}) {
 	l.maybeFlush()
 }
 
+// ErrorDepth acts as Error but uses depth to determine which call frame to log.
+// A depth of 0 is equivalent to calling Error.
+func (l *logger) ErrorDepth(depth int, args ...interface{}) {
+	l.log.PrintDepth(llog.ErrorLog, depth, args...)
+	l.maybeFlush()
+}
+
 // Errorf logs to the ERROR and INFO logs.
 // Arguments are handled in the manner of fmt.Printf; a newline is appended if missing.
 func (l *logger) Errorf(format string, args ...interface{}) {
@@ -192,6 +217,12 @@ func (l *logger) Fatal(args ...interface{}) {
 	l.log.Print(llog.FatalLog, args...)
 }
 
+// FatalDepth acts as Fatal but uses depth to determine which call frame to log.
+// A depth of 0 is equivalent to calling Fatal.
+func (l *logger) FatalDepth(depth int, args ...interface{}) {
+	l.log.PrintDepth(llog.FatalLog, depth, args...)
+}
+
 // Fatalf logs to the FATAL, ERROR and INFO logs,
 // including a stack trace of all running goroutines, then calls os.Exit(255).
 // Arguments are handled in the manner of fmt.Printf; a newline is appended if missing.
@@ -202,6 +233,13 @@ func (l *logger) Fatalf(format string, args ...interface{}) {
 // Panic is equivalent to Error() followed by a call to panic().
 func (l *logger) Panic(args ...interface{}) {
 	l.Error(args...)
+	panic(fmt.Sprint(args...))
+}
+
+// PanicDepth acts as Panic but uses depth to determine which call frame to log.
+// A depth of 0 is equivalent to calling Panic.
+func (l *logger) PanicDepth(depth int, args ...interface{}) {
+	l.ErrorDepth(depth, args...)
 	panic(fmt.Sprint(args...))
 }
 
