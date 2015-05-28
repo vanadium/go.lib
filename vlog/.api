@@ -13,8 +13,6 @@ pkg vlog, func InfoDepth(int, ...interface{})
 pkg vlog, func InfoStack(bool)
 pkg vlog, func Infof(string, ...interface{})
 pkg vlog, func InfofDepth(int, string, ...interface{})
-pkg vlog, func LogCall(...interface{}) func(...interface{})
-pkg vlog, func LogCallf(string, ...interface{}) func(string, ...interface{})
 pkg vlog, func NewLogger(string) Logger
 pkg vlog, func Panic(...interface{})
 pkg vlog, func PanicDepth(int, ...interface{})
