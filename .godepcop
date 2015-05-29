@@ -1,0 +1,15 @@
+<godepcop>
+  <!-- Most packages under v.io/x/lib should be free of other dependencies.
+
+       NOTE: llog is used in the implementation of v.io/x/lib/vlog, which is
+       used in other packages under v.io/x/lib.  Reimplementing vlog to stand
+       alone will allow us to remove this dependency. -->
+  <import allow="v.io/x/lib/..."/>
+  <import allow="github.com/cosnicolaou/llog"/>
+  <import deny="..."/>
+
+  <!-- Relax the rule for external tests, but keep a curated list rather than
+       allowing a blanket "..." to avoid adding unwanted dependencies. -->
+  <xtest allow="v.io/v23/..."/>
+  <xtest allow="v.io/x/ref/..."/>
+</godepcop>

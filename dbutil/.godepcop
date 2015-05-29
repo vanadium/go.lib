@@ -1,0 +1,3 @@
+<godepcop>
+  <import allow="github.com/go-sql-driver/mysql"/>
+</godepcop>

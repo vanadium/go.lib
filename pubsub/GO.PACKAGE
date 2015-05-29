@@ -1,5 +1,0 @@
-{
-	"imports": [
-		{"allow": "v.io/v23/verror"}
-	]
-}
