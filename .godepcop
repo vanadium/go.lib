@@ -4,9 +4,9 @@
        NOTE: llog is used in the implementation of v.io/x/lib/vlog, which is
        used in other packages under v.io/x/lib.  Reimplementing vlog to stand
        alone will allow us to remove this dependency. -->
-  <import allow="v.io/x/lib/..."/>
-  <import allow="github.com/cosnicolaou/llog"/>
-  <import deny="..."/>
+  <pkg allow="v.io/x/lib/..."/>
+  <pkg allow="github.com/cosnicolaou/llog"/>
+  <pkg deny="..."/>
 
   <!-- Relax the rule for external tests, but keep a curated list rather than
        allowing a blanket "..." to avoid adding unwanted dependencies. -->
