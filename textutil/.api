@@ -9,6 +9,7 @@ pkg textutil, func RuneChunkFlush(RuneChunkDecoder, func(rune) error) error
 pkg textutil, func RuneChunkWrite(RuneChunkDecoder, func(rune) error, []byte) (int, error)
 pkg textutil, func TerminalSize() (int, int, error)
 pkg textutil, method (*LineWriter) Flush() error
+pkg textutil, method (*LineWriter) ForceVerbatim(bool) error
 pkg textutil, method (*LineWriter) SetIndents(...string) error
 pkg textutil, method (*LineWriter) SetLineTerminator(string) error
 pkg textutil, method (*LineWriter) SetParagraphSeparator(string) error

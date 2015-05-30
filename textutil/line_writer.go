@@ -54,12 +54,13 @@ import (
 //   http://www.unicode.org/versions/Unicode4.0.0/ch05.pdf [5.8 Newline Guidelines]
 type LineWriter struct {
 	// State configured by the user.
-	w            io.Writer
-	runeDecoder  RuneChunkDecoder
-	width        runePos
-	lineTerm     []byte
-	paragraphSep string
-	indents      []string
+	w             io.Writer
+	runeDecoder   RuneChunkDecoder
+	width         runePos
+	lineTerm      []byte
+	paragraphSep  string
+	indents       []string
+	forceVerbatim bool
 
 	// The buffer contains a single output line.
 	lineBuf byteRuneBuffer
@@ -181,6 +182,17 @@ func (w *LineWriter) SetIndents(indents ...string) error {
 	}
 	w.resetLine()
 	return nil
+}
+
+// ForceVerbatim forces w to stay in verbatim mode if v is true, or lets w
+// perform its regular line writing algorithm if v is false.  This is useful if
+// there is a sequence of lines that should be written verbatim, even if the
+// lines don't start with spaces.
+//
+// Calls Flush internally, and returns any Flush error.
+func (w *LineWriter) ForceVerbatim(v bool) error {
+	w.forceVerbatim = v
+	return w.Flush()
 }
 
 // Write implements io.Writer by buffering data into the LineWriter w.  Actual
@@ -332,10 +344,13 @@ func (w *LineWriter) updateRune(r rune) bool {
 // Note that Flush calls behave exactly as if an explicit U+2028 line separator
 // were added to the end of all buffered data.
 func (w *LineWriter) nextState(r rune, forceLineBreak bool) (state, bool) {
+	kind := runeKind(r)
+	if w.forceVerbatim {
+		return stateVerbatim, forceLineBreak || kind == kindEOL
+	}
 	if forceLineBreak {
 		return stateWordWrap, true
 	}
-	kind := runeKind(r)
 	// Handle non word-wrap states, which are easy.
 	switch w.prevState {
 	case stateVerbatim:

@@ -428,7 +428,7 @@ The global flags are:
  -global2=0
    global test flag 2
 ================================================================================
-Cmdrun echo
+Cmdrun echo - Print strings on stdout
 
 Echo prints any strings passed in to stdout.
 
@@ -437,7 +437,7 @@ Usage:
 
 [strings] are arbitrary strings that will be echoed.
 ================================================================================
-Cmdrun help
+Cmdrun help - Display help for commands or topics
 
 Help with no args displays the usage of the parent command.
 
@@ -665,7 +665,7 @@ The global flags are:
  -global2=0
    global test flag 2
 ================================================================================
-Onecmd echo
+Onecmd echo - Print strings on stdout
 
 Echo prints any strings passed in to stdout.
 
@@ -674,7 +674,7 @@ Usage:
 
 [strings] are arbitrary strings that will be echoed.
 ================================================================================
-Onecmd help
+Onecmd help - Display help for commands or topics
 
 Help with no args displays the usage of the parent command.
 
@@ -767,7 +767,7 @@ Echo prints any strings passed in to stdout.
 	var cmdEchoOpt = &Command{
 		Runner: RunnerFunc(runEcho),
 		Name:   "echoopt",
-		Short:  "Print strings on stdout, with opts",
+		Short:  "Print strings on stdout with opts",
 		// Try varying number of header/trailer newlines around the long description.
 		Long: `Echoopt prints any args passed in to stdout.
 
@@ -799,7 +799,7 @@ Usage:
 
 The multi commands are:
    echo        Print strings on stdout
-   echoopt     Print strings on stdout, with opts
+   echoopt     Print strings on stdout with opts
    help        Display help for commands or topics
 Run "multi help [command]" for command usage.
 
@@ -823,7 +823,7 @@ Usage:
 
 The multi commands are:
    echo        Print strings on stdout
-   echoopt     Print strings on stdout, with opts
+   echoopt     Print strings on stdout with opts
    help        Display help for commands or topics
 Run "multi help [command]" for command usage.
 
@@ -847,7 +847,7 @@ Usage:
 
 The multi commands are:
    echo        Print strings on stdout
-   echoopt     Print strings on stdout, with opts
+   echoopt     Print strings on stdout with opts
    help        Display help for commands or topics
 Run "multi help [command]" for command usage.
 
@@ -861,7 +861,7 @@ The global flags are:
  -global2=0
    global test flag 2
 ================================================================================
-Multi echo
+Multi echo - Print strings on stdout
 
 Echo prints any strings passed in to stdout.
 
@@ -870,7 +870,7 @@ Usage:
 
 [strings] are arbitrary strings that will be echoed.
 ================================================================================
-Multi echoopt
+Multi echoopt - Print strings on stdout with opts
 
 Echoopt prints any args passed in to stdout.
 
@@ -883,7 +883,7 @@ The multi echoopt flags are:
  -n=false
    Do not output trailing newline
 ================================================================================
-Multi help
+Multi help - Display help for commands or topics
 
 Help with no args displays the usage of the parent command.
 
@@ -957,7 +957,7 @@ Usage:
 
 The multi commands are:
    echo        Print strings on stdout
-   echoopt     Print strings on stdout, with opts
+   echoopt     Print strings on stdout with opts
    help        Display help for commands or topics
 Run "multi help [command]" for command usage.
 
@@ -1051,7 +1051,7 @@ Usage:
 
 The multi commands are:
    echo        Print strings on stdout
-   echoopt     Print strings on stdout, with opts
+   echoopt     Print strings on stdout with opts
    help        Display help for commands or topics
 Run "multi help [command]" for command usage.
 
@@ -1084,7 +1084,7 @@ Echo prints any strings passed in to stdout.
 	cmdEchoOpt := &Command{
 		Runner: RunnerFunc(runEcho),
 		Name:   "echoopt",
-		Short:  "Print strings on stdout, with opts",
+		Short:  "Print strings on stdout with opts",
 		// Try varying number of header/trailer newlines around the long description.
 		Long: `Echoopt prints any args passed in to stdout.
 
@@ -1097,7 +1097,7 @@ Echo prints any strings passed in to stdout.
 	cmdHello := &Command{
 		Runner: RunnerFunc(runHello),
 		Name:   "hello",
-		Short:  "Print strings on stdout preceded by \"Hello\"",
+		Short:  "Print strings on stdout preceded by Hello",
 		Long: `
 Hello prints any strings passed in to stdout preceded by "Hello".
 `,
@@ -1139,7 +1139,7 @@ Usage:
 
 The toplevelprog commands are:
    echoprog    Set of echo commands
-   hello       Print strings on stdout preceded by "Hello"
+   hello       Print strings on stdout preceded by Hello
    help        Display help for commands or topics
 Run "toplevelprog help [command]" for command usage.
 
@@ -1168,7 +1168,7 @@ Usage:
 
 The toplevelprog commands are:
    echoprog    Set of echo commands
-   hello       Print strings on stdout preceded by "Hello"
+   hello       Print strings on stdout preceded by Hello
    help        Display help for commands or topics
 Run "toplevelprog help [command]" for command usage.
 
@@ -1197,7 +1197,7 @@ Usage:
 
 The toplevelprog commands are:
    echoprog    Set of echo commands
-   hello       Print strings on stdout preceded by "Hello"
+   hello       Print strings on stdout preceded by Hello
    help        Display help for commands or topics
 Run "toplevelprog help [command]" for command usage.
 
@@ -1216,7 +1216,7 @@ The global flags are:
  -global2=0
    global test flag 2
 ================================================================================
-Toplevelprog echoprog
+Toplevelprog echoprog - Set of echo commands
 
 Echoprog has two variants of echo.
 
@@ -1225,7 +1225,7 @@ Usage:
 
 The toplevelprog echoprog commands are:
    echo        Print strings on stdout
-   echoopt     Print strings on stdout, with opts
+   echoopt     Print strings on stdout with opts
 
 The toplevelprog echoprog additional help topics are:
    topic3      Help topic 3 short
@@ -1234,7 +1234,7 @@ The toplevelprog echoprog flags are:
  -extra=false
    Print an extra arg
 ================================================================================
-Toplevelprog echoprog echo
+Toplevelprog echoprog echo - Print strings on stdout
 
 Echo prints any strings passed in to stdout.
 
@@ -1243,7 +1243,7 @@ Usage:
 
 [strings] are arbitrary strings that will be echoed.
 ================================================================================
-Toplevelprog echoprog echoopt
+Toplevelprog echoprog echoopt - Print strings on stdout with opts
 
 Echoopt prints any args passed in to stdout.
 
@@ -1256,11 +1256,11 @@ The toplevelprog echoprog echoopt flags are:
  -n=false
    Do not output trailing newline
 ================================================================================
-Toplevelprog echoprog topic3 - help topic
+Toplevelprog echoprog topic3 - Help topic 3 short
 
 Help topic 3 long.
 ================================================================================
-Toplevelprog hello
+Toplevelprog hello - Print strings on stdout preceded by Hello
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1269,7 +1269,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Toplevelprog help
+Toplevelprog help - Display help for commands or topics
 
 Help with no args displays the usage of the parent command.
 
@@ -1294,11 +1294,11 @@ The toplevelprog help flags are:
    Defaults to the terminal width if available.  Override the default by setting
    the CMDLINE_WIDTH environment variable.
 ================================================================================
-Toplevelprog topic1 - help topic
+Toplevelprog topic1 - Help topic 1 short
 
 Help topic 1 long.
 ================================================================================
-Toplevelprog topic2 - help topic
+Toplevelprog topic2 - Help topic 2 short
 
 Help topic 2 long.
 `,
@@ -1312,7 +1312,7 @@ Usage:
 
 The toplevelprog echoprog commands are:
    echo        Print strings on stdout
-   echoopt     Print strings on stdout, with opts
+   echoopt     Print strings on stdout with opts
    help        Display help for commands or topics
 Run "toplevelprog echoprog help [command]" for command usage.
 
@@ -1350,7 +1350,7 @@ Usage:
 
 The toplevelprog echoprog commands are:
    echo        Print strings on stdout
-   echoopt     Print strings on stdout, with opts
+   echoopt     Print strings on stdout with opts
    help        Display help for commands or topics
 Run "toplevelprog echoprog help [command]" for command usage.
 
@@ -1368,7 +1368,7 @@ The global flags are:
  -global2=0
    global test flag 2
 ================================================================================
-Toplevelprog echoprog echo
+Toplevelprog echoprog echo - Print strings on stdout
 
 Echo prints any strings passed in to stdout.
 
@@ -1377,7 +1377,7 @@ Usage:
 
 [strings] are arbitrary strings that will be echoed.
 ================================================================================
-Toplevelprog echoprog echoopt
+Toplevelprog echoprog echoopt - Print strings on stdout with opts
 
 Echoopt prints any args passed in to stdout.
 
@@ -1390,7 +1390,7 @@ The toplevelprog echoprog echoopt flags are:
  -n=false
    Do not output trailing newline
 ================================================================================
-Toplevelprog echoprog help
+Toplevelprog echoprog help - Display help for commands or topics
 
 Help with no args displays the usage of the parent command.
 
@@ -1415,7 +1415,7 @@ The toplevelprog echoprog help flags are:
    Defaults to the terminal width if available.  Override the default by setting
    the CMDLINE_WIDTH environment variable.
 ================================================================================
-Toplevelprog echoprog topic3 - help topic
+Toplevelprog echoprog topic3 - Help topic 3 short
 
 Help topic 3 long.
 `,
@@ -1478,7 +1478,7 @@ Usage:
 
 The toplevelprog commands are:
    echoprog    Set of echo commands
-   hello       Print strings on stdout preceded by "Hello"
+   hello       Print strings on stdout preceded by Hello
    help        Display help for commands or topics
 Run "toplevelprog help [command]" for command usage.
 
@@ -1573,7 +1573,7 @@ Usage:
 
 The toplevelprog commands are:
    echoprog    Set of echo commands
-   hello       Print strings on stdout preceded by "Hello"
+   hello       Print strings on stdout preceded by Hello
    help        Display help for commands or topics
 Run "toplevelprog help [command]" for command usage.
 
@@ -1600,7 +1600,7 @@ The global flags are:
 func TestMultiLevelCommandsOrdering(t *testing.T) {
 	cmdHello11 := &Command{
 		Name:  "hello11",
-		Short: "Print strings on stdout preceded by \"Hello\"",
+		Short: "Print strings on stdout preceded by Hello",
 		Long: `
 Hello prints any strings passed in to stdout preceded by "Hello".
 `,
@@ -1610,7 +1610,7 @@ Hello prints any strings passed in to stdout preceded by "Hello".
 	}
 	cmdHello12 := &Command{
 		Name:  "hello12",
-		Short: "Print strings on stdout preceded by \"Hello\"",
+		Short: "Print strings on stdout preceded by Hello",
 		Long: `
 Hello prints any strings passed in to stdout preceded by "Hello".
 `,
@@ -1620,7 +1620,7 @@ Hello prints any strings passed in to stdout preceded by "Hello".
 	}
 	cmdHello21 := &Command{
 		Name:  "hello21",
-		Short: "Print strings on stdout preceded by \"Hello\"",
+		Short: "Print strings on stdout preceded by Hello",
 		Long: `
 Hello prints any strings passed in to stdout preceded by "Hello".
 `,
@@ -1630,7 +1630,7 @@ Hello prints any strings passed in to stdout preceded by "Hello".
 	}
 	cmdHello22 := &Command{
 		Name:  "hello22",
-		Short: "Print strings on stdout preceded by \"Hello\"",
+		Short: "Print strings on stdout preceded by Hello",
 		Long: `
 Hello prints any strings passed in to stdout preceded by "Hello".
 `,
@@ -1640,7 +1640,7 @@ Hello prints any strings passed in to stdout preceded by "Hello".
 	}
 	cmdHello31 := &Command{
 		Name:  "hello31",
-		Short: "Print strings on stdout preceded by \"Hello\"",
+		Short: "Print strings on stdout preceded by Hello",
 		Long: `
 Hello prints any strings passed in to stdout preceded by "Hello".
 `,
@@ -1650,7 +1650,7 @@ Hello prints any strings passed in to stdout preceded by "Hello".
 	}
 	cmdHello32 := &Command{
 		Name:  "hello32",
-		Short: "Print strings on stdout preceded by \"Hello\"",
+		Short: "Print strings on stdout preceded by Hello",
 		Long: `
 Hello prints any strings passed in to stdout preceded by "Hello".
 `,
@@ -1689,8 +1689,8 @@ Usage:
    prog1 <command>
 
 The prog1 commands are:
-   hello11     Print strings on stdout preceded by "Hello"
-   hello12     Print strings on stdout preceded by "Hello"
+   hello11     Print strings on stdout preceded by Hello
+   hello12     Print strings on stdout preceded by Hello
    prog2       Set of hello commands
    help        Display help for commands or topics
 Run "prog1 help [command]" for command usage.
@@ -1710,8 +1710,8 @@ Usage:
    prog1 <command>
 
 The prog1 commands are:
-   hello11     Print strings on stdout preceded by "Hello"
-   hello12     Print strings on stdout preceded by "Hello"
+   hello11     Print strings on stdout preceded by Hello
+   hello12     Print strings on stdout preceded by Hello
    prog2       Set of hello commands
    help        Display help for commands or topics
 Run "prog1 help [command]" for command usage.
@@ -1731,8 +1731,8 @@ Usage:
    prog1 <command>
 
 The prog1 commands are:
-   hello11     Print strings on stdout preceded by "Hello"
-   hello12     Print strings on stdout preceded by "Hello"
+   hello11     Print strings on stdout preceded by Hello
+   hello12     Print strings on stdout preceded by Hello
    prog2       Set of hello commands
    help        Display help for commands or topics
 Run "prog1 help [command]" for command usage.
@@ -1743,7 +1743,7 @@ The global flags are:
  -global2=0
    global test flag 2
 ================================================================================
-Prog1 hello11
+Prog1 hello11 - Print strings on stdout preceded by Hello
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1752,7 +1752,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 hello12
+Prog1 hello12 - Print strings on stdout preceded by Hello
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1761,7 +1761,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 prog2
+Prog1 prog2 - Set of hello commands
 
 Prog2 has two variants of hello and a subprogram prog3.
 
@@ -1769,11 +1769,11 @@ Usage:
    prog1 prog2 <command>
 
 The prog1 prog2 commands are:
-   hello21     Print strings on stdout preceded by "Hello"
+   hello21     Print strings on stdout preceded by Hello
    prog3       Set of hello commands
-   hello22     Print strings on stdout preceded by "Hello"
+   hello22     Print strings on stdout preceded by Hello
 ================================================================================
-Prog1 prog2 hello21
+Prog1 prog2 hello21 - Print strings on stdout preceded by Hello
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1782,7 +1782,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 prog2 prog3
+Prog1 prog2 prog3 - Set of hello commands
 
 Prog3 has two variants of hello.
 
@@ -1790,10 +1790,10 @@ Usage:
    prog1 prog2 prog3 <command>
 
 The prog1 prog2 prog3 commands are:
-   hello31     Print strings on stdout preceded by "Hello"
-   hello32     Print strings on stdout preceded by "Hello"
+   hello31     Print strings on stdout preceded by Hello
+   hello32     Print strings on stdout preceded by Hello
 ================================================================================
-Prog1 prog2 prog3 hello31
+Prog1 prog2 prog3 hello31 - Print strings on stdout preceded by Hello
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1802,7 +1802,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 prog2 prog3 hello32
+Prog1 prog2 prog3 hello32 - Print strings on stdout preceded by Hello
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1811,7 +1811,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 prog2 hello22
+Prog1 prog2 hello22 - Print strings on stdout preceded by Hello
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1820,7 +1820,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 help
+Prog1 help - Display help for commands or topics
 
 Help with no args displays the usage of the parent command.
 
@@ -1854,9 +1854,9 @@ Usage:
    prog1 prog2 <command>
 
 The prog1 prog2 commands are:
-   hello21     Print strings on stdout preceded by "Hello"
+   hello21     Print strings on stdout preceded by Hello
    prog3       Set of hello commands
-   hello22     Print strings on stdout preceded by "Hello"
+   hello22     Print strings on stdout preceded by Hello
    help        Display help for commands or topics
 Run "prog1 prog2 help [command]" for command usage.
 
@@ -1866,7 +1866,7 @@ The global flags are:
  -global2=0
    global test flag 2
 ================================================================================
-Prog1 prog2 hello21
+Prog1 prog2 hello21 - Print strings on stdout preceded by Hello
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1875,7 +1875,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 prog2 prog3
+Prog1 prog2 prog3 - Set of hello commands
 
 Prog3 has two variants of hello.
 
@@ -1883,10 +1883,10 @@ Usage:
    prog1 prog2 prog3 <command>
 
 The prog1 prog2 prog3 commands are:
-   hello31     Print strings on stdout preceded by "Hello"
-   hello32     Print strings on stdout preceded by "Hello"
+   hello31     Print strings on stdout preceded by Hello
+   hello32     Print strings on stdout preceded by Hello
 ================================================================================
-Prog1 prog2 prog3 hello31
+Prog1 prog2 prog3 hello31 - Print strings on stdout preceded by Hello
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1895,7 +1895,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 prog2 prog3 hello32
+Prog1 prog2 prog3 hello32 - Print strings on stdout preceded by Hello
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1904,7 +1904,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 prog2 hello22
+Prog1 prog2 hello22 - Print strings on stdout preceded by Hello
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1913,7 +1913,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 prog2 help
+Prog1 prog2 help - Display help for commands or topics
 
 Help with no args displays the usage of the parent command.
 
@@ -1947,8 +1947,8 @@ Usage:
    prog1 prog2 prog3 <command>
 
 The prog1 prog2 prog3 commands are:
-   hello31     Print strings on stdout preceded by "Hello"
-   hello32     Print strings on stdout preceded by "Hello"
+   hello31     Print strings on stdout preceded by Hello
+   hello32     Print strings on stdout preceded by Hello
    help        Display help for commands or topics
 Run "prog1 prog2 prog3 help [command]" for command usage.
 
@@ -1958,7 +1958,7 @@ The global flags are:
  -global2=0
    global test flag 2
 ================================================================================
-Prog1 prog2 prog3 hello31
+Prog1 prog2 prog3 hello31 - Print strings on stdout preceded by Hello
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1967,7 +1967,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 prog2 prog3 hello32
+Prog1 prog2 prog3 hello32 - Print strings on stdout preceded by Hello
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -1976,7 +1976,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 prog2 prog3 help
+Prog1 prog2 prog3 help - Display help for commands or topics
 
 Help with no args displays the usage of the parent command.
 
@@ -2010,8 +2010,8 @@ Usage:
    prog1 prog2 prog3 <command>
 
 The prog1 prog2 prog3 commands are:
-   hello31     Print strings on stdout preceded by "Hello"
-   hello32     Print strings on stdout preceded by "Hello"
+   hello31     Print strings on stdout preceded by Hello
+   hello32     Print strings on stdout preceded by Hello
    help        Display help for commands or topics
 Run "prog1 prog2 prog3 help [command]" for command usage.
 
@@ -2021,7 +2021,7 @@ The global flags are:
  -global2=0
    global test flag 2
 ================================================================================
-Prog1 prog2 prog3 hello31
+Prog1 prog2 prog3 hello31 - Print strings on stdout preceded by Hello
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -2030,7 +2030,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 prog2 prog3 hello32
+Prog1 prog2 prog3 hello32 - Print strings on stdout preceded by Hello
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -2039,7 +2039,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
-Prog1 prog2 prog3 help
+Prog1 prog2 prog3 help - Display help for commands or topics
 
 Help with no args displays the usage of the parent command.
 
@@ -2073,8 +2073,8 @@ Usage:
    prog1 <command>
 
 The prog1 commands are:
-   hello11     Print strings on stdout preceded by "Hello"
-   hello12     Print strings on stdout preceded by "Hello"
+   hello11     Print strings on stdout preceded by Hello
+   hello12     Print strings on stdout preceded by Hello
    prog2       Set of hello commands
    help        Display help for commands or topics
 
@@ -2084,7 +2084,7 @@ The global flags are:
  -global2=0
    global test flag 2
 
-Prog1 hello11
+Prog1 hello11 - Print strings on stdout preceded by Hello
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -2093,7 +2093,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 
-Prog1 hello12
+Prog1 hello12 - Print strings on stdout preceded by Hello
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -2102,7 +2102,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 
-Prog1 prog2
+Prog1 prog2 - Set of hello commands
 
 Prog2 has two variants of hello and a subprogram prog3.
 
@@ -2110,11 +2110,11 @@ Usage:
    prog1 prog2 <command>
 
 The prog1 prog2 commands are:
-   hello21     Print strings on stdout preceded by "Hello"
+   hello21     Print strings on stdout preceded by Hello
    prog3       Set of hello commands
-   hello22     Print strings on stdout preceded by "Hello"
+   hello22     Print strings on stdout preceded by Hello
 
-Prog1 prog2 hello21
+Prog1 prog2 hello21 - Print strings on stdout preceded by Hello
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -2123,7 +2123,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 
-Prog1 prog2 prog3
+Prog1 prog2 prog3 - Set of hello commands
 
 Prog3 has two variants of hello.
 
@@ -2131,10 +2131,10 @@ Usage:
    prog1 prog2 prog3 <command>
 
 The prog1 prog2 prog3 commands are:
-   hello31     Print strings on stdout preceded by "Hello"
-   hello32     Print strings on stdout preceded by "Hello"
+   hello31     Print strings on stdout preceded by Hello
+   hello32     Print strings on stdout preceded by Hello
 
-Prog1 prog2 prog3 hello31
+Prog1 prog2 prog3 hello31 - Print strings on stdout preceded by Hello
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -2143,7 +2143,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 
-Prog1 prog2 prog3 hello32
+Prog1 prog2 prog3 hello32 - Print strings on stdout preceded by Hello
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -2152,7 +2152,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 
-Prog1 prog2 hello22
+Prog1 prog2 hello22 - Print strings on stdout preceded by Hello
 
 Hello prints any strings passed in to stdout preceded by "Hello".
 
@@ -2161,7 +2161,7 @@ Usage:
 
 [strings] are arbitrary strings that will be printed.
 
-Prog1 help
+Prog1 help - Display help for commands or topics
 
 Help with no args displays the usage of the parent command.
 

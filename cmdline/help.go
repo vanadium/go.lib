@@ -5,8 +5,10 @@
 package cmdline
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
+	"go/doc"
 	"io"
 	"regexp"
 	"strings"
@@ -120,9 +122,36 @@ func runHelp(w *textutil.LineWriter, stderr io.Writer, args []string, path []*Co
 	return usageErrorf(stderr, fn, "%s: unknown command or topic %q", pathName(path), subName)
 }
 
-func godocHeader(s string) string {
+func godocHeader(path, short string) string {
 	// The first rune must be uppercase for godoc to recognize the string as a
 	// section header, which is linked to the table of contents.
+	switch {
+	case path == "":
+		return firstRuneToUpper(short)
+	case short == "":
+		return firstRuneToUpper(path)
+	}
+	// Godoc has special heurisitics to extract headers from the comments, from
+	// which it builds a nice table of contents.  Headers must be single
+	// unindented lines with unindented paragraphs both before and after, and the
+	// line must not include certain characters.
+	//
+	// We try our best to create a header that includes both the command path and
+	// the short description, but if godoc won't extract a header out of the line,
+	// we fall back to just returning the command path.
+	//
+	// For more details see the comments and implementation of doc.ToHTML:
+	// http://golang.org/pkg/go/doc/#ToHTML
+	header := firstRuneToUpper(path + " - " + short)
+	var buf bytes.Buffer
+	doc.ToHTML(&buf, "before\n\n"+header+"\n\nafter", nil)
+	if !bytes.Contains(buf.Bytes(), []byte("<h")) {
+		return firstRuneToUpper(path)
+	}
+	return header
+}
+
+func firstRuneToUpper(s string) string {
 	if s == "" {
 		return ""
 	}
@@ -164,7 +193,9 @@ func usageAll(w *textutil.LineWriter, path []*Command, config *helpConfig, first
 	cmd, cmdPath := path[len(path)-1], pathName(path)
 	if !firstCall {
 		lineBreak(w, config.style)
-		fmt.Fprintln(w, godocHeader(cmdPath))
+		w.ForceVerbatim(true)
+		fmt.Fprintln(w, godocHeader(cmdPath, cmd.Short))
+		w.ForceVerbatim(false)
 		fmt.Fprintln(w)
 	}
 	usage(w, path, config, firstCall)
@@ -177,7 +208,9 @@ func usageAll(w *textutil.LineWriter, path []*Command, config *helpConfig, first
 	}
 	for _, topic := range cmd.Topics {
 		lineBreak(w, config.style)
-		fmt.Fprintln(w, godocHeader(cmdPath+" "+topic.Name+" - help topic"))
+		w.ForceVerbatim(true)
+		fmt.Fprintln(w, godocHeader(cmdPath+" "+topic.Name, topic.Short))
+		w.ForceVerbatim(false)
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, topic.Long)
 	}

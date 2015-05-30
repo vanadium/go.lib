@@ -175,6 +175,47 @@ func TestLineWriter(t *testing.T) {
 	}
 }
 
+func TestLineWriterForceVerbatim(t *testing.T) {
+	tests := []struct {
+		In   string // See xlateIn for details on the format
+		Want string // See xlateIn for details on the format
+	}{
+		{"", ""},
+		{"a", "a."},
+		{"a.", "a."},
+		{"ab", "ab."},
+		{"ab.", "ab."},
+		{"abc", "abc."},
+		{"abc.", "abc."},
+		{"a c", "a c."},
+		{"a c.", "a c."},
+		{"a cde", "a cde."},
+		{"a cde.", "a cde."},
+		{"a c e", "a c e."},
+		{"a c e.", "a c e."},
+		{"a c ef", "a c ef."},
+		{"a c ef.", "a c ef."},
+		{"a c  f", "a c  f."},
+		{"a c  f.", "a c  f."},
+		{"a    f", "a    f."},
+		{"a    f.", "a    f."},
+		{"a c e.g i k", "a c e.g i k."},
+		{"a c e.g i k.", "a c e.g i k."},
+	}
+	for _, test := range tests {
+		// Run with a variety of chunk sizes.
+		for _, sizes := range [][]int{nil, {1}, {2}, {1, 2}, {2, 1}} {
+			var buf bytes.Buffer
+			w := newUTF8LineWriter(t, &buf, 1, lp{}, nil)
+			w.ForceVerbatim(true)
+			lineWriterWriteFlush(t, w, xlateIn(test.In), sizes)
+			if got, want := buf.String(), xlateIn(test.Want); got != want {
+				t.Errorf("%q sizes:%v got %q, want %q", test.In, sizes, got, want)
+			}
+		}
+	}
+}
+
 // xlateIn translates our test.In pattern into an actual input string to feed
 // into the writer.  The point is to make it easy to specify the various control
 // sequences in a single character, so it's easier to understand.
