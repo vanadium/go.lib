@@ -18,6 +18,8 @@ var (
 	verbosity       Level
 	stderrThreshold StderrThreshold = StderrThreshold(llog.ErrorLog)
 	vmodule         ModuleSpec
+	vpath           FilepathSpec
+
 	traceLocation   TraceLocation
 	maxStackBufSize int
 )
@@ -34,7 +36,8 @@ var flagDefs = []struct {
 	{"max_stack_buf_size", &maxStackBufSize, 4192 * 1024, "max size in bytes of the buffer to use for logging stack traces"},
 	{"v", &verbosity, nil, "log level for V logs"},
 	{"stderrthreshold", &stderrThreshold, nil, "logs at or above this threshold go to stderr"},
-	{"vmodule", &vmodule, nil, "comma-separated list of pattern=N settings for file-filtered logging"},
+	{"vmodule", &vmodule, nil, "comma-separated list of pattern=N settings for filename-filtered logging"},
+	{"vpath", &vpath, nil, "comma-separated list of pattern=N settings for file pathname-filtered logging"},
 	{"log_backtrace_at", &traceLocation, nil, "when logging hits line file:N, emit a stack trace"},
 }
 
@@ -85,6 +88,7 @@ func ConfigureLoggerFromFlags(l Logger) error {
 		Level(verbosity),
 		StderrThreshold(stderrThreshold),
 		ModuleSpec(vmodule),
+		FilepathSpec(vpath),
 		TraceLocation(traceLocation),
 		MaxStackBufSize(maxStackBufSize),
 	)

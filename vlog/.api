@@ -78,9 +78,6 @@ pkg vlog, type MaxStackBufSize int
 pkg vlog, type ModuleSpec struct
 pkg vlog, type ModuleSpec struct, embedded llog.ModuleSpec
 pkg vlog, type OverridePriorConfiguration bool
-pkg vlog, type Runtime interface { Logger, NewLogger }
-pkg vlog, type Runtime interface, Logger() Logger
-pkg vlog, type Runtime interface, NewLogger(string, ...LoggingOpts) (Logger, error)
 pkg vlog, type StderrThreshold llog.Severity
 pkg vlog, type TraceLocation struct
 pkg vlog, type TraceLocation struct, embedded llog.TraceLocation

@@ -172,14 +172,3 @@ type Logger interface {
 	// LogDir returns the currently configured directory for storing logs.
 	LogDir() string
 }
-
-// Runtime defines the methods that the runtime must implement.
-type Runtime interface {
-	// Logger returns the current logger, if any, in use by the Runtime.
-	// TODO(cnicolaou): remove this.
-	Logger() Logger
-
-	// NewLogger creates a new instance of the logging interface that is
-	// separate from the one provided by Runtime.
-	NewLogger(name string, opts ...LoggingOpts) (Logger, error)
-}
