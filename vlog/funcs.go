@@ -29,13 +29,6 @@ func InfoDepth(depth int, args ...interface{}) {
 	Log.maybeFlush()
 }
 
-// InfofDepth acts as Infof but uses depth to determine which call frame to log.
-// A depth of 0 is equivalent to calling Infof.
-func InfofDepth(depth int, format string, args ...interface{}) {
-	Log.log.PrintfDepth(llog.InfoLog, depth, format, args...)
-	Log.maybeFlush()
-}
-
 // InfoStack logs the current goroutine's stack if the all parameter
 // is false, or the stacks of all goroutines if it's true.
 func InfoStack(all bool) {
@@ -51,7 +44,23 @@ func V(level Level) bool {
 // interface that will either log (if level >= the configured level)
 // or discard its parameters. This allows for logger.VI(2).Info
 // style usage.
-func VI(level Level) InfoLog {
+func VI(level Level) interface {
+	// Info logs to the INFO log.
+	// Arguments are handled in the manner of fmt.Print; a newline is appended if missing.
+	Info(args ...interface{})
+
+	// Infoln logs to the INFO log.
+	// Arguments are handled in the manner of fmt.Printf; a newline is appended if missing.
+	Infof(format string, args ...interface{})
+
+	// InfoDepth acts as Info but uses depth to determine which call frame to log.
+	// A depth of 0 is equivalent to calling Info.
+	InfoDepth(depth int, args ...interface{})
+
+	// InfoStack logs the current goroutine's stack if the all parameter
+	// is false, or the stacks of all goroutines if it's true.
+	InfoStack(all bool)
+} {
 	if Log.log.V(llog.Level(level)) {
 		return Log
 	}
@@ -115,7 +124,7 @@ func Configure(opts ...LoggingOpts) error {
 
 // Stats returns stats on how many lines/bytes haven been written to
 // this set of logs.
-func Stats() LevelStats {
+func Stats() (Info, Error struct{ Lines, Bytes int64 }) {
 	return Log.Stats()
 }
 

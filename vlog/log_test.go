@@ -125,6 +125,7 @@ func TestDepth(t *testing.T) {
 		}
 	}
 }
+
 func TestVModule(t *testing.T) {
 	dir, err := ioutil.TempDir("", "logtest")
 	defer os.RemoveAll(dir)
@@ -231,4 +232,34 @@ func TestConfigure(t *testing.T) {
 	if got, want := logger.Configure(vlog.OverridePriorConfiguration(true), vlog.AlsoLogToStderr(false)), error(nil); got != want {
 		t.Fatalf("got %v, want %v", got, want)
 	}
+}
+
+func TestStats(t *testing.T) {
+	dir, err := ioutil.TempDir("", "logtest")
+	defer os.RemoveAll(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	logger := vlog.NewLogger("testStats")
+	logger.Configure(vlog.LogDir(dir))
+	logger.Info("line 1")
+	logger.Info("line 2")
+	logger.Error("error 1")
+
+	infoStats, errorStats := logger.Stats()
+	expected := []struct{ Lines, Bytes int64 }{
+		{2, 12},
+		{1, 7}}
+	for i, stats := range []struct {
+		Lines, Bytes int64
+	}{infoStats, errorStats} {
+		if got, want := stats.Lines, expected[i].Lines; got != want {
+			t.Errorf("%d: got %v, want %v", i, got, want)
+		}
+		// Need to have written out at least as many bytes as the actual message.
+		if got, want := stats.Bytes, expected[i].Bytes; got <= want {
+			t.Errorf("%d: got %v, but not > %v", i, got, want)
+		}
+	}
+
 }

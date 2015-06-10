@@ -75,12 +75,16 @@ func init() {
 // using command line flags.  It assumes that flag.Parse() has already been
 // called to initialize the flag variables.
 func ConfigureLibraryLoggerFromFlags() error {
-	return ConfigureLoggerFromFlags(Log)
+	return Log.ConfigureFromFlags()
 }
 
-// ConfigureLoggerFromLogs will configure the supplied logger using
+func (l *Logger) String() string {
+	return l.log.String()
+}
+
+// ConfigureLoggerFromFlags will configure the logger using
 // command line flags.
-func ConfigureLoggerFromFlags(l Logger) error {
+func (l *Logger) ConfigureFromFlags() error {
 	return l.Configure(
 		LogToStderr(toStderr),
 		AlsoLogToStderr(alsoToStderr),
@@ -94,15 +98,11 @@ func ConfigureLoggerFromFlags(l Logger) error {
 	)
 }
 
-func (l *logger) String() string {
-	return l.log.String()
-}
-
 // ExplicitlySetFlags returns a map of the logging command line flags and their
 // values formatted as strings.  Only the flags that were explicitly set are
 // returned. This is intended for use when an application needs to know what
 // value the flags were set to, for example when creating subprocesses.
-func (l *logger) ExplicitlySetFlags() map[string]string {
+func (l *Logger) ExplicitlySetFlags() map[string]string {
 	logFlagNames := make(map[string]bool)
 	for _, flagDef := range flagDefs {
 		logFlagNames[flagDef.name] = true

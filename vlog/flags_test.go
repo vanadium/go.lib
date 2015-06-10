@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"v.io/x/lib/vlog"
+
 	"v.io/x/ref/test/modules"
 )
 

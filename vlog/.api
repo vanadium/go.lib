@@ -1,6 +1,5 @@
 pkg vlog, func Configure(...LoggingOpts) error
 pkg vlog, func ConfigureLibraryLoggerFromFlags() error
-pkg vlog, func ConfigureLoggerFromFlags(Logger) error
 pkg vlog, func Error(...interface{})
 pkg vlog, func ErrorDepth(int, ...interface{})
 pkg vlog, func Errorf(string, ...interface{})
@@ -12,17 +11,38 @@ pkg vlog, func Info(...interface{})
 pkg vlog, func InfoDepth(int, ...interface{})
 pkg vlog, func InfoStack(bool)
 pkg vlog, func Infof(string, ...interface{})
-pkg vlog, func InfofDepth(int, string, ...interface{})
-pkg vlog, func NewLogger(string) Logger
+pkg vlog, func NewLogger(string) *Logger
 pkg vlog, func Panic(...interface{})
 pkg vlog, func PanicDepth(int, ...interface{})
 pkg vlog, func Panicf(string, ...interface{})
-pkg vlog, func Stats() LevelStats
+pkg vlog, func Stats() (struct{ Lines, Bytes int64 }, struct{ Lines, Bytes int64 })
 pkg vlog, func V(Level) bool
-pkg vlog, func VI(Level) InfoLog
+pkg vlog, func VI(Level) interface {  Info(args ...interface{});; Infof(format string, args ...interface{});; InfoDepth(depth int, args ...interface{});; InfoStack(all bool);}
 pkg vlog, method (*Level) Get(string) interface{}
 pkg vlog, method (*Level) Set(string) error
 pkg vlog, method (*Level) String() string
+pkg vlog, method (*Logger) Configure(...LoggingOpts) error
+pkg vlog, method (*Logger) ConfigureFromFlags() error
+pkg vlog, method (*Logger) Error(...interface{})
+pkg vlog, method (*Logger) ErrorDepth(int, ...interface{})
+pkg vlog, method (*Logger) Errorf(string, ...interface{})
+pkg vlog, method (*Logger) ExplicitlySetFlags() map[string]string
+pkg vlog, method (*Logger) Fatal(...interface{})
+pkg vlog, method (*Logger) FatalDepth(int, ...interface{})
+pkg vlog, method (*Logger) Fatalf(string, ...interface{})
+pkg vlog, method (*Logger) FlushLog()
+pkg vlog, method (*Logger) Info(...interface{})
+pkg vlog, method (*Logger) InfoDepth(int, ...interface{})
+pkg vlog, method (*Logger) InfoStack(bool)
+pkg vlog, method (*Logger) Infof(string, ...interface{})
+pkg vlog, method (*Logger) LogDir() string
+pkg vlog, method (*Logger) Panic(...interface{})
+pkg vlog, method (*Logger) PanicDepth(int, ...interface{})
+pkg vlog, method (*Logger) Panicf(string, ...interface{})
+pkg vlog, method (*Logger) Stats() (struct{ Lines, Bytes int64 }, struct{ Lines, Bytes int64 })
+pkg vlog, method (*Logger) String() string
+pkg vlog, method (*Logger) V(int) bool
+pkg vlog, method (*Logger) VI(int) interface {  Info(args ...interface{});; Infof(format string, args ...interface{});; InfoDepth(depth int, args ...interface{});; InfoStack(all bool);}
 pkg vlog, method (*StderrThreshold) Get(string) interface{}
 pkg vlog, method (*StderrThreshold) Set(string) error
 pkg vlog, method (*StderrThreshold) String() string
@@ -41,37 +61,10 @@ pkg vlog, type AlsoLogToStderr bool
 pkg vlog, type AutoFlush bool
 pkg vlog, type FilepathSpec struct
 pkg vlog, type FilepathSpec struct, embedded llog.FilepathSpec
-pkg vlog, type InfoLog interface { Info, InfoDepth, InfoStack, Infof, InfofDepth }
-pkg vlog, type InfoLog interface, Info(...interface{})
-pkg vlog, type InfoLog interface, InfoDepth(int, ...interface{})
-pkg vlog, type InfoLog interface, InfoStack(bool)
-pkg vlog, type InfoLog interface, Infof(string, ...interface{})
-pkg vlog, type InfoLog interface, InfofDepth(int, string, ...interface{})
 pkg vlog, type Level llog.Level
-pkg vlog, type LevelStats llog.Stats
 pkg vlog, type LogDir string
 pkg vlog, type LogToStderr bool
-pkg vlog, type Logger interface { Configure, Error, ErrorDepth, Errorf, Fatal, FatalDepth, Fatalf, FlushLog, Info, InfoDepth, InfoStack, Infof, InfofDepth, LogDir, Panic, PanicDepth, Panicf, Stats, V, VI }
-pkg vlog, type Logger interface, Configure(...LoggingOpts) error
-pkg vlog, type Logger interface, Error(...interface{})
-pkg vlog, type Logger interface, ErrorDepth(int, ...interface{})
-pkg vlog, type Logger interface, Errorf(string, ...interface{})
-pkg vlog, type Logger interface, Fatal(...interface{})
-pkg vlog, type Logger interface, FatalDepth(int, ...interface{})
-pkg vlog, type Logger interface, Fatalf(string, ...interface{})
-pkg vlog, type Logger interface, FlushLog()
-pkg vlog, type Logger interface, Info(...interface{})
-pkg vlog, type Logger interface, InfoDepth(int, ...interface{})
-pkg vlog, type Logger interface, InfoStack(bool)
-pkg vlog, type Logger interface, Infof(string, ...interface{})
-pkg vlog, type Logger interface, InfofDepth(int, string, ...interface{})
-pkg vlog, type Logger interface, LogDir() string
-pkg vlog, type Logger interface, Panic(...interface{})
-pkg vlog, type Logger interface, PanicDepth(int, ...interface{})
-pkg vlog, type Logger interface, Panicf(string, ...interface{})
-pkg vlog, type Logger interface, Stats() LevelStats
-pkg vlog, type Logger interface, V(Level) bool
-pkg vlog, type Logger interface, VI(Level) InfoLog
+pkg vlog, type Logger struct
 pkg vlog, type LoggingOpts interface { LoggingOpt }
 pkg vlog, type LoggingOpts interface, LoggingOpt()
 pkg vlog, type MaxStackBufSize int
@@ -81,8 +74,5 @@ pkg vlog, type OverridePriorConfiguration bool
 pkg vlog, type StderrThreshold llog.Severity
 pkg vlog, type TraceLocation struct
 pkg vlog, type TraceLocation struct, embedded llog.TraceLocation
-pkg vlog, type Verbosity interface { V, VI }
-pkg vlog, type Verbosity interface, V(Level) bool
-pkg vlog, type Verbosity interface, VI(Level) InfoLog
 pkg vlog, var ErrConfigured error
-pkg vlog, var Log *logger
+pkg vlog, var Log *Logger
