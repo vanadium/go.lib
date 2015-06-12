@@ -10,6 +10,7 @@
 
   <!-- Relax the rule for external tests, but keep a curated list rather than
        allowing a blanket "..." to avoid adding unwanted dependencies. -->
+  <xtest allow="github.com/presotto/go-mdns-sd/..."/>
   <xtest allow="v.io/v23/..."/>
   <xtest allow="v.io/x/ref/..."/>
 </godepcop>
