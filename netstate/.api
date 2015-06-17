@@ -23,7 +23,6 @@ pkg netstate, func IsUnicastIP(Address) bool
 pkg netstate, func IsUnicastIPv4(Address) bool
 pkg netstate, func IsUnicastIPv6(Address) bool
 pkg netstate, func IsUnspecifiedIP(Address) bool
-pkg netstate, func LoopbackIPv4AddressChooser(string, []net.Addr) ([]net.Addr, error)
 pkg netstate, func NewNetAddr(string, string) net.Addr
 pkg netstate, func PossibleAddresses(string, string, AddressChooser) ([]net.Addr, bool, error)
 pkg netstate, func SameMachine(net.Addr) (bool, error)
@@ -33,6 +32,7 @@ pkg netstate, method (AddrList) AsNetAddrs() []net.Addr
 pkg netstate, method (AddrList) Filter(AddressPredicate) AddrList
 pkg netstate, method (AddrList) Map(Mapper) AddrList
 pkg netstate, method (AddrList) String() string
+pkg netstate, method (AddressChooserFunc) ChooseAddress(string, []net.Addr) ([]net.Addr, error)
 pkg netstate, method (IPRouteList) Filter(RoutePredicate) IPRouteList
 pkg netstate, method (IPRouteList) String() string
 pkg netstate, method (InterfaceList) String() string
@@ -42,7 +42,9 @@ pkg netstate, type Address interface, DebugString() string
 pkg netstate, type Address interface, Interface() NetworkInterface
 pkg netstate, type Address interface, Network() string
 pkg netstate, type Address interface, String() string
-pkg netstate, type AddressChooser func(protocol string, candidates []net.Addr) ([]net.Addr, error)
+pkg netstate, type AddressChooser interface { ChooseAddress }
+pkg netstate, type AddressChooser interface, ChooseAddress(string, []net.Addr) ([]net.Addr, error)
+pkg netstate, type AddressChooserFunc func(protocol string, candidates []net.Addr) ([]net.Addr, error)
 pkg netstate, type AddressPredicate func(a Address) bool
 pkg netstate, type IPNetworkInterface interface { Addrs, Flags, HardwareAddr, IPRoutes, Index, MTU, Name, Networks, String }
 pkg netstate, type IPNetworkInterface interface, Addrs() []net.Addr
@@ -73,3 +75,4 @@ pkg netstate, var ErrFailedToParseIPAddr error
 pkg netstate, var ErrNotAnIPProtocol error
 pkg netstate, var ErrUnspecifiedIPAddr error
 pkg netstate, var ErrUnsupportedProtocol error
+pkg netstate, var LoopbackIPv4AddressChooser AddressChooserFunc

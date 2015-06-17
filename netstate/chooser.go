@@ -10,14 +10,25 @@ import (
 )
 
 var (
+	LoopbackIPv4AddressChooser = AddressChooserFunc(func(protocol string, candidates []net.Addr) ([]net.Addr, error) {
+		return ConvertToAddresses(candidates).Filter(IsLoopbackIP).Filter(IsUnicastIPv4).AsNetAddrs(), nil
+	})
 	ErrNotAnIPProtocol = errors.New("requested protocol is not from the IP family")
 )
 
-// AddressChooser returns the address it prefers out of the set passed to it
-// for the specified protocol. It should return an error if the requested protocol
-// is not supported, but an empty slice of net.Addrs in the case for it fails to
-// find any appropriate addresses rather than an error.
-type AddressChooser func(protocol string, candidates []net.Addr) ([]net.Addr, error)
+// AddressChooser determines the preferred address to publish with the mount
+// table when one is not otherwise specified.
+type AddressChooser interface {
+	ChooseAddress(protocol string, candidates []net.Addr) ([]net.Addr, error)
+}
+
+// AddressChooserFunc is a convenience for implementations that wish to supply
+// a function literal implementation of AddressChooser.
+type AddressChooserFunc func(protocol string, candidates []net.Addr) ([]net.Addr, error)
+
+func (f AddressChooserFunc) ChooseAddress(protocol string, candidates []net.Addr) ([]net.Addr, error) {
+	return f(protocol, candidates)
+}
 
 // PossibleAddresses returns the set of addresses that can be used to reach the
 // specified host and that satisfy whatever policy is implemented by the supplied
@@ -68,10 +79,9 @@ func PossibleAddresses(protocol, addr string, chooser AddressChooser) ([]net.Add
 		return []net.Addr{WithIPHostAndPort(ipaddr, port)}, unspecified, nil
 	}
 	if chooser == nil {
-		addrs, err := LoopbackIPv4AddressChooser(protocol, candidates)
-		return addrs, unspecified, err
+		chooser = LoopbackIPv4AddressChooser
 	}
-	chosen, err := chooser(protocol, candidates)
+	chosen, err := chooser.ChooseAddress(protocol, candidates)
 	if err != nil {
 		return nil, unspecified, err
 	}
@@ -91,10 +101,4 @@ func PossibleAddresses(protocol, addr string, chooser AddressChooser) ([]net.Add
 		chosen = withPort.AsNetAddrs()
 	}
 	return chosen, unspecified, nil
-}
-
-// LoopbackIPv4AddressChooser will return the loopback IPv4 address if it is found
-// in the supplied candidates.
-func LoopbackIPv4AddressChooser(protocol string, candidates []net.Addr) ([]net.Addr, error) {
-	return ConvertToAddresses(candidates).Filter(IsLoopbackIP).Filter(IsUnicastIPv4).AsNetAddrs(), nil
 }

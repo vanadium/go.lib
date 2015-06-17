@@ -17,7 +17,7 @@ func TestChooser(t *testing.T) {
 	cleanup := netstate.CreateAndUseMockCache(ifcs, rt)
 	defer cleanup()
 
-	chooser := func(protocol string, addrs []net.Addr) ([]net.Addr, error) {
+	chooser := netstate.AddressChooserFunc(func(protocol string, addrs []net.Addr) ([]net.Addr, error) {
 		r := []net.Addr{}
 		for _, a := range netstate.ConvertToAddresses(addrs) {
 			if netstate.IsIPProtocol(a.Network()) {
@@ -25,7 +25,7 @@ func TestChooser(t *testing.T) {
 			}
 		}
 		return r, nil
-	}
+	})
 
 	addrs, unspecified, err := netstate.PossibleAddresses("tcp", "0.0.0.0", chooser)
 	if err != nil {
@@ -78,9 +78,9 @@ func TestChooserWithPorts(t *testing.T) {
 	cleanup := netstate.CreateAndUseMockCache(ifcs, rt)
 	defer cleanup()
 
-	chooser := func(protocol string, addrs []net.Addr) ([]net.Addr, error) {
+	chooser := netstate.AddressChooserFunc(func(protocol string, addrs []net.Addr) ([]net.Addr, error) {
 		return addrs, nil
-	}
+	})
 
 	addrs, unspecified, err := netstate.PossibleAddresses("tcp", "0.0.0.0:30", chooser)
 	if err != nil {
@@ -127,9 +127,9 @@ func TestChooserNoMatches(t *testing.T) {
 	cleanup := netstate.CreateAndUseMockCache(ifcs, rt)
 	defer cleanup()
 
-	chooser := func(protocol string, addrs []net.Addr) ([]net.Addr, error) {
+	chooser := netstate.AddressChooserFunc(func(protocol string, addrs []net.Addr) ([]net.Addr, error) {
 		return nil, nil
-	}
+	})
 
 	addrs, unspecified, err := netstate.PossibleAddresses("tcp", "0.0.0.0", chooser)
 	if err != nil {
@@ -182,9 +182,9 @@ func TestChooserIsNilAndErrors(t *testing.T) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
-	errorChooser := func(protocol string, addrs []net.Addr) ([]net.Addr, error) {
+	errorChooser := netstate.AddressChooserFunc(func(protocol string, addrs []net.Addr) ([]net.Addr, error) {
 		return nil, fmt.Errorf("a test error")
-	}
+	})
 	_, _, err = netstate.PossibleAddresses("tcp", "0.0.0.0", errorChooser)
 	if err == nil || err.Error() != "a test error" {
 		t.Fatal(err)
