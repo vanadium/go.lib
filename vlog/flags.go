@@ -82,7 +82,7 @@ func (l *Logger) String() string {
 	return l.log.String()
 }
 
-// ConfigureLoggerFromFlags will configure the logger using
+// ConfigureFromFlags will configure the logger using
 // command line flags.
 func (l *Logger) ConfigureFromFlags() error {
 	return l.Configure(
