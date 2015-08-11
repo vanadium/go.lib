@@ -1,5 +1,0 @@
-<godepcop>
-  <!-- The pubsub package pulls in verror, which pulls in a bunch of v23 deps.
-       TODO(cnicolaou,toddw): Remove the verror dependency. -->
-  <pkg allow="v.io/v23/..."/>
-</godepcop>
