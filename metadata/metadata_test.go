@@ -234,12 +234,12 @@ func TestBuiltIn(t *testing.T) {
 }
 
 // TestInitAndFlag builds a test binary with some metadata, and invokes the
-// -v23.metadata flag to make sure it dumps the expected metadata.
+// -metadata flag to make sure it dumps the expected metadata.
 func TestInitAndFlag(t *testing.T) {
 	// Run the test binary.
 	const id, value = "zzzTestID", "abcdefg"
 	x := FromMap(map[string]string{id: value})
-	cmdRun := exec.Command("go", "run", "-ldflags="+LDFlag(x), "./testdata/testbin.go", "-v23.metadata")
+	cmdRun := exec.Command("go", "run", "-ldflags="+LDFlag(x), "./testdata/testbin.go", "-metadata")
 	outXML, err := cmdRun.CombinedOutput()
 	if err != nil {
 		t.Errorf("%v failed: %v\n%v", cmdRun.Args, err, outXML)

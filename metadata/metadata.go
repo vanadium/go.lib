@@ -38,8 +38,8 @@
 // The built-in metadata comes pre-populated with the Go architecture, operating
 // system and version.
 //
-// This package registers a flag -v23.metadata via an init function.  Setting
-// -v23.metadata on the command-line causes the program to dump metadata in the
+// This package registers a flag -metadata via an init function.  Setting
+// -metadata on the command-line causes the program to dump metadata in the
 // XML format and exit.
 package metadata
 
@@ -308,7 +308,7 @@ metadata: built-in initialization failed (%v) from base64 data: %v
 	BuiltIn.Insert("go.OS", runtime.GOOS)
 	BuiltIn.Insert("go.Version", runtime.Version())
 
-	flag.Var(metadataFlag{}, "v23.metadata", "Displays metadata for the program and exits.")
+	flag.Var(metadataFlag{}, "metadata", "Displays metadata for the program and exits.")
 }
 
 // metadataFlag implements a flag that dumps the default metadata and exits the
@@ -316,7 +316,7 @@ metadata: built-in initialization failed (%v) from base64 data: %v
 type metadataFlag struct{}
 
 func (metadataFlag) IsBoolFlag() bool { return true }
-func (metadataFlag) String() string   { return "<just specify -v23.metadata to activate>" }
+func (metadataFlag) String() string   { return "<just specify -metadata to activate>" }
 func (metadataFlag) Set(string) error {
 	fmt.Println(BuiltIn.String())
 	os.Exit(0)

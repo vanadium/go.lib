@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"strings"
 
 	"v.io/x/lib/envvar"
 	"v.io/x/lib/textutil"
@@ -45,6 +46,21 @@ func (e *Env) UsageErrorf(format string, args ...interface{}) error {
 	return usageErrorf(e.Stderr, e.Usage, format, args...)
 }
 
+// Clone creates a deep copy of Env.
+func (e *Env) clone() *Env {
+	env := &Env{
+		Stdin:  e.Stdin,
+		Stdout: e.Stdout,
+		Stderr: e.Stderr,
+		Vars:   map[string]string{},
+		Usage:  e.Usage,
+	}
+	for key, value := range e.Vars {
+		env.Vars[key] = value
+	}
+	return env
+}
+
 func usageErrorf(w io.Writer, usage func(io.Writer), format string, args ...interface{}) error {
 	fmt.Fprint(w, "ERROR: ")
 	fmt.Fprintf(w, format, args...)
@@ -76,6 +92,18 @@ func (e *Env) style() style {
 	return style
 }
 
+func (e *Env) prefix() string {
+	return e.Vars["CMDLINE_PREFIX"]
+}
+
+func (e *Env) pathDirs() []string {
+	return strings.Split(e.Vars["PATH"], string(os.PathListSeparator))
+}
+
+func (e *Env) firstCall() bool {
+	return e.Vars["CMDLINE_FIRST_CALL"] == ""
+}
+
 // style describes the formatting style for usage descriptions.
 type style int
 
@@ -83,6 +111,7 @@ const (
 	styleCompact style = iota // Default style, good for compact cmdline output.
 	styleFull                 // Similar to compact but shows global flags.
 	styleGoDoc                // Style good for godoc processing.
+	styleShort                // Style good for displaying help of binary subcommands.
 )
 
 func (s *style) String() string {
@@ -93,6 +122,8 @@ func (s *style) String() string {
 		return "full"
 	case styleGoDoc:
 		return "godoc"
+	case styleShort:
+		return "short"
 	default:
 		panic(fmt.Errorf("unhandled style %d", *s))
 	}
@@ -107,6 +138,8 @@ func (s *style) Set(value string) error {
 		*s = styleFull
 	case "godoc":
 		*s = styleGoDoc
+	case "short":
+		*s = styleShort
 	default:
 		return fmt.Errorf("unknown style %q", value)
 	}
