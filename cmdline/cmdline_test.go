@@ -9,6 +9,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -2431,4 +2435,263 @@ func TestRootCommandFlags(t *testing.T) {
 	if got, want := *rs, "123"; got != want {
 		t.Errorf("rstring got %v want %v", got, want)
 	}
+}
+
+func TestBinarySubcommand(t *testing.T) {
+	// Create a temporary directory for the binary subcommands.
+	tmpDir, err := ioutil.TempDir("", "cmdline-test")
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Add the temporary directory to PATH.
+	oldPath := os.Getenv("PATH")
+	defer os.Setenv("PATH", oldPath)
+	tokens := strings.Split(oldPath, string(os.PathListSeparator))
+	tokens = append([]string{tmpDir}, tokens...)
+	os.Setenv("PATH", strings.Join(tokens, string(os.PathListSeparator)))
+
+	// Build the binary subcommands.
+	for _, subCmd := range []string{"flat", "foreign", "nested"} {
+		cmd := exec.Command("go", "build", "-o", filepath.Join(tmpDir, "unlikely-"+subCmd), filepath.Join(".", "testdata", subCmd+".go"))
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v, %v", string(out), err)
+		}
+	}
+
+	// Create a command that uses these.
+	cmd := &Command{
+		Name:     "unlikely",
+		Short:    "Short description of command unlikely",
+		Long:     "Long description of command unlikely.",
+		LookPath: true,
+		Children: []*Command{
+			&Command{
+				Runner: RunnerFunc(runHello),
+				Name:   "foo",
+				Short:  "Short description of command foo",
+				Long:   "Long description of command foo.",
+			},
+		},
+	}
+
+	var tests = []testCase{
+		{
+			Args: []string{"-help"},
+			Vars: map[string]string{
+				"PATH": strings.Join(tokens, string(os.PathListSeparator)),
+			},
+			Stdout: `Long description of command unlikely.
+
+Usage:
+   unlikely <command>
+
+The unlikely commands are:
+   foo         Short description of command foo
+   help        Display help for commands or topics
+   flat        Short description of command flat
+   foreign     No description available
+   nested      Short description of command nested
+Run "unlikely help [command]" for command usage.
+
+The global flags are:
+ -global1=
+   global test flag 1
+ -global2=0
+   global test flag 2
+`,
+		},
+		{
+			Args: []string{"help"},
+			Vars: map[string]string{
+				"PATH": strings.Join(tokens, string(os.PathListSeparator)),
+			},
+			Stdout: `Long description of command unlikely.
+
+Usage:
+   unlikely <command>
+
+The unlikely commands are:
+   foo         Short description of command foo
+   help        Display help for commands or topics
+   flat        Short description of command flat
+   foreign     No description available
+   nested      Short description of command nested
+Run "unlikely help [command]" for command usage.
+
+The global flags are:
+ -global1=
+   global test flag 1
+ -global2=0
+   global test flag 2
+`,
+		},
+		{
+			Args: []string{"help", "..."},
+			Vars: map[string]string{
+				"PATH": strings.Join(tokens, string(os.PathListSeparator)),
+			},
+			Stdout: `Long description of command unlikely.
+
+Usage:
+   unlikely <command>
+
+The unlikely commands are:
+   foo         Short description of command foo
+   help        Display help for commands or topics
+   flat        Short description of command flat
+   foreign     No description available
+   nested      Short description of command nested
+Run "unlikely help [command]" for command usage.
+
+The global flags are:
+ -global1=
+   global test flag 1
+ -global2=0
+   global test flag 2
+================================================================================
+Unlikely foo - Short description of command foo
+
+Long description of command foo.
+
+Usage:
+   unlikely foo
+================================================================================
+Unlikely flat - Short description of command flat
+
+Long description of command flat.
+
+Usage:
+   unlikely flat
+================================================================================
+Unlikely foreign - No description available
+================================================================================
+Unlikely nested - Short description of command nested
+
+Long description of command nested.
+
+Usage:
+   unlikely nested <command>
+
+The unlikely nested commands are:
+   child       Short description of command child
+================================================================================
+Unlikely nested child - Short description of command child
+
+Long description of command child.
+
+Usage:
+   unlikely nested child
+================================================================================
+Unlikely help - Display help for commands or topics
+
+Help with no args displays the usage of the parent command.
+
+Help with args displays the usage of the specified sub-command or help topic.
+
+"help ..." recursively displays help for all commands and topics.
+
+Usage:
+   unlikely help [flags] [command/topic ...]
+
+[command/topic ...] optionally identifies a specific sub-command or help topic.
+
+The unlikely help flags are:
+ -style=compact
+   The formatting style for help output:
+      compact - Good for compact cmdline output.
+      full    - Good for cmdline output, shows all global flags.
+      godoc   - Good for godoc processing.
+   Override the default by setting the CMDLINE_STYLE environment variable.
+ -width=80
+   Format output to this target width in runes, or unlimited if width < 0.
+   Defaults to the terminal width if available.  Override the default by setting
+   the CMDLINE_WIDTH environment variable.
+`,
+		},
+		{
+			Args: []string{"help", "-style=godoc", "..."},
+			Vars: map[string]string{
+				"PATH": strings.Join(tokens, string(os.PathListSeparator)),
+			},
+			Stdout: `Long description of command unlikely.
+
+Usage:
+   unlikely <command>
+
+The unlikely commands are:
+   foo         Short description of command foo
+   help        Display help for commands or topics
+   flat        Short description of command flat
+   foreign     No description available
+   nested      Short description of command nested
+
+The global flags are:
+ -global1=
+   global test flag 1
+ -global2=0
+   global test flag 2
+
+Unlikely foo - Short description of command foo
+
+Long description of command foo.
+
+Usage:
+   unlikely foo
+
+Unlikely flat - Short description of command flat
+
+Long description of command flat.
+
+Usage:
+   unlikely flat
+
+Unlikely foreign - No description available
+
+Unlikely nested - Short description of command nested
+
+Long description of command nested.
+
+Usage:
+   unlikely nested <command>
+
+The unlikely nested commands are:
+   child       Short description of command child
+
+Unlikely nested child - Short description of command child
+
+Long description of command child.
+
+Usage:
+   unlikely nested child
+
+Unlikely help - Display help for commands or topics
+
+Help with no args displays the usage of the parent command.
+
+Help with args displays the usage of the specified sub-command or help topic.
+
+"help ..." recursively displays help for all commands and topics.
+
+Usage:
+   unlikely help [flags] [command/topic ...]
+
+[command/topic ...] optionally identifies a specific sub-command or help topic.
+
+The unlikely help flags are:
+ -style=compact
+   The formatting style for help output:
+      compact - Good for compact cmdline output.
+      full    - Good for cmdline output, shows all global flags.
+      godoc   - Good for godoc processing.
+   Override the default by setting the CMDLINE_STYLE environment variable.
+ -width=<terminal width>
+   Format output to this target width in runes, or unlimited if width < 0.
+   Defaults to the terminal width if available.  Override the default by setting
+   the CMDLINE_WIDTH environment variable.
+`,
+		},
+	}
+	runTestCases(t, cmd, tests)
 }

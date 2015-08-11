@@ -41,9 +41,11 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"strings"
 
-	_ "v.io/x/lib/metadata" // for the -v23.metadata flag
+	"v.io/x/lib/envvar"
+	_ "v.io/x/lib/metadata" // for the -metadata flag
 )
 
 // Command represents a single command in a command-line program.  A program
@@ -57,6 +59,7 @@ type Command struct {
 	Flags    flag.FlagSet // Flags for the command.
 	ArgsName string       // Name of the args, shown in usage line.
 	ArgsLong string       // Long description of the args, shown in help.
+	LookPath bool         // Check for subcommands in PATH.
 
 	// Children of the command.
 	Children []*Command
@@ -157,7 +160,7 @@ func Parse(root *Command, env *Env, args []string) (Runner, []string, error) {
 	path := []*Command{root}
 	env.Usage = makeHelpRunner(path, env).usageFunc
 	cleanTree(root)
-	if err := checkTreeInvariants(path); err != nil {
+	if err := checkTreeInvariants(path, env); err != nil {
 		return nil, nil, err
 	}
 	runner, args, err := root.parse(nil, env, args)
@@ -204,8 +207,8 @@ func cleanFlags(flags *flag.FlagSet) {
 	})
 }
 
-func checkTreeInvariants(path []*Command) error {
-	cmd, cmdPath := path[len(path)-1], pathName(path)
+func checkTreeInvariants(path []*Command, env *Env) error {
+	cmd, cmdPath := path[len(path)-1], pathName(env.prefix(), path)
 	// Check that the root name is non-empty.
 	if cmdPath == "" {
 		return fmt.Errorf(`CODE INVARIANT BROKEN; FIX YOUR CODE
@@ -255,24 +258,27 @@ Otherwise a conflict between child names and runner args is possible.`, cmdPath)
 	}
 	// Check recursively for all children
 	for _, child := range cmd.Children {
-		if err := checkTreeInvariants(append(path, child)); err != nil {
+		if err := checkTreeInvariants(append(path, child), env); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func pathName(path []*Command) string {
+func pathName(prefix string, path []*Command) string {
 	name := path[0].Name
 	for _, cmd := range path[1:] {
 		name += " " + cmd.Name
+	}
+	if prefix != "" {
+		return prefix + " " + name
 	}
 	return name
 }
 
 func (cmd *Command) parse(path []*Command, env *Env, args []string) (Runner, []string, error) {
 	path = append(path, cmd)
-	cmdPath := pathName(path)
+	cmdPath := pathName(env.prefix(), path)
 	runHelp := makeHelpRunner(path, env)
 	env.Usage = runHelp.usageFunc
 	// Parse flags and retrieve the args remaining after the parse.
@@ -304,7 +310,14 @@ func (cmd *Command) parse(path []*Command, env *Env, args []string) (Runner, []s
 			return runHelp.newCommand().parse(path, env, subArgs)
 		}
 	}
-	// No matching children, check various error cases.
+	if cmd.LookPath {
+		// Look for a matching executable in PATH.
+		subCmd := cmd.Name + "-" + subName
+		if lookPath(subCmd, env.pathDirs()) {
+			return binaryRunner{subCmd, cmdPath}, subArgs, nil
+		}
+	}
+	// No matching subcommands, check various error cases.
 	switch {
 	case cmd.Runner == nil:
 		return nil, nil, env.UsageErrorf("%s: unknown command %q", cmdPath, subName)
@@ -405,4 +418,59 @@ func ExitCode(err error, w io.Writer) int {
 		fmt.Fprintf(w, "ERROR: %v\n", err)
 	}
 	return 1
+}
+
+type binaryRunner struct {
+	subCmd  string
+	cmdPath string
+}
+
+func (b binaryRunner) Run(env *Env, args []string) error {
+	cmd := exec.Command(b.subCmd, args...)
+	cmd.Stdin = env.Stdin
+	cmd.Stdout = env.Stdout
+	cmd.Stderr = env.Stderr
+	cmd.Env = envvar.MapToSlice(env.Vars)
+	cmd.Env = append(cmd.Env, "CMDLINE_PREFIX="+b.cmdPath)
+	return cmd.Run()
+}
+
+// lookPath returns a boolean that indicates whether executable <name>
+// can be found in any of the given directories.
+func lookPath(name string, dirs []string) bool {
+	for _, dir := range dirs {
+		fileInfos, err := ioutil.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, fileInfo := range fileInfos {
+			if m := fileInfo.Mode(); !m.IsRegular() || (m&os.FileMode(0111)) == 0 {
+				continue
+			}
+			if fileInfo.Name() == name {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// lookPathAll returns a list of all executables found in the given
+// directories whose name starts with "<name>-".
+func lookPathAll(name string, dirs []string) (result []string) {
+	for _, dir := range dirs {
+		fileInfos, err := ioutil.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, fileInfo := range fileInfos {
+			if m := fileInfo.Mode(); !m.IsRegular() || (m&os.FileMode(0111)) == 0 {
+				continue
+			}
+			if strings.HasPrefix(fileInfo.Name(), name+"-") {
+				result = append(result, fileInfo.Name())
+			}
+		}
+	}
+	return
 }
