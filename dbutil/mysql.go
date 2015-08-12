@@ -71,7 +71,7 @@ type ActiveSqlConfig struct {
 	// tlsConfigIdentifier is the identifier under which the TLS configuration
 	// is registered with go-sql-driver. It is computed as a secure hash of the
 	// SqlConfig after resolving any relative paths.
-	tlsConfigIdentifier string `json:"-"`
+	tlsConfigIdentifier string
 }
 
 // Parses the SQL configuration file pointed to by sqlConfigFile (format

@@ -187,7 +187,10 @@ func TestRoutePredicate(t *testing.T) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
-	defaultRoute := net.IPNet{net.IPv4zero, make([]byte, net.IPv4len)}
+	defaultRoute := net.IPNet{
+		IP:   net.IPv4zero,
+		Mask: make([]byte, net.IPv4len),
+	}
 	// Make eth1 a default route.
 	net2Net := rt[2][0].Net
 	rt[2][0].Net = defaultRoute
@@ -222,7 +225,10 @@ func TestRoutePredicate(t *testing.T) {
 
 	// Now that we have an IPv6 default route that matches an IPv6 gateway
 	// we can expect to find the IPv6 host address
-	rt[6][1].Net = net.IPNet{net.IPv6zero, make([]byte, net.IPv6len)}
+	rt[6][1].Net = net.IPNet{
+		IP:   net.IPv6zero,
+		Mask: make([]byte, net.IPv6len),
+	}
 	if got, want := al.Filter(netstate.IsOnDefaultRoute), (netstate.AddrList{net3_addr, net4_addr, net5_addr}); !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v, want %v", got, want)
 	}

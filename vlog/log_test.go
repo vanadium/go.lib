@@ -79,8 +79,8 @@ func TestHeaders(t *testing.T) {
 			t.Errorf("failed to find file in %s", line)
 			continue
 		}
-		if name[1] != "log_test.go" {
-			t.Errorf("unexpected file name: %s", name[1])
+		if got, want := name[1], "log_test.go"; got != want {
+			t.Errorf("unexpected file name: got %s, want %s\n%v", got, want, contents)
 			continue
 		}
 	}

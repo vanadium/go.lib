@@ -117,14 +117,6 @@ func (w *bsdNetConfigWatcher) watcher() {
 			w.Unlock()
 		}
 	}
-
-	w.Stop()
-	w.Lock()
-	close(w.c)
-	if w.t != nil {
-		w.t.Stop()
-	}
-	w.Unlock()
 }
 
 func toIP(sa syscall.Sockaddr) (net.IP, error) {

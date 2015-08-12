@@ -77,7 +77,7 @@ func generate(args []string) error {
 	runCmd.Stdout = &out
 	runCmd.Env = env
 	if err := runCmd.Run(); err != nil {
-		return fmt.Errorf("%q failed: %v\n%v\n", strings.Join(runCmd.Args, " "), err)
+		return fmt.Errorf("%q failed: %v\n%v\n", strings.Join(runCmd.Args, " "), err, out.String())
 	}
 	doc := fmt.Sprintf(`// Copyright 2015 The Vanadium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style

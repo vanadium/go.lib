@@ -39,16 +39,50 @@ func mockInterfacesAndRouteTable() ([]net.IP, []netstate.NetworkInterface, netst
 	lb_ip, lb_net, _ := net.ParseCIDR(lb_a)
 
 	_, defaultDest, _ := net.ParseCIDR("0.0.0.0/0")
-	def := netconfig.IPRoute{*defaultDest, def_gw0, def_gw1, 3}
-
-	rt1 := []*netconfig.IPRoute{{*net1, net1_gw, nil, 1}}
-	rt2 := []*netconfig.IPRoute{{*net2, net2_gw, nil, 2}}
-	rt3 := []*netconfig.IPRoute{{*net3, net3_gw, nil, 3}, &def}
+	def := netconfig.IPRoute{
+		Net:             *defaultDest,
+		Gateway:         def_gw0,
+		PreferredSource: def_gw1,
+		IfcIndex:        3,
+	}
+	rt1 := []*netconfig.IPRoute{{
+		Net:             *net1,
+		Gateway:         net1_gw,
+		PreferredSource: nil,
+		IfcIndex:        1,
+	}}
+	rt2 := []*netconfig.IPRoute{{
+		Net:             *net2,
+		Gateway:         net2_gw,
+		PreferredSource: nil,
+		IfcIndex:        2,
+	}}
+	rt3 := []*netconfig.IPRoute{{
+		Net:             *net3,
+		Gateway:         net3_gw,
+		PreferredSource: nil,
+		IfcIndex:        3,
+	}, &def}
 	// Nets 4 and 5 are on the same interface
-	rt4_0 := &netconfig.IPRoute{*net4, net4_gw, nil, 6}
-	rt4_1 := &netconfig.IPRoute{*net5, net5_gw, nil, 6}
+	rt4_0 := &netconfig.IPRoute{
+		Net:             *net4,
+		Gateway:         net4_gw,
+		PreferredSource: nil,
+		IfcIndex:        6,
+	}
+	rt4_1 := &netconfig.IPRoute{
+		Net:             *net5,
+		Gateway:         net5_gw,
+		PreferredSource: nil,
+		IfcIndex:        6,
+	}
 	rt4 := []*netconfig.IPRoute{rt4_0, rt4_1}
-	lb := []*netconfig.IPRoute{{*lb_net, lb_ip, nil, 7}, &def}
+	lb := []*netconfig.IPRoute{{
+		Net:             *lb_net,
+		Gateway:         lb_ip,
+		PreferredSource: nil,
+		IfcIndex:        7,
+	}, &def}
 
 	rt := make(netstate.RouteTable)
 	for _, r := range [][]*netconfig.IPRoute{rt1, rt2, rt3, rt4} {

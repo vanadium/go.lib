@@ -192,7 +192,7 @@ func (l *Logger) Info(args ...interface{}) {
 // Infof logs to the INFO log.
 // Arguments are handled in the manner of fmt.Printf; a newline is appended if missing.
 func (l *Logger) Infof(format string, args ...interface{}) {
-	l.log.Printf(llog.InfoLog, format, args...)
+	l.log.PrintfDepth(llog.InfoLog, 0, format, args...)
 	l.maybeFlush()
 }
 
@@ -210,12 +210,12 @@ func infoStack(l *Logger, all bool) {
 		trace = make([]byte, n)
 		nbytes := runtime.Stack(trace, all)
 		if nbytes < len(trace) {
-			l.log.Printf(llog.InfoLog, "%s", trace[:nbytes])
+			l.log.PrintfDepth(llog.InfoLog, 0, "%s", trace[:nbytes])
 			return
 		}
 		n *= 2
 	}
-	l.log.Printf(llog.InfoLog, "%s", trace)
+	l.log.PrintfDepth(llog.InfoLog, 0, "%s", trace)
 	l.maybeFlush()
 }
 
@@ -281,7 +281,7 @@ func (l *Logger) ErrorDepth(depth int, args ...interface{}) {
 // Errorf logs to the ERROR and INFO logs.
 // Arguments are handled in the manner of fmt.Printf; a newline is appended if missing.
 func (l *Logger) Errorf(format string, args ...interface{}) {
-	l.log.Printf(llog.ErrorLog, format, args...)
+	l.log.PrintfDepth(llog.ErrorLog, 0, format, args...)
 	l.maybeFlush()
 }
 
@@ -302,7 +302,7 @@ func (l *Logger) FatalDepth(depth int, args ...interface{}) {
 // including a stack trace of all running goroutines, then calls os.Exit(255).
 // Arguments are handled in the manner of fmt.Printf; a newline is appended if missing.
 func (l *Logger) Fatalf(format string, args ...interface{}) {
-	l.log.Printf(llog.FatalLog, format, args...)
+	l.log.PrintfDepth(llog.FatalLog, 0, format, args...)
 }
 
 // Panic is equivalent to Error() followed by a call to panic().

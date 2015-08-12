@@ -105,7 +105,7 @@ func TestConversions(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatalf("%p isn't one of in %v", al[0], all)
+		t.Fatalf("%v isn't one of in %v", al[0], all)
 	}
 }
 
