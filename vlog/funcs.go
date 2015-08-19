@@ -38,7 +38,7 @@ func InfoStack(all bool) {
 
 // V returns true if the configured logging level is greater than or equal to its parameter
 func V(level Level) bool {
-	return Log.log.V(llog.Level(level))
+	return Log.log.VDepth(0, llog.Level(level))
 }
 
 // VI is like V, except that it returns an instance of the Info
@@ -62,7 +62,7 @@ func VI(level Level) interface {
 	// is false, or the stacks of all goroutines if it's true.
 	InfoStack(all bool)
 } {
-	if Log.log.V(llog.Level(level)) {
+	if Log.log.VDepth(0, llog.Level(level)) {
 		return Log
 	}
 	return &discardInfo{}
