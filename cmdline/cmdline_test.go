@@ -2695,3 +2695,6 @@ The unlikely help flags are:
 	}
 	runTestCases(t, cmd, tests)
 }
+
+// TODO(toddw): Add a test for the case when "help ..." is passed to a
+// childless subcommand.

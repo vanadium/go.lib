@@ -17,10 +17,15 @@
 // precedes it.  Flags registered on flag.CommandLine are considered global
 // flags, and are allowed anywhere a command-specific flag is allowed.
 //
-// Pretty usage documentation is automatically generated, and accessible either
-// via the standard -h / -help flags from the Go flag package, or a special help
-// command.  The help command is automatically appended to commands that already
-// have at least one child, and don't already have a "help" child.
+// Pretty usage documentation is automatically generated, and
+// accessible either via the standard -h / -help flags from the Go
+// flag package, or a special help command.  The help command is
+// automatically appended to commands that already have at least one
+// child, and don't already have a "help" child. Commands that do not
+// have any children will exit with an error if invoked with the "help
+// ..."  arguments; this behavior is relied on when generating
+// recursive help to distinguish between binary-based subcommands with
+// and without children.
 //
 // Pitfalls
 //
@@ -42,6 +47,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"reflect"
 	"strings"
 
 	"v.io/x/lib/envvar"
@@ -326,8 +332,12 @@ func (cmd *Command) parse(path []*Command, env *Env, args []string) (Runner, []s
 			return nil, nil, env.UsageErrorf("%s: unknown command %q", cmdPath, subName)
 		}
 		return nil, nil, env.UsageErrorf("%s: doesn't take arguments", cmdPath)
+	case reflect.DeepEqual(args, []string{helpName, "..."}):
+		return nil, nil, env.UsageErrorf("%s: unsupported help invocation", cmdPath)
 	}
-	// INVARIANT: cmd.Runner != nil && len(args) > 0 && cmd.ArgsName != ""
+	// INVARIANT:
+	// cmd.Runner != nil && len(args) > 0 &&
+	// cmd.ArgsName != "" && args != []string{"help", "..."}
 	return cmd.Runner, args, nil
 }
 
