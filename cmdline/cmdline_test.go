@@ -2445,15 +2445,16 @@ func TestBinarySubcommand(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// Add the temporary directory to PATH.
+	// Add the temporary directory to PATH.  We add it twice to ensure dups are
+	// filtered in the resulting output.
 	oldPath := os.Getenv("PATH")
 	defer os.Setenv("PATH", oldPath)
 	tokens := strings.Split(oldPath, string(os.PathListSeparator))
-	tokens = append([]string{tmpDir}, tokens...)
+	tokens = append([]string{tmpDir, tmpDir}, tokens...)
 	os.Setenv("PATH", strings.Join(tokens, string(os.PathListSeparator)))
 
 	// Build the binary subcommands.
-	for _, subCmd := range []string{"flat", "foreign", "nested"} {
+	for _, subCmd := range []string{"flat", "foreign", "nested", "repeated", "exitcode"} {
 		cmd := exec.Command("go", "build", "-o", filepath.Join(tmpDir, "unlikely-"+subCmd), filepath.Join(".", "testdata", subCmd+".go"))
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("%v, %v", string(out), err)
@@ -2473,6 +2474,12 @@ func TestBinarySubcommand(t *testing.T) {
 				Short:  "Short description of command foo",
 				Long:   "Long description of command foo.",
 			},
+			&Command{
+				Runner: RunnerFunc(runHello),
+				Name:   "repeated",
+				Short:  "Repeated appears as both a child and as a binary",
+				Long:   "Long description of command repeated.",
+			},
 		},
 	}
 
@@ -2489,7 +2496,9 @@ Usage:
 
 The unlikely commands are:
    foo         Short description of command foo
+   repeated    Repeated appears as both a child and as a binary
    help        Display help for commands or topics
+   exitcode    Short description of command exitcode
    flat        Short description of command flat
    foreign     No description available
    nested      Short description of command nested
@@ -2514,7 +2523,9 @@ Usage:
 
 The unlikely commands are:
    foo         Short description of command foo
+   repeated    Repeated appears as both a child and as a binary
    help        Display help for commands or topics
+   exitcode    Short description of command exitcode
    flat        Short description of command flat
    foreign     No description available
    nested      Short description of command nested
@@ -2539,7 +2550,9 @@ Usage:
 
 The unlikely commands are:
    foo         Short description of command foo
+   repeated    Repeated appears as both a child and as a binary
    help        Display help for commands or topics
+   exitcode    Short description of command exitcode
    flat        Short description of command flat
    foreign     No description available
    nested      Short description of command nested
@@ -2558,12 +2571,30 @@ Long description of command foo.
 Usage:
    unlikely foo
 ================================================================================
+Unlikely repeated - Repeated appears as both a child and as a binary
+
+Long description of command repeated.
+
+Usage:
+   unlikely repeated
+================================================================================
+Unlikely exitcode - Short description of command exitcode
+
+Long description of command exitcode.
+
+Usage:
+   unlikely exitcode [args]
+
+[args] are ignored
+================================================================================
 Unlikely flat - Short description of command flat
 
 Long description of command flat.
 
 Usage:
-   unlikely flat
+   unlikely flat [args]
+
+[args] are ignored
 ================================================================================
 Unlikely foreign - No description available
 ================================================================================
@@ -2622,7 +2653,9 @@ Usage:
 
 The unlikely commands are:
    foo         Short description of command foo
+   repeated    Repeated appears as both a child and as a binary
    help        Display help for commands or topics
+   exitcode    Short description of command exitcode
    flat        Short description of command flat
    foreign     No description available
    nested      Short description of command nested
@@ -2640,12 +2673,30 @@ Long description of command foo.
 Usage:
    unlikely foo
 
+Unlikely repeated - Repeated appears as both a child and as a binary
+
+Long description of command repeated.
+
+Usage:
+   unlikely repeated
+
+Unlikely exitcode - Short description of command exitcode
+
+Long description of command exitcode.
+
+Usage:
+   unlikely exitcode [args]
+
+[args] are ignored
+
 Unlikely flat - Short description of command flat
 
 Long description of command flat.
 
 Usage:
-   unlikely flat
+   unlikely flat [args]
+
+[args] are ignored
 
 Unlikely foreign - No description available
 
@@ -2692,9 +2743,33 @@ The unlikely help flags are:
    the CMDLINE_WIDTH environment variable.
 `,
 		},
+		{
+			Args: []string{"flat", "help", "..."},
+			Vars: map[string]string{
+				"PATH": strings.Join(tokens, string(os.PathListSeparator)),
+			},
+			Err: errUsageStr,
+			Stderr: `ERROR: unlikely flat: unsupported help invocation
+
+Long description of command flat.
+
+Usage:
+   unlikely flat [args]
+
+[args] are ignored
+
+The global flags are:
+ -metadata=<just specify -metadata to activate>
+   Displays metadata for the program and exits.
+`,
+		},
+		{
+			Args: []string{"exitcode"},
+			Vars: map[string]string{
+				"PATH": strings.Join(tokens, string(os.PathListSeparator)),
+			},
+			Err: "exit code 42",
+		},
 	}
 	runTestCases(t, cmd, tests)
 }
-
-// TODO(toddw): Add a test for the case when "help ..." is passed to a
-// childless subcommand.

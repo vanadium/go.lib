@@ -215,7 +215,7 @@ func usageAll(w *textutil.LineWriter, path []*Command, config *helpConfig, first
 		usageAll(w, append(path, child), config, false)
 	}
 	if cmd.LookPath {
-		subCmds := lookPathAll(cmd.Name, config.env.pathDirs())
+		subCmds := lookPathAll(cmd.Name, config.env.pathDirs(), cmd.subNames())
 		for _, subCmd := range subCmds {
 			runner := binaryRunner{subCmd, cmdPath}
 			var buffer bytes.Buffer
@@ -282,7 +282,7 @@ func usage(w *textutil.LineWriter, path []*Command, config *helpConfig, firstCal
 	}
 	var subCmds []string
 	if cmd.LookPath {
-		subCmds = lookPathAll(cmd.Name, config.env.pathDirs())
+		subCmds = lookPathAll(cmd.Name, config.env.pathDirs(), cmd.subNames())
 	}
 	if !firstCall {
 		lineBreak(w, config.style)

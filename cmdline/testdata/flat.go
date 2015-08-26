@@ -10,10 +10,12 @@ import (
 
 // cmdFlat represents the flat command.
 var cmdFlat = &cmdline.Command{
-	Runner: cmdline.RunnerFunc(runFlat),
-	Name:   "flat",
-	Short:  "Short description of command flat",
-	Long:   "Long description of command flat.",
+	Runner:   cmdline.RunnerFunc(runFlat),
+	Name:     "flat",
+	Short:    "Short description of command flat",
+	Long:     "Long description of command flat.",
+	ArgsName: "[args]",
+	ArgsLong: "[args] are ignored",
 }
 
 func runFlat(env *cmdline.Env, _ []string) error {

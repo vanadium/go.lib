@@ -49,6 +49,7 @@ import (
 	"os/exec"
 	"reflect"
 	"strings"
+	"syscall"
 
 	"v.io/x/lib/envvar"
 	_ "v.io/x/lib/metadata" // for the -metadata flag
@@ -398,6 +399,16 @@ func copyFlags(flags *flag.FlagSet) *flag.FlagSet {
 	return cp
 }
 
+// subNames returns the sub names of c which should be ignored when using look
+// path to find external binaries.
+func (c *Command) subNames() map[string]bool {
+	m := map[string]bool{"help": true}
+	for _, child := range c.Children {
+		m[child.Name] = true
+	}
+	return m
+}
+
 // ErrExitCode may be returned by Runner.Run to cause the program to exit with a
 // specific error code.
 type ErrExitCode int
@@ -442,7 +453,14 @@ func (b binaryRunner) Run(env *Env, args []string) error {
 	cmd.Stderr = env.Stderr
 	cmd.Env = envvar.MapToSlice(env.Vars)
 	cmd.Env = append(cmd.Env, "CMDLINE_PREFIX="+b.cmdPath)
-	return cmd.Run()
+	err := cmd.Run()
+	// Make sure we return the exit code from the binary, if it exited.
+	if exitError, ok := err.(*exec.ExitError); ok {
+		if status, ok := exitError.Sys().(syscall.WaitStatus); ok {
+			return ErrExitCode(status.ExitStatus())
+		}
+	}
+	return err
 }
 
 // lookPath returns a boolean that indicates whether executable <name>
@@ -465,9 +483,10 @@ func lookPath(name string, dirs []string) bool {
 	return false
 }
 
-// lookPathAll returns a list of all executables found in the given
-// directories whose name starts with "<name>-".
-func lookPathAll(name string, dirs []string) (result []string) {
+// lookPathAll returns a deduped list of all executables found in the given
+// directories whose name starts with "<name>-", and where the name doesn't
+// match the given seen set.  The seen set may be mutated by this function.
+func lookPathAll(name string, dirs []string, seen map[string]bool) (result []string) {
 	for _, dir := range dirs {
 		fileInfos, err := ioutil.ReadDir(dir)
 		if err != nil {
@@ -477,9 +496,15 @@ func lookPathAll(name string, dirs []string) (result []string) {
 			if m := fileInfo.Mode(); !m.IsRegular() || (m&os.FileMode(0111)) == 0 {
 				continue
 			}
-			if strings.HasPrefix(fileInfo.Name(), name+"-") {
-				result = append(result, fileInfo.Name())
+			if !strings.HasPrefix(fileInfo.Name(), name+"-") {
+				continue
 			}
+			subname := fileInfo.Name()[len(name+"-"):]
+			if seen[subname] {
+				continue
+			}
+			seen[subname] = true
+			result = append(result, fileInfo.Name())
 		}
 	}
 	return
