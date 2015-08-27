@@ -194,7 +194,7 @@ func TestInsertLookup(t *testing.T) {
 
 func TestLDFlag(t *testing.T) {
 	for _, test := range allTests {
-		got, want := LDFlag(test.MD), "-X "+thisPkgPath+".initBuiltIn "+test.B64
+		got, want := LDFlag(test.MD), "-X "+thisPkgPath+".initBuiltIn="+test.B64
 		if got != want {
 			t.Errorf("got %q, want %q", got, want)
 		}

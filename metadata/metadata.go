@@ -254,11 +254,11 @@ func LDFlag(x *T) string {
 // the flag through the go toolchain.  An example of using the result to install
 // a Go binary with metadata x:
 //
-//   LDFlagExternal("main", "myvar", x) == "-X main.myvar eJwBAAD//wAAAAE="
+//   LDFlagExternal("main", "myvar", x) == "-X main.myvar=eJwBAAD//wAAAAE="
 //
-//   $ go install -ldflags="-X main.myvar eJwBAAD//wAAAAE=" mypackage
+//   $ go install -ldflags="-X main.myvar=eJwBAAD//wAAAAE=" mypackage
 func LDFlagExternal(pkgpath, variable string, x *T) string {
-	return fmt.Sprintf("-X %s.%s %s", pkgpath, variable, x.ToBase64())
+	return fmt.Sprintf("-X %s.%s=%s", pkgpath, variable, x.ToBase64())
 }
 
 // Insert sets the built-in metadata entry for id to value, and returns the
