@@ -67,15 +67,12 @@ func generate(args []string) error {
 		tagsConstraint = fmt.Sprintf("// +build %s\n\n", flagTags)
 	}
 	var out bytes.Buffer
-	env := os.Environ()
 	if len(args) == 0 {
-		args = []string{"help", "-style=godoc", "..."}
-	} else {
-		env = append(env, "CMDLINE_STYLE=godoc")
+		args = []string{"help", "..."}
 	}
 	runCmd := exec.Command(gendocBin, args...)
 	runCmd.Stdout = &out
-	runCmd.Env = env
+	runCmd.Env = environ()
 	if err := runCmd.Run(); err != nil {
 		return fmt.Errorf("%q failed: %v\n%v\n", strings.Join(runCmd.Args, " "), err, out.String())
 	}
@@ -97,4 +94,20 @@ package main
 		return fmt.Errorf("WriteFile(%v, %v) failed: %v\n", path, perm, err)
 	}
 	return nil
+}
+
+// environ returns the environment variables to use when running the command to
+// retrieve full help information.
+func environ() []string {
+	var env []string
+	for _, e := range os.Environ() {
+		// Strip out all existing CMDLINE_* envvars to start with a clean slate.
+		// E.g. otherwise if CMDLINE_PREFIX is set, it'll taint all of the output.
+		if !strings.HasPrefix(e, "CMDLINE_") {
+			env = append(env, e)
+		}
+	}
+	// We want the godoc style for our generated documentation.
+	env = append(env, "CMDLINE_STYLE=godoc")
+	return env
 }

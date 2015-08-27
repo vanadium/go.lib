@@ -275,15 +275,6 @@ func usage(w *textutil.LineWriter, path []*Command, config *helpConfig, firstCal
 		fmt.Fprintln(w, cmd.Short)
 		return
 	}
-	children := cmd.Children
-	if firstCall && needsHelpChild(cmd) {
-		help := helpRunner{path, config}.newCommand()
-		children = append(children, help)
-	}
-	var subCmds []string
-	if cmd.LookPath {
-		subCmds = lookPathAll(cmd.Name, config.env.pathDirs(), cmd.subNames())
-	}
 	if !firstCall {
 		lineBreak(w, config.style)
 		w.ForceVerbatim(true)
@@ -306,14 +297,18 @@ func usage(w *textutil.LineWriter, path []*Command, config *helpConfig, firstCal
 			fmt.Fprintln(w, cmdPathF)
 		}
 	}
-	hasSubcommands := len(subCmds) > 0 || len(children) > 0
+	var subCmds []string
+	if cmd.LookPath {
+		subCmds = lookPathAll(cmd.Name, config.env.pathDirs(), cmd.subNames())
+	}
+	hasSubcommands := len(subCmds) > 0 || len(cmd.Children) > 0
 	if hasSubcommands {
 		fmt.Fprintln(w, cmdPathF, "<command>")
 	}
 	// Compute the name width.
 	const minNameWidth = 11
 	nameWidth := minNameWidth
-	for _, child := range children {
+	for _, child := range cmd.Children {
 		if len(child.Name) > nameWidth {
 			nameWidth = len(child.Name)
 		}
@@ -331,11 +326,14 @@ func usage(w *textutil.LineWriter, path []*Command, config *helpConfig, firstCal
 		// Print as a table with aligned columns Name and Short.
 		w.SetIndents(spaces(3), spaces(3+nameWidth+1))
 	}
+	printShort := func(name, short string) {
+		fmt.Fprintf(w, "%-[1]*[2]s %[3]s", nameWidth, name, short)
+		w.Flush()
+	}
 	// Built-in subcommands.
-	if len(children) > 0 {
-		for _, child := range children {
-			fmt.Fprintf(w, "%-[1]*[2]s %[3]s", nameWidth, child.Name, child.Short)
-			w.Flush()
+	if len(cmd.Children) > 0 {
+		for _, child := range cmd.Children {
+			printShort(child.Name, child.Short)
 		}
 	}
 	// Binary subcommands.
@@ -349,14 +347,17 @@ func usage(w *textutil.LineWriter, path []*Command, config *helpConfig, firstCal
 			env.Vars["CMDLINE_STYLE"] = "short"
 			if err := runner.Run(env, []string{"-help"}); err == nil {
 				// The binary subcommand supports "-help".
-				fmt.Fprintf(w, "%-[1]*[2]s %[3]s", nameWidth, strings.TrimPrefix(subCmd, cmd.Name+"-"), buffer.String())
-				w.Flush()
-				continue
+				printShort(strings.TrimPrefix(subCmd, cmd.Name+"-"), buffer.String())
+			} else {
+				// The binary subcommand does not support "-help".
+				printShort(strings.TrimPrefix(subCmd, cmd.Name+"-"), missingDescription)
 			}
-			// The binary subcommand does not support "-help".
-			fmt.Fprintf(w, "%-[1]*[2]s %[3]s", nameWidth, strings.TrimPrefix(subCmd, cmd.Name+"-"), missingDescription)
-			w.Flush()
 		}
+	}
+	// Default help command.
+	if firstCall && needsHelpChild(cmd) {
+		help := helpRunner{path, config}.newCommand()
+		printShort(help.Name, help.Short)
 	}
 	// Command footer.
 	if hasSubcommands {

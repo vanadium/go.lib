@@ -2497,11 +2497,11 @@ Usage:
 The unlikely commands are:
    foo         Short description of command foo
    repeated    Repeated appears as both a child and as a binary
-   help        Display help for commands or topics
    exitcode    Short description of command exitcode
    flat        Short description of command flat
    foreign     No description available
    nested      Short description of command nested
+   help        Display help for commands or topics
 Run "unlikely help [command]" for command usage.
 
 The global flags are:
@@ -2524,11 +2524,11 @@ Usage:
 The unlikely commands are:
    foo         Short description of command foo
    repeated    Repeated appears as both a child and as a binary
-   help        Display help for commands or topics
    exitcode    Short description of command exitcode
    flat        Short description of command flat
    foreign     No description available
    nested      Short description of command nested
+   help        Display help for commands or topics
 Run "unlikely help [command]" for command usage.
 
 The global flags are:
@@ -2551,11 +2551,11 @@ Usage:
 The unlikely commands are:
    foo         Short description of command foo
    repeated    Repeated appears as both a child and as a binary
-   help        Display help for commands or topics
    exitcode    Short description of command exitcode
    flat        Short description of command flat
    foreign     No description available
    nested      Short description of command nested
+   help        Display help for commands or topics
 Run "unlikely help [command]" for command usage.
 
 The global flags are:
@@ -2654,11 +2654,11 @@ Usage:
 The unlikely commands are:
    foo         Short description of command foo
    repeated    Repeated appears as both a child and as a binary
-   help        Display help for commands or topics
    exitcode    Short description of command exitcode
    flat        Short description of command flat
    foreign     No description available
    nested      Short description of command nested
+   help        Display help for commands or topics
 
 The global flags are:
  -global1=
