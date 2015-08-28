@@ -240,7 +240,7 @@ func TestInitAndFlag(t *testing.T) {
 	const id, value = "zzzTestID", "abcdefg"
 	x := FromMap(map[string]string{id: value})
 	cmdRun := exec.Command("go", "run", "-ldflags="+LDFlag(x), "./testdata/testbin.go", "-metadata")
-	outXML, err := cmdRun.CombinedOutput()
+	outXML, err := cmdRun.Output()
 	if err != nil {
 		t.Errorf("%v failed: %v\n%v", cmdRun.Args, err, outXML)
 	}
