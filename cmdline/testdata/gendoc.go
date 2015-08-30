@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -86,7 +87,7 @@ func generate(args []string) error {
 %s/*
 %s*/
 package main
-`, tagsConstraint, out.String())
+`, tagsConstraint, suppressParallelFlag(out.String()))
 
 	// Write the result to doc.go.
 	path, perm := filepath.Join(pkg, "doc.go"), os.FileMode(0644)
@@ -94,6 +95,17 @@ package main
 		return fmt.Errorf("WriteFile(%v, %v) failed: %v\n", path, perm, err)
 	}
 	return nil
+}
+
+// suppressParallelFlag replaces the default value of the test.parallel flag
+// with the literal string "<number of threads>". The default value of the
+// test.parallel flag is GOMAXPROCS, which (since Go1.5) is set to the number
+// of logical CPU threads on the current system. This causes problems with the
+// vanadium-go-generate test, which requires that the output of gendoc is the
+// same on all systems.
+func suppressParallelFlag(input string) string {
+	pattern := regexp.MustCompile("(?m:(^ -test\\.parallel=)(?:\\d)+$)")
+	return pattern.ReplaceAllString(input, "$1<number of threads>")
 }
 
 // environ returns the environment variables to use when running the command to
