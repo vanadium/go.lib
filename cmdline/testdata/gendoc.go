@@ -49,17 +49,29 @@ func generate(args []string) error {
 	}
 	pkg, args := args[0], args[1:]
 
-	// Build the gendoc binary in a temporary folder.
+	// Find out the binary name from the pkg name.
+	var listOut bytes.Buffer
+	listCmd := exec.Command("go", "list")
+	listCmd.Stdout = &listOut
+	if err := listCmd.Run(); err != nil {
+		return fmt.Errorf("%q failed: %v\n%v\n", strings.Join(listCmd.Args, " "), err, listOut.String())
+	}
+	binName := filepath.Base(strings.TrimSpace(listOut.String()))
+
+	// Install the gendoc binary in a temporary folder.
 	tmpDir, err := ioutil.TempDir("", "")
 	if err != nil {
 		return fmt.Errorf("TempDir() failed: %v", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	gendocBin := filepath.Join(tmpDir, "gendoc")
-	buildArgs := []string{"go", "build", "-a", "-tags=" + flagTags, "-o=" + gendocBin, pkg}
-	buildCmd := exec.Command("v23", buildArgs...)
-	if err := buildCmd.Run(); err != nil {
-		return fmt.Errorf("%q failed: %v\n", strings.Join(buildCmd.Args, " "), err)
+	gendocBin := filepath.Join(tmpDir, binName)
+	env := environ()
+	env = append(env, "GOBIN="+tmpDir)
+	installArgs := []string{"go", "install", "-tags=" + flagTags, pkg}
+	installCmd := exec.Command("v23", installArgs...)
+	installCmd.Env = env
+	if err := installCmd.Run(); err != nil {
+		return fmt.Errorf("%q failed: %v\n", strings.Join(installCmd.Args, " "), err)
 	}
 
 	// Use it to generate the documentation.
