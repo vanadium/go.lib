@@ -68,6 +68,9 @@ type Command struct {
 	ArgsLong string       // Long description of the args, shown in help.
 	LookPath bool         // Check for subcommands in PATH.
 
+	// TODO(nlacasse): Remove this once v23->jiri transition is complete.
+	LookPathPrefixes []string // Prefix for subcommands in PATH.
+
 	// Children of the command.
 	Children []*Command
 
@@ -322,6 +325,15 @@ func (cmd *Command) parse(path []*Command, env *Env, args []string) (Runner, []s
 		subCmd := cmd.Name + "-" + subName
 		if lookPath(subCmd, env.pathDirs()) {
 			return binaryRunner{subCmd, cmdPath}, subArgs, nil
+		}
+
+		// Look for a matching executable with prefix in LookPathPrefixes.
+		// TODO(nlacasse): Remove this once the v23->jiri transition is complete.
+		for _, prefix := range cmd.LookPathPrefixes {
+			subCmd := prefix + "-" + subName
+			if lookPath(subCmd, env.pathDirs()) {
+				return binaryRunner{subCmd, cmdPath}, subArgs, nil
+			}
 		}
 	}
 	// No matching subcommands, check various error cases.
