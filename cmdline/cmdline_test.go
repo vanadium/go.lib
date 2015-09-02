@@ -2467,8 +2467,6 @@ func TestBinarySubcommand(t *testing.T) {
 		Short:    "Short description of command unlikely",
 		Long:     "Long description of command unlikely.",
 		LookPath: true,
-		// TODO(nlacasse): Get rid of this once v23->jiri transition is complete.
-		LookPathPrefixes: []string{"unlikely"},
 		Children: []*Command{
 			&Command{
 				Runner: RunnerFunc(runHello),
