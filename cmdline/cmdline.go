@@ -321,11 +321,12 @@ func (cmd *Command) parse(path []*Command, env *Env, args []string) (Runner, []s
 		}
 	}
 	if cmd.LookPath {
-		// Look for a matching executable in PATH.
-		subCmd := cmd.Name + "-" + subName
-		if lookPath(subCmd, env.pathDirs()) {
-			return binaryRunner{subCmd, cmdPath}, subArgs, nil
-		}
+		// TODO(nlacasse): Re-enable this once v23->jiri transition is complete.
+		// // Look for a matching executable in PATH.
+		// subCmd := cmd.Name + "-" + subName
+		// if lookPath(subCmd, env.pathDirs()) {
+		// 	return binaryRunner{subCmd, cmdPath}, subArgs, nil
+		// }
 
 		// Look for a matching executable with prefix in LookPathPrefixes.
 		// TODO(nlacasse): Remove this once the v23->jiri transition is complete.
