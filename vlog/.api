@@ -42,7 +42,9 @@ pkg vlog, method (*Logger) Panicf(string, ...interface{})
 pkg vlog, method (*Logger) Stats() (struct{ Lines, Bytes int64 }, struct{ Lines, Bytes int64 })
 pkg vlog, method (*Logger) String() string
 pkg vlog, method (*Logger) V(int) bool
+pkg vlog, method (*Logger) VDepth(int, int) bool
 pkg vlog, method (*Logger) VI(int) interface {  Info(args ...interface{});; Infof(format string, args ...interface{});; InfoDepth(depth int, args ...interface{});; InfoStack(all bool);}
+pkg vlog, method (*Logger) VIDepth(int, int) interface {  Info(args ...interface{});; Infof(format string, args ...interface{});; InfoDepth(depth int, args ...interface{});; InfoStack(all bool);}
 pkg vlog, method (*StderrThreshold) Get(string) interface{}
 pkg vlog, method (*StderrThreshold) Set(string) error
 pkg vlog, method (*StderrThreshold) String() string
