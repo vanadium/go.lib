@@ -1,0 +1,3 @@
+<godepcop>
+  <pkg allow="golang.org/x/crypto/bn256"/>
+</godepcop>
