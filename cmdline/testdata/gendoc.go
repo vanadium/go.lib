@@ -16,8 +16,8 @@
 // NOTE: The gendoc command itself is not based on the cmdline library to avoid
 // non-trivial bootstrapping.  In particular, if the compilation of gendoc
 // requires GOPATH to contain the vanadium Go workspaces, then running the
-// gendoc command requires the v23 tool, which in turn may depend on the gendoc
-// command.
+// gendoc command requires the jiri tool, which in turn may depend on the
+// gendoc command.
 package main
 
 import (
@@ -68,7 +68,7 @@ func generate(args []string) error {
 	env := environ()
 	env = append(env, "GOBIN="+tmpDir)
 	installArgs := []string{"go", "install", "-tags=" + flagTags, pkg}
-	installCmd := exec.Command("v23", installArgs...)
+	installCmd := exec.Command("jiri", installArgs...)
 	installCmd.Env = env
 	if err := installCmd.Run(); err != nil {
 		return fmt.Errorf("%q failed: %v\n", strings.Join(installCmd.Args, " "), err)
