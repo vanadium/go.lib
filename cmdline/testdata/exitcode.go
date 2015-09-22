@@ -4,9 +4,7 @@
 
 package main
 
-import (
-	".."
-)
+import "v.io/x/lib/cmdline"
 
 // cmdExitCode represents the exitcode command.
 var cmdExitCode = &cmdline.Command{

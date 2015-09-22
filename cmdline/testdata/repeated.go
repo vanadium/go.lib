@@ -4,9 +4,7 @@
 
 package main
 
-import (
-	".."
-)
+import "v.io/x/lib/cmdline"
 
 // cmdRepeated represents the repeated command.
 var cmdRepeated = &cmdline.Command{

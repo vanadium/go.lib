@@ -1,0 +1,10 @@
+pkg ibe, func SetupBB1() (Master, error)
+pkg ibe, type Ciphertext [160]byte
+pkg ibe, type Master interface { Extract, Params }
+pkg ibe, type Master interface, Extract(string) (PrivateKey, error)
+pkg ibe, type Master interface, Params() Params
+pkg ibe, type Params interface { Encrypt }
+pkg ibe, type Params interface, Encrypt(string, *Plaintext, *Ciphertext) error
+pkg ibe, type Plaintext [32]byte
+pkg ibe, type PrivateKey interface { Decrypt }
+pkg ibe, type PrivateKey interface, Decrypt(*Ciphertext, *Plaintext) error

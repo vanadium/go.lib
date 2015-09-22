@@ -4,9 +4,7 @@
 
 package main
 
-import (
-	".."
-)
+import "v.io/x/lib/cmdline"
 
 // cmdNested represents the nested command.
 var cmdNested = &cmdline.Command{

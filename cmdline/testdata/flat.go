@@ -4,9 +4,7 @@
 
 package main
 
-import (
-	".."
-)
+import "v.io/x/lib/cmdline"
 
 // cmdFlat represents the flat command.
 var cmdFlat = &cmdline.Command{

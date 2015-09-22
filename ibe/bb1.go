@@ -16,8 +16,9 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"golang.org/x/crypto/bn256"
 	"math/big"
+
+	"golang.org/x/crypto/bn256"
 )
 
 var errBadCiphertext = errors.New("invalid ciphertext")
