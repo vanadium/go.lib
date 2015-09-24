@@ -80,6 +80,72 @@ var (
 	bb1C       Ciphertext
 )
 
+func TestBB1Marshaling(t *testing.T) {
+	bb1P := bb1.Params()
+	pbytes, err := MarshalParams(bb1P)
+	if err != nil {
+		t.Fatal(err)
+	}
+	skbytes, err := MarshalPrivateKey(bb1SK)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m Plaintext
+	if n := copy(m[:], []byte("01234567899876543210123456789012")); n != len(m) {
+		t.Fatalf("%v vs. %v", n, len(m))
+	}
+	var C1, C2 Ciphertext
+	var m1, m2 Plaintext
+	// Encrypt with the original params, decrypt with the unmarshaled key.
+	if err := bb1P.Encrypt("alice", &m, &C1); err != nil {
+		t.Error(err)
+	} else if sk, err := UnmarshalPrivateKey(bb1P, skbytes); err != nil {
+		t.Error(err)
+	} else if err := sk.Decrypt(&C1, &m2); err != nil {
+		t.Error(err)
+	} else if !bytes.Equal(m[:], m2[:]) {
+		t.Errorf("Got %q, want %q", m, m2)
+	}
+	// Encrypt with the unmarshaled params, decrypt with the original key.
+	if p, err := UnmarshalParams(pbytes); err != nil {
+		t.Error(err)
+	} else if err := p.Encrypt("alice", &m, &C2); err != nil {
+		t.Error(err)
+	} else if err := bb1SK.Decrypt(&C2, &m1); err != nil {
+		t.Error(err)
+	} else if !bytes.Equal(m[:], m1[:]) {
+		t.Errorf("Got %q, want %q", m, m1)
+	}
+
+	// Truncation errors
+	if _, err := UnmarshalParams(pbytes[:len(pbytes)-1]); err == nil {
+		t.Errorf("UnmarshalParams succeeded on truncated input")
+	}
+	if _, err := UnmarshalPrivateKey(bb1P, skbytes[:len(skbytes)-1]); err == nil {
+		t.Errorf("UnmarshalPrivateKey succeeded on truncated input")
+	}
+	// Extension errors
+	if _, err := UnmarshalParams(append(pbytes, 0)); err == nil {
+		t.Errorf("UnmarshalParams succeeded on extended input")
+	}
+	if _, err := UnmarshalPrivateKey(bb1P, append(skbytes, 0)); err == nil {
+		t.Errorf("UnmarshalPrivateKey succeeded on extended input")
+	}
+	// Zero length (no valid header either)
+	if _, err := UnmarshalParams(nil); err == nil {
+		t.Errorf("UnmarshalParams succeeded on nil input")
+	}
+	if _, err := UnmarshalParams([]byte{}); err == nil {
+		t.Errorf("UnmarshalParams succeeded on zero length input")
+	}
+	if _, err := UnmarshalPrivateKey(bb1P, nil); err == nil {
+		t.Errorf("UnmarshalPrivateKey succeeded on nil input")
+	}
+	if _, err := UnmarshalPrivateKey(bb1P, []byte{}); err == nil {
+		t.Errorf("UnmarshalPrivateKey succeeded on zero length input")
+	}
+}
+
 func init() {
 	var err error
 	if bb1, err = SetupBB1(); err != nil {
