@@ -23,7 +23,11 @@ import (
 
 var errBadCiphertext = errors.New("invalid ciphertext")
 
-const marshaledG1Size = 64
+const (
+	marshaledG1Size = 2 * 32
+	marshaledG2Size = 4 * 32
+	marshaledGTSize = 12 * 32
+)
 
 // Setup creates an ibe.Master based on the BB1 scheme described in "Efficient
 // Selective Identity-Based Encryption Without Random Oracles" by Dan Boneh and
