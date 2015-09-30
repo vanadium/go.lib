@@ -36,39 +36,35 @@ type Env struct {
 
 	// Usage is a function that prints usage information to w.  Typically set by
 	// calls to Main or Parse to print usage of the leaf command.
-	Usage func(w io.Writer)
+	Usage func(env *Env, w io.Writer)
 }
 
 // UsageErrorf prints the error message represented by the printf-style format
 // and args, followed by the output of the Usage function.  Returns ErrUsage to
 // make it easy to use from within the Runner.Run function.
 func (e *Env) UsageErrorf(format string, args ...interface{}) error {
-	return usageErrorf(e.Stderr, e.Usage, format, args...)
+	return usageErrorf(e, e.Usage, format, args...)
 }
 
 // Clone creates a deep copy of Env.
 func (e *Env) clone() *Env {
-	env := &Env{
+	return &Env{
 		Stdin:  e.Stdin,
 		Stdout: e.Stdout,
 		Stderr: e.Stderr,
-		Vars:   map[string]string{},
+		Vars:   envvar.CopyMap(e.Vars),
 		Usage:  e.Usage,
 	}
-	for key, value := range e.Vars {
-		env.Vars[key] = value
-	}
-	return env
 }
 
-func usageErrorf(w io.Writer, usage func(io.Writer), format string, args ...interface{}) error {
-	fmt.Fprint(w, "ERROR: ")
-	fmt.Fprintf(w, format, args...)
-	fmt.Fprint(w, "\n\n")
+func usageErrorf(env *Env, usage func(*Env, io.Writer), format string, args ...interface{}) error {
+	fmt.Fprint(env.Stderr, "ERROR: ")
+	fmt.Fprintf(env.Stderr, format, args...)
+	fmt.Fprint(env.Stderr, "\n\n")
 	if usage != nil {
-		usage(w)
+		usage(env, env.Stderr)
 	} else {
-		fmt.Fprint(w, "usage error\n")
+		fmt.Fprint(env.Stderr, "usage error\n")
 	}
 	return ErrUsage
 }

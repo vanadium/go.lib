@@ -82,18 +82,24 @@ func TestMapSliceFuncs(t *testing.T) {
 		if got, want := MergeSlices(slices...), test.Slice; !reflect.DeepEqual(got, want) {
 			t.Errorf("MergeSlices got %v, want %v", got, want)
 		}
-		// Test MergeMaps with a single map performs a copy.
-		mergedMap := MergeMaps(test.Map)
-		mergedMap["Z"] = "zzz"
-		if reflect.DeepEqual(mergedMap, test.Map) {
-			t.Errorf("MergeMaps(%v) failed copy semantics", mergedMap)
+		// Test CopyMap actually returns a copy.
+		copyMap := CopyMap(test.Map)
+		if !reflect.DeepEqual(copyMap, test.Map) {
+			t.Errorf("CopyMap got %v, want %v", copyMap, test.Map)
 		}
-		// TestMergeSlices with a single slice performs a copy.
-		mergedSlice := MergeSlices(test.Slice)
-		if len(mergedSlice) > 0 {
-			mergedSlice[0] = "Z=zzz"
-			if reflect.DeepEqual(mergedSlice, test.Slice) {
-				t.Errorf("MergeSlices(%v) failed copy semantics", mergedSlice)
+		copyMap["Z"] = "zzz"
+		if reflect.DeepEqual(copyMap, test.Map) {
+			t.Errorf("CopyMap(%v) failed copy semantics", copyMap)
+		}
+		// Test CopySlice actually returns a copy.
+		copySlice := CopySlice(test.Slice)
+		if len(copySlice) > 0 {
+			if !reflect.DeepEqual(copySlice, test.Slice) {
+				t.Errorf("CopySlice got %v, want %v", copySlice, test.Slice)
+			}
+			copySlice[0] = "Z=zzz"
+			if reflect.DeepEqual(copySlice, test.Slice) {
+				t.Errorf("CopySlice(%v) failed copy semantics", copySlice)
 			}
 		}
 	}

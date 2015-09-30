@@ -24,7 +24,7 @@ var cmdChild = &cmdline.Command{
 }
 
 func runChild(env *cmdline.Env, _ []string) error {
-	return nil
+	return env.UsageErrorf("wombats!")
 }
 
 func main() {

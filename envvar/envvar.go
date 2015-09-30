@@ -44,6 +44,11 @@ func MergeMaps(maps ...map[string]string) map[string]string {
 	return merged
 }
 
+// CopyMap returns a copy of from, with empty keys dropped.
+func CopyMap(from map[string]string) map[string]string {
+	return MergeMaps(from)
+}
+
 // MergeSlices merges together slices, and returns a new slice with the merged
 // result.  If the same key appears more than once in a single input slice, or
 // in more than one input slice, the last one "wins"; the value is set based on
@@ -61,6 +66,13 @@ func MergeSlices(slices ...[]string) []string {
 		}
 	}
 	return MapToSlice(merged)
+}
+
+// CopySlice returns a copy of from, with empty keys dropped, and ordered by
+// key.  If the same key appears more than once the last one "wins"; the value
+// is set based on the last slice element containing that key.
+func CopySlice(from []string) []string {
+	return MergeSlices(from)
 }
 
 // MapToSlice converts from the map to the slice representation.  The returned

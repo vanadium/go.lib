@@ -61,6 +61,11 @@ func runHello(env *Env, args []string) error {
 	return nil
 }
 
+func runDumpEnv(env *Env, args []string) error {
+	fmt.Fprintln(env.Stdout, envvar.MapToSlice(env.Vars))
+	return nil
+}
+
 type testCase struct {
 	Args        []string
 	Vars        map[string]string
@@ -2469,10 +2474,10 @@ func TestBinarySubcommand(t *testing.T) {
 		LookPath: true,
 		Children: []*Command{
 			&Command{
-				Runner: RunnerFunc(runHello),
-				Name:   "foo",
-				Short:  "Short description of command foo",
-				Long:   "Long description of command foo.",
+				Runner: RunnerFunc(runDumpEnv),
+				Name:   "dumpenv",
+				Short:  "Short description of command dumpenv",
+				Long:   "Long description of command dumpenv.",
 			},
 			&Command{
 				Runner: RunnerFunc(runHello),
@@ -2495,13 +2500,14 @@ Usage:
    unlikely <command>
 
 The unlikely commands are:
-   foo         Short description of command foo
+   dumpenv     Short description of command dumpenv
    repeated    Repeated appears as both a child and as a binary
+   help        Display help for commands or topics
+The unlikely external commands are:
    exitcode    Short description of command exitcode
    flat        Short description of command flat
    foreign     No description available
    nested      Short description of command nested
-   help        Display help for commands or topics
 Run "unlikely help [command]" for command usage.
 
 The global flags are:
@@ -2522,13 +2528,14 @@ Usage:
    unlikely <command>
 
 The unlikely commands are:
-   foo         Short description of command foo
+   dumpenv     Short description of command dumpenv
    repeated    Repeated appears as both a child and as a binary
+   help        Display help for commands or topics
+The unlikely external commands are:
    exitcode    Short description of command exitcode
    flat        Short description of command flat
    foreign     No description available
    nested      Short description of command nested
-   help        Display help for commands or topics
 Run "unlikely help [command]" for command usage.
 
 The global flags are:
@@ -2549,13 +2556,14 @@ Usage:
    unlikely <command>
 
 The unlikely commands are:
-   foo         Short description of command foo
+   dumpenv     Short description of command dumpenv
    repeated    Repeated appears as both a child and as a binary
+   help        Display help for commands or topics
+The unlikely external commands are:
    exitcode    Short description of command exitcode
    flat        Short description of command flat
    foreign     No description available
    nested      Short description of command nested
-   help        Display help for commands or topics
 Run "unlikely help [command]" for command usage.
 
 The global flags are:
@@ -2564,12 +2572,12 @@ The global flags are:
  -global2=0
    global test flag 2
 ================================================================================
-Unlikely foo - Short description of command foo
+Unlikely dumpenv - Short description of command dumpenv
 
-Long description of command foo.
+Long description of command dumpenv.
 
 Usage:
-   unlikely foo
+   unlikely dumpenv
 ================================================================================
 Unlikely repeated - Repeated appears as both a child and as a binary
 
@@ -2577,43 +2585,6 @@ Long description of command repeated.
 
 Usage:
    unlikely repeated
-================================================================================
-Unlikely exitcode - Short description of command exitcode
-
-Long description of command exitcode.
-
-Usage:
-   unlikely exitcode [args]
-
-[args] are ignored
-================================================================================
-Unlikely flat - Short description of command flat
-
-Long description of command flat.
-
-Usage:
-   unlikely flat [args]
-
-[args] are ignored
-================================================================================
-Unlikely foreign - No description available
-================================================================================
-Unlikely nested - Short description of command nested
-
-Long description of command nested.
-
-Usage:
-   unlikely nested <command>
-
-The unlikely nested commands are:
-   child       Short description of command child
-================================================================================
-Unlikely nested child - Short description of command child
-
-Long description of command child.
-
-Usage:
-   unlikely nested child
 ================================================================================
 Unlikely help - Display help for commands or topics
 
@@ -2639,6 +2610,43 @@ The unlikely help flags are:
    Format output to this target width in runes, or unlimited if width < 0.
    Defaults to the terminal width if available.  Override the default by setting
    the CMDLINE_WIDTH environment variable.
+================================================================================
+Unlikely exitcode - Short description of command exitcode
+
+Long description of command exitcode.
+
+Usage:
+   unlikely exitcode [args]
+
+[args] are ignored
+================================================================================
+Unlikely flat - Short description of command flat
+
+Long description of command flat.
+
+Usage:
+   unlikely flat [args]
+
+[args] are ignored
+================================================================================
+Unlikely foreign - No description available
+================================================================================
+Unlikely nested - Short description of command nested
+
+Long description of command nested.
+
+Usage:
+   unlikely nested <command>
+
+The unlikely nested commands are:
+   child       Short description of command child
+================================================================================
+Unlikely nested child - Short description of command child
+
+Long description of command child.
+
+Usage:
+   unlikely nested child
 `,
 		},
 		{
@@ -2652,13 +2660,14 @@ Usage:
    unlikely <command>
 
 The unlikely commands are:
-   foo         Short description of command foo
+   dumpenv     Short description of command dumpenv
    repeated    Repeated appears as both a child and as a binary
+   help        Display help for commands or topics
+The unlikely external commands are:
    exitcode    Short description of command exitcode
    flat        Short description of command flat
    foreign     No description available
    nested      Short description of command nested
-   help        Display help for commands or topics
 
 The global flags are:
  -global1=
@@ -2666,12 +2675,12 @@ The global flags are:
  -global2=0
    global test flag 2
 
-Unlikely foo - Short description of command foo
+Unlikely dumpenv - Short description of command dumpenv
 
-Long description of command foo.
+Long description of command dumpenv.
 
 Usage:
-   unlikely foo
+   unlikely dumpenv
 
 Unlikely repeated - Repeated appears as both a child and as a binary
 
@@ -2679,6 +2688,31 @@ Long description of command repeated.
 
 Usage:
    unlikely repeated
+
+Unlikely help - Display help for commands or topics
+
+Help with no args displays the usage of the parent command.
+
+Help with args displays the usage of the specified sub-command or help topic.
+
+"help ..." recursively displays help for all commands and topics.
+
+Usage:
+   unlikely help [flags] [command/topic ...]
+
+[command/topic ...] optionally identifies a specific sub-command or help topic.
+
+The unlikely help flags are:
+ -style=compact
+   The formatting style for help output:
+      compact - Good for compact cmdline output.
+      full    - Good for cmdline output, shows all global flags.
+      godoc   - Good for godoc processing.
+   Override the default by setting the CMDLINE_STYLE environment variable.
+ -width=<terminal width>
+   Format output to this target width in runes, or unlimited if width < 0.
+   Defaults to the terminal width if available.  Override the default by setting
+   the CMDLINE_WIDTH environment variable.
 
 Unlikely exitcode - Short description of command exitcode
 
@@ -2716,31 +2750,6 @@ Long description of command child.
 
 Usage:
    unlikely nested child
-
-Unlikely help - Display help for commands or topics
-
-Help with no args displays the usage of the parent command.
-
-Help with args displays the usage of the specified sub-command or help topic.
-
-"help ..." recursively displays help for all commands and topics.
-
-Usage:
-   unlikely help [flags] [command/topic ...]
-
-[command/topic ...] optionally identifies a specific sub-command or help topic.
-
-The unlikely help flags are:
- -style=compact
-   The formatting style for help output:
-      compact - Good for compact cmdline output.
-      full    - Good for cmdline output, shows all global flags.
-      godoc   - Good for godoc processing.
-   Override the default by setting the CMDLINE_STYLE environment variable.
- -width=<terminal width>
-   Format output to this target width in runes, or unlimited if width < 0.
-   Defaults to the terminal width if available.  Override the default by setting
-   the CMDLINE_WIDTH environment variable.
 `,
 		},
 		{
@@ -2762,6 +2771,36 @@ The global flags are:
  -metadata=<just specify -metadata to activate>
    Displays metadata for the program and exits.
 `,
+		},
+		{
+			Args: []string{"nested", "child"},
+			Vars: map[string]string{
+				"PATH": strings.Join(tokens, string(os.PathListSeparator)),
+			},
+			Err: errUsageStr,
+			Stderr: `ERROR: wombats!
+
+Long description of command child.
+
+Usage:
+   unlikely nested child
+
+The global flags are:
+ -metadata=<just specify -metadata to activate>
+   Displays metadata for the program and exits.
+`,
+		},
+		{
+			Args:   []string{"dumpenv"},
+			Vars:   map[string]string{"A": "a", "B": "b", "CMDLINE_PREFIX": "abc"},
+			Stdout: "[A=a B=b]\n",
+		},
+		{
+			Args: []string{"repeated"},
+			Vars: map[string]string{
+				"PATH": strings.Join(tokens, string(os.PathListSeparator)),
+			},
+			Stdout: "Hello\n",
 		},
 		{
 			Args: []string{"exitcode"},

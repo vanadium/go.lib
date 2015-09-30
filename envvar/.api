@@ -1,3 +1,5 @@
+pkg envvar, func CopyMap(map[string]string) map[string]string
+pkg envvar, func CopySlice([]string) []string
 pkg envvar, func JoinKeyValue(string, string) string
 pkg envvar, func JoinTokens([]string, string) string
 pkg envvar, func MapToSlice(map[string]string) []string

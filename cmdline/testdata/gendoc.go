@@ -2,22 +2,25 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Command gendoc can be used for generating detailed godoc comments for
-// cmdline-based tools.  The user specifies the cmdline-based tool source file
-// directory <dir> using the first command-line argument and gendoc executes the
-// tool with flags that generate detailed godoc comment and output it to
-// <dir>/doc.go.  If more than one command-line argument is provided, they are
-// passed through to the tool the gendoc executes.
+// Command gendoc generates godoc comments describing the usage of tools based
+// on the cmdline package.
 //
-// NOTE: The reason this command is located under a testdata directory is to
-// enforce its idiomatic use through "go run <path>/testdata/gendoc.go <dir>
-// [args]".
+// Usage:
+//   go run gendoc.go [flags] <pkg> [args]
 //
-// NOTE: The gendoc command itself is not based on the cmdline library to avoid
+// <pkg> is the package path for the tool.
+//
+// [args] are the arguments to pass to the tool to produce usage output.  If no
+// args are given, runs "<tool> help ..."
+//
+// The reason this command is located under a testdata directory is to enforce
+// its idiomatic use via "go run".
+//
+// The gendoc command itself is not based on the cmdline library to avoid
 // non-trivial bootstrapping.  In particular, if the compilation of gendoc
 // requires GOPATH to contain the vanadium Go workspaces, then running the
-// gendoc command requires the jiri tool, which in turn may depend on the
-// gendoc command.
+// gendoc command requires the jiri tool, which in turn may depend on the gendoc
+// command.
 package main
 
 import (
@@ -32,10 +35,18 @@ import (
 	"strings"
 )
 
-var flagTags string
+var (
+	flagEnv     string
+	flagInstall string
+	flagOut     string
+	flagTags    string
+)
 
 func main() {
-	flag.StringVar(&flagTags, "tags", "", "Tags for go build, also added as build constraints in the generated doc.go.")
+	flag.StringVar(&flagEnv, "env", "os", `Environment variables to set before running command.  If "os", grabs vars from the underlying OS.  If empty, doesn't set any vars.  Otherwise vars are expected to be comma-separated entries of the form KEY1=VALUE1,KEY2=VALUE2,...`)
+	flag.StringVar(&flagInstall, "install", "", "Comma separated list of packages to install before running command.  All commands that are built will be on the PATH.")
+	flag.StringVar(&flagOut, "out", "./doc.go", "Path to the output file.")
+	flag.StringVar(&flagTags, "tags", "", "Tags for go build, also added as build constraints in the generated output file.")
 	flag.Parse()
 	if err := generate(flag.Args()); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -45,49 +56,52 @@ func main() {
 
 func generate(args []string) error {
 	if got, want := len(args), 1; got < want {
-		return fmt.Errorf("gendoc requires at least one argument\nusage: gendoc <dir> [args]")
+		return fmt.Errorf("gendoc requires at least one argument\nusage: gendoc <pkg> [args]")
 	}
 	pkg, args := args[0], args[1:]
 
 	// Find out the binary name from the pkg name.
 	var listOut bytes.Buffer
-	listCmd := exec.Command("go", "list")
+	listCmd := exec.Command("go", "list", pkg)
 	listCmd.Stdout = &listOut
 	if err := listCmd.Run(); err != nil {
 		return fmt.Errorf("%q failed: %v\n%v\n", strings.Join(listCmd.Args, " "), err, listOut.String())
 	}
 	binName := filepath.Base(strings.TrimSpace(listOut.String()))
 
-	// Install the gendoc binary in a temporary folder.
+	// Install all packages in a temporary directory.
 	tmpDir, err := ioutil.TempDir("", "")
 	if err != nil {
 		return fmt.Errorf("TempDir() failed: %v", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	gendocBin := filepath.Join(tmpDir, binName)
-	env := environ()
-	env = append(env, "GOBIN="+tmpDir)
-	installArgs := []string{"go", "install", "-tags=" + flagTags, pkg}
-	installCmd := exec.Command("jiri", installArgs...)
-	installCmd.Env = env
-	if err := installCmd.Run(); err != nil {
-		return fmt.Errorf("%q failed: %v\n", strings.Join(installCmd.Args, " "), err)
+	pkgs := []string{pkg}
+	if flagInstall != "" {
+		pkgs = append(pkgs, strings.Split(flagInstall, ",")...)
+	}
+	for _, installPkg := range pkgs {
+		installArgs := []string{"go", "install", "-tags=" + flagTags, installPkg}
+		installCmd := exec.Command("jiri", installArgs...)
+		installCmd.Env = append(os.Environ(), "GOBIN="+tmpDir)
+		if err := installCmd.Run(); err != nil {
+			return fmt.Errorf("%q failed: %v\n", strings.Join(installCmd.Args, " "), err)
+		}
 	}
 
-	// Use it to generate the documentation.
-	var tagsConstraint string
-	if flagTags != "" {
-		tagsConstraint = fmt.Sprintf("// +build %s\n\n", flagTags)
-	}
+	// Run the binary to generate documentation.
 	var out bytes.Buffer
 	if len(args) == 0 {
 		args = []string{"help", "..."}
 	}
-	runCmd := exec.Command(gendocBin, args...)
+	runCmd := exec.Command(filepath.Join(tmpDir, binName), args...)
 	runCmd.Stdout = &out
-	runCmd.Env = environ()
+	runCmd.Env = runEnviron(tmpDir)
 	if err := runCmd.Run(); err != nil {
 		return fmt.Errorf("%q failed: %v\n%v\n", strings.Join(runCmd.Args, " "), err, out.String())
+	}
+	var tagsConstraint string
+	if flagTags != "" {
+		tagsConstraint = fmt.Sprintf("// +build %s\n\n", flagTags)
 	}
 	doc := fmt.Sprintf(`// Copyright 2015 The Vanadium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
@@ -101,8 +115,8 @@ func generate(args []string) error {
 package main
 `, tagsConstraint, suppressParallelFlag(out.String()))
 
-	// Write the result to doc.go.
-	path, perm := filepath.Join(pkg, "doc.go"), os.FileMode(0644)
+	// Write the result to the output file.
+	path, perm := flagOut, os.FileMode(0644)
 	if err := ioutil.WriteFile(path, []byte(doc), perm); err != nil {
 		return fmt.Errorf("WriteFile(%v, %v) failed: %v\n", path, perm, err)
 	}
@@ -120,18 +134,28 @@ func suppressParallelFlag(input string) string {
 	return pattern.ReplaceAllString(input, "$1<number of threads>")
 }
 
-// environ returns the environment variables to use when running the command to
-// retrieve full help information.
-func environ() []string {
-	var env []string
-	for _, e := range os.Environ() {
-		// Strip out all existing CMDLINE_* envvars to start with a clean slate.
-		// E.g. otherwise if CMDLINE_PREFIX is set, it'll taint all of the output.
-		if !strings.HasPrefix(e, "CMDLINE_") {
-			env = append(env, e)
-		}
+// runEnviron returns the environment variables to use when running the command
+// to retrieve full help information.
+func runEnviron(binDir string) []string {
+	// Never return nil, which signals exec.Command to use os.Environ.
+	in, out := strings.Split(flagEnv, ","), make([]string, 0)
+	if flagEnv == "os" {
+		in = os.Environ()
 	}
-	// We want the godoc style for our generated documentation.
-	env = append(env, "CMDLINE_STYLE=godoc")
-	return env
+	updatedPath := false
+	for _, e := range in {
+		if e == "" {
+			continue
+		}
+		if strings.HasPrefix(e, "PATH=") {
+			e = "PATH=" + binDir + string(os.PathListSeparator) + e[5:]
+			updatedPath = true
+		}
+		out = append(out, e)
+	}
+	if !updatedPath {
+		out = append(out, "PATH="+binDir)
+	}
+	out = append(out, "CMDLINE_STYLE=godoc")
+	return out
 }

@@ -10,15 +10,15 @@ import (
 	"testing"
 )
 
-func writeFunc(s string) func(io.Writer) {
-	return func(w io.Writer) { w.Write([]byte(s)) }
+func writeFunc(s string) func(*Env, io.Writer) {
+	return func(_ *Env, w io.Writer) { w.Write([]byte(s)) }
 }
 
 func TestEnvUsageErrorf(t *testing.T) {
 	tests := []struct {
 		format string
 		args   []interface{}
-		usage  func(io.Writer)
+		usage  func(*Env, io.Writer)
 		want   string
 	}{
 		{"", nil, nil, "ERROR: \n\nusage error\n"},

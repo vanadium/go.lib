@@ -29,42 +29,47 @@ type helpRunner struct {
 
 func makeHelpRunner(path []*Command, env *Env) helpRunner {
 	return helpRunner{path, &helpConfig{
-		env:   env,
-		style: env.style(),
-		width: env.width(),
+		style:     env.style(),
+		width:     env.width(),
+		prefix:    env.prefix(),
+		firstCall: env.firstCall(),
 	}}
 }
 
 // helpConfig holds configuration data for help.  The style and width may be
 // overriden by flags if the command returned by newCommand is parsed.
 type helpConfig struct {
-	env   *Env
-	style style
-	width int
+	style     style
+	width     int
+	prefix    string
+	firstCall bool
 }
 
 // Run implements the Runner interface method.
 func (h helpRunner) Run(env *Env, args []string) error {
 	w := textutil.NewUTF8LineWriter(env.Stdout, h.width)
 	defer w.Flush()
-	return runHelp(w, env.Stderr, args, h.rootPath, h.helpConfig)
+	return runHelp(w, env, args, h.rootPath, h.helpConfig)
 }
 
 // usageFunc is used as the implementation of the Env.Usage function.
-func (h helpRunner) usageFunc(writer io.Writer) {
+func (h helpRunner) usageFunc(env *Env, writer io.Writer) {
 	w := textutil.NewUTF8LineWriter(writer, h.width)
-	usage(w, h.rootPath, h.helpConfig, h.env.firstCall())
+	usage(w, env, h.rootPath, h.helpConfig, h.helpConfig.firstCall)
 	w.Flush()
 }
 
-const helpName = "help"
+const (
+	helpName  = "help"
+	helpShort = "Display help for commands or topics"
+)
 
 // newCommand returns a new help command that uses h as its Runner.
 func (h helpRunner) newCommand() *Command {
 	help := &Command{
 		Runner: h,
 		Name:   helpName,
-		Short:  "Display help for commands or topics",
+		Short:  helpShort,
 		Long: `
 Help with no args displays the usage of the parent command.
 
@@ -97,37 +102,38 @@ the CMDLINE_WIDTH environment variable.
 }
 
 // runHelp implements the run-time behavior of the help command.
-func runHelp(w *textutil.LineWriter, stderr io.Writer, args []string, path []*Command, config *helpConfig) error {
+func runHelp(w *textutil.LineWriter, env *Env, args []string, path []*Command, config *helpConfig) error {
 	if len(args) == 0 {
-		usage(w, path, config, config.env.firstCall())
+		usage(w, env, path, config, config.firstCall)
 		return nil
 	}
 	if args[0] == "..." {
-		usageAll(w, path, config, config.env.firstCall())
+		usageAll(w, env, path, config, config.firstCall)
 		return nil
 	}
 	// Look for matching children.
-	cmd, subName, subArgs := path[len(path)-1], args[0], args[1:]
+	cmd, cmdPath := path[len(path)-1], pathName(config.prefix, path)
+	subName, subArgs := args[0], args[1:]
 	for _, child := range cmd.Children {
 		if child.Name == subName {
-			return runHelp(w, stderr, subArgs, append(path, child), config)
+			return runHelp(w, env, subArgs, append(path, child), config)
 		}
 	}
 	if helpName == subName {
 		help := helpRunner{path, config}.newCommand()
-		return runHelp(w, stderr, subArgs, append(path, help), config)
+		return runHelp(w, env, subArgs, append(path, help), config)
 	}
 	if cmd.LookPath {
 		// Look for a matching executable in PATH.
-		subCmd := cmd.Name + "-" + subName
-		if lookPath(subCmd, config.env.pathDirs()) {
-			runner := binaryRunner{subCmd, pathName(config.env.prefix(), path)}
-			env := config.env.clone()
-			env.Vars["CMDLINE_STYLE"] = config.style.String()
+		extName := cmd.Name + "-" + subName
+		if lookPath(extName, env.pathDirs()) {
+			runner := binaryRunner{extName, cmdPath}
+			envCopy := env.clone()
+			envCopy.Vars["CMDLINE_STYLE"] = config.style.String()
 			if len(subArgs) == 0 {
-				return runner.Run(env, []string{"-help"})
+				return runner.Run(envCopy, []string{"-help"})
 			}
-			return runner.Run(env, append([]string{helpName}, subArgs...))
+			return runner.Run(envCopy, append([]string{helpName}, subArgs...))
 		}
 	}
 	// Look for matching topic.
@@ -138,7 +144,7 @@ func runHelp(w *textutil.LineWriter, stderr io.Writer, args []string, path []*Co
 		}
 	}
 	fn := helpRunner{path, config}.usageFunc
-	return usageErrorf(stderr, fn, "%s: unknown command or topic %q", pathName(config.env.prefix(), path), subName)
+	return usageErrorf(env, fn, "%s: unknown command or topic %q", cmdPath, subName)
 }
 
 func godocHeader(path, short string) string {
@@ -208,24 +214,28 @@ func needsHelpChild(cmd *Command) bool {
 }
 
 // usageAll prints usage recursively via DFS from the path onward.
-func usageAll(w *textutil.LineWriter, path []*Command, config *helpConfig, firstCall bool) {
-	cmd, cmdPath := path[len(path)-1], pathName(config.env.prefix(), path)
-	usage(w, path, config, firstCall)
+func usageAll(w *textutil.LineWriter, env *Env, path []*Command, config *helpConfig, firstCall bool) {
+	cmd, cmdPath := path[len(path)-1], pathName(config.prefix, path)
+	usage(w, env, path, config, firstCall)
 	for _, child := range cmd.Children {
-		usageAll(w, append(path, child), config, false)
+		usageAll(w, env, append(path, child), config, false)
+	}
+	if firstCall && needsHelpChild(cmd) {
+		help := helpRunner{path, config}.newCommand()
+		usageAll(w, env, append(path, help), config, false)
 	}
 	if cmd.LookPath {
-		subCmds := lookPathAll(cmd.Name, config.env.pathDirs(), cmd.subNames())
-		for _, subCmd := range subCmds {
-			runner := binaryRunner{subCmd, cmdPath}
+		extNames := lookPathAll(cmd.Name, env.pathDirs(), cmd.subNames())
+		for _, extName := range extNames {
+			runner := binaryRunner{extName, cmdPath}
 			var buffer bytes.Buffer
-			env := config.env.clone()
-			env.Stdout = &buffer
-			env.Stderr = &buffer
-			env.Vars["CMDLINE_FIRST_CALL"] = "1"
-			env.Vars["CMDLINE_STYLE"] = config.style.String()
-			if err := runner.Run(env, []string{helpName, "..."}); err == nil {
-				// The binary subcommand supports "help".
+			envCopy := env.clone()
+			envCopy.Stdout = &buffer
+			envCopy.Stderr = &buffer
+			envCopy.Vars["CMDLINE_FIRST_CALL"] = "false"
+			envCopy.Vars["CMDLINE_STYLE"] = config.style.String()
+			if err := runner.Run(envCopy, []string{helpName, "..."}); err == nil {
+				// The external child supports "help".
 				if config.style == styleGoDoc {
 					// The textutil package will discard any leading empty lines
 					// produced by the child process output, so we need to
@@ -236,8 +246,8 @@ func usageAll(w *textutil.LineWriter, path []*Command, config *helpConfig, first
 				continue
 			}
 			buffer.Reset()
-			if err := runner.Run(env, []string{"-help"}); err == nil {
-				// The binary subcommand supports "-help".
+			if err := runner.Run(envCopy, []string{"-help"}); err == nil {
+				// The external child supports "-help".
 				if config.style == styleGoDoc {
 					// The textutil package will discard any leading empty lines
 					// produced by the child process output, so we need to
@@ -247,14 +257,10 @@ func usageAll(w *textutil.LineWriter, path []*Command, config *helpConfig, first
 				fmt.Fprint(w, buffer.String())
 				continue
 			}
-			// The binary subcommand does not support "help" or "-help".
+			// The external child does not support "help" or "-help".
 			lineBreak(w, config.style)
-			fmt.Fprintln(w, godocHeader(cmdPath+" "+strings.TrimPrefix(subCmd, cmd.Name+"-"), missingDescription))
+			fmt.Fprintln(w, godocHeader(cmdPath+" "+strings.TrimPrefix(extName, cmd.Name+"-"), missingDescription))
 		}
-	}
-	if firstCall && needsHelpChild(cmd) {
-		help := helpRunner{path, config}.newCommand()
-		usageAll(w, append(path, help), config, false)
 	}
 	for _, topic := range cmd.Topics {
 		lineBreak(w, config.style)
@@ -269,8 +275,8 @@ func usageAll(w *textutil.LineWriter, path []*Command, config *helpConfig, first
 // usage prints the usage of the last command in path to w.  The bool firstCall
 // is set to false when printing usage for multiple commands, and is used to
 // avoid printing redundant information (e.g. help command, global flags).
-func usage(w *textutil.LineWriter, path []*Command, config *helpConfig, firstCall bool) {
-	cmd, cmdPath := path[len(path)-1], pathName(config.env.prefix(), path)
+func usage(w *textutil.LineWriter, env *Env, path []*Command, config *helpConfig, firstCall bool) {
+	cmd, cmdPath := path[len(path)-1], pathName(config.prefix, path)
 	if config.style == styleShort {
 		fmt.Fprintln(w, cmd.Short)
 		return
@@ -297,67 +303,65 @@ func usage(w *textutil.LineWriter, path []*Command, config *helpConfig, firstCal
 			fmt.Fprintln(w, cmdPathF)
 		}
 	}
-	var subCmds []string
+	var extChildren []string
 	if cmd.LookPath {
-		subCmds = lookPathAll(cmd.Name, config.env.pathDirs(), cmd.subNames())
+		extChildren = lookPathAll(cmd.Name, env.pathDirs(), cmd.subNames())
 	}
-	hasSubcommands := len(subCmds) > 0 || len(cmd.Children) > 0
+	hasSubcommands := len(cmd.Children) > 0 || len(extChildren) > 0
 	if hasSubcommands {
 		fmt.Fprintln(w, cmdPathF, "<command>")
+		fmt.Fprintln(w)
 	}
-	// Compute the name width.
+	printShort := func(width int, name, short string) {
+		fmt.Fprintf(w, "%-[1]*[2]s %[3]s", width, name, short)
+		w.Flush()
+	}
 	const minNameWidth = 11
 	nameWidth := minNameWidth
 	for _, child := range cmd.Children {
-		if len(child.Name) > nameWidth {
-			nameWidth = len(child.Name)
+		if w := len(child.Name); w > nameWidth {
+			nameWidth = w
 		}
 	}
-	for _, subCmd := range subCmds {
-		length := len(strings.TrimPrefix(subCmd, cmd.Name+"-"))
-		if length > nameWidth {
-			nameWidth = length
+	for _, ext := range extChildren {
+		if w := len(strings.TrimPrefix(ext, cmd.Name+"-")); w > nameWidth {
+			nameWidth = w
 		}
 	}
-	// Command header.
-	if hasSubcommands {
-		fmt.Fprintln(w)
+	// Built-in commands.
+	if len(cmd.Children) > 0 {
+		w.SetIndents()
 		fmt.Fprintln(w, "The", cmdPath, "commands are:")
 		// Print as a table with aligned columns Name and Short.
 		w.SetIndents(spaces(3), spaces(3+nameWidth+1))
-	}
-	printShort := func(name, short string) {
-		fmt.Fprintf(w, "%-[1]*[2]s %[3]s", nameWidth, name, short)
-		w.Flush()
-	}
-	// Built-in subcommands.
-	if len(cmd.Children) > 0 {
 		for _, child := range cmd.Children {
-			printShort(child.Name, child.Short)
+			printShort(nameWidth, child.Name, child.Short)
+		}
+		// Default help command.
+		if firstCall && needsHelpChild(cmd) {
+			printShort(nameWidth, helpName, helpShort)
 		}
 	}
-	// Binary subcommands.
-	if len(subCmds) > 0 {
-		for _, subCmd := range subCmds {
-			runner := binaryRunner{subCmd, cmdPath}
+	// External commands.
+	if len(extChildren) > 0 {
+		w.SetIndents()
+		fmt.Fprintln(w, "The", cmdPath, "external commands are:")
+		// Print as a table with aligned columns Name and Short.
+		w.SetIndents(spaces(3), spaces(3+nameWidth+1))
+		for _, ext := range extChildren {
+			runner := binaryRunner{ext, cmdPath}
 			var buffer bytes.Buffer
-			env := config.env.clone()
-			env.Stdout = &buffer
-			env.Stderr = &buffer
-			env.Vars["CMDLINE_STYLE"] = "short"
-			if err := runner.Run(env, []string{"-help"}); err == nil {
-				// The binary subcommand supports "-help".
-				printShort(strings.TrimPrefix(subCmd, cmd.Name+"-"), buffer.String())
-			} else {
-				// The binary subcommand does not support "-help".
-				printShort(strings.TrimPrefix(subCmd, cmd.Name+"-"), missingDescription)
+			envCopy := env.clone()
+			envCopy.Stdout = &buffer
+			envCopy.Stderr = &buffer
+			envCopy.Vars["CMDLINE_STYLE"] = "short"
+			short := missingDescription
+			if err := runner.Run(envCopy, []string{"-help"}); err == nil {
+				// The external child supports "-help".
+				short = buffer.String()
 			}
+			printShort(nameWidth, strings.TrimPrefix(ext, cmd.Name+"-"), short)
 		}
-	}
-	// Default help command.
-	if firstCall && needsHelpChild(cmd) {
-		help := helpRunner{path, config}.newCommand()
-		printShort(help.Name, help.Short)
 	}
 	// Command footer.
 	if hasSubcommands {
@@ -377,15 +381,14 @@ func usage(w *textutil.LineWriter, path []*Command, config *helpConfig, firstCal
 		fmt.Fprintln(w, "The", cmdPath, "additional help topics are:")
 		nameWidth := minNameWidth
 		for _, topic := range cmd.Topics {
-			if len(topic.Name) > nameWidth {
-				nameWidth = len(topic.Name)
+			if w := len(topic.Name); w > nameWidth {
+				nameWidth = w
 			}
 		}
 		// Print as a table with aligned columns Name and Short.
 		w.SetIndents(spaces(3), spaces(3+nameWidth+1))
 		for _, topic := range cmd.Topics {
-			fmt.Fprintf(w, "%-[1]*[2]s %[3]s", nameWidth, topic.Name, topic.Short)
-			w.Flush()
+			printShort(nameWidth, topic.Name, topic.Short)
 		}
 		w.SetIndents()
 		if firstCall && config.style != styleGoDoc {
@@ -396,7 +399,7 @@ func usage(w *textutil.LineWriter, path []*Command, config *helpConfig, firstCal
 }
 
 func flagsUsage(w *textutil.LineWriter, path []*Command, config *helpConfig, firstCall bool) {
-	cmd, cmdPath := path[len(path)-1], pathName(config.env.prefix(), path)
+	cmd, cmdPath := path[len(path)-1], pathName(config.prefix, path)
 	// Flags.
 	if countFlags(&cmd.Flags, nil, true) > 0 {
 		fmt.Fprintln(w)
@@ -433,7 +436,7 @@ func flagsUsage(w *textutil.LineWriter, path []*Command, config *helpConfig, fir
 		fullhelp := fmt.Sprintf(`Run "%s help -style=full" to show all global flags.`, cmdPath)
 		if len(cmd.Children) == 0 {
 			if len(path) > 1 {
-				parentPath := pathName(config.env.prefix(), path[:len(path)-1])
+				parentPath := pathName(config.prefix, path[:len(path)-1])
 				fullhelp = fmt.Sprintf(`Run "%s help -style=full %s" to show all global flags.`, parentPath, cmd.Name)
 			} else {
 				fullhelp = fmt.Sprintf(`Run "CMDLINE_STYLE=full %s -help" to show all global flags.`, cmdPath)

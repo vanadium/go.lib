@@ -174,6 +174,23 @@ func Parse(root *Command, env *Env, args []string) (Runner, []string, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	// Clear envvars that start with "CMDLINE_" when we're returning a
+	// user-specified runner, to avoid polluting the environment.  In particular
+	// CMDLINE_PREFIX and CMDLINE_FIRST_CALL are only meant to be passed to binary
+	// subcommands, and shouldn't be propagated through the user's runner.
+	switch runner.(type) {
+	case helpRunner, binaryRunner:
+		// The help and binary runners need the envvars to be set.
+	default:
+		for key, _ := range env.Vars {
+			if strings.HasPrefix(key, "CMDLINE_") {
+				delete(env.Vars, key)
+				if err := os.Unsetenv(key); err != nil {
+					return nil, nil, err
+				}
+			}
+		}
+	}
 	return runner, args, nil
 }
 
@@ -273,12 +290,12 @@ Otherwise a conflict between child names and runner args is possible.`, cmdPath)
 }
 
 func pathName(prefix string, path []*Command) string {
-	name := path[0].Name
-	for _, cmd := range path[1:] {
-		name += " " + cmd.Name
-	}
-	if prefix != "" {
-		return prefix + " " + name
+	name := prefix
+	for _, cmd := range path {
+		if name != "" {
+			name += " "
+		}
+		name += cmd.Name
 	}
 	return name
 }
@@ -374,7 +391,7 @@ func parseFlags(path []*Command, env *Env, args []string) ([]string, error) {
 		defer func() {
 			flags.Init(cmd.Name, flag.ExitOnError)
 			flags.SetOutput(nil)
-			flags.Usage = func() { env.Usage(env.Stderr) }
+			flags.Usage = func() { env.Usage(env, env.Stderr) }
 		}()
 	}
 	if err := flags.Parse(args); err != nil {
@@ -447,12 +464,13 @@ type binaryRunner struct {
 }
 
 func (b binaryRunner) Run(env *Env, args []string) error {
+	vars := envvar.CopyMap(env.Vars)
+	vars["CMDLINE_PREFIX"] = b.cmdPath
 	cmd := exec.Command(b.subCmd, args...)
 	cmd.Stdin = env.Stdin
 	cmd.Stdout = env.Stdout
 	cmd.Stderr = env.Stderr
-	cmd.Env = envvar.MapToSlice(env.Vars)
-	cmd.Env = append(cmd.Env, "CMDLINE_PREFIX="+b.cmdPath)
+	cmd.Env = envvar.MapToSlice(vars)
 	err := cmd.Run()
 	// Make sure we return the exit code from the binary, if it exited.
 	if exitError, ok := err.(*exec.ExitError); ok {
