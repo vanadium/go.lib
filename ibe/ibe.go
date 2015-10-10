@@ -32,14 +32,10 @@
 // systems (at the time of this writing, only for the Boneh-Boyen scheme).
 package ibe
 
-// Plaintext represents a plaintext message that can be encrypted.
-//
-// Typical use would be for plaintext to be a key used to encrypt arbitrary
-// messages.
-type Plaintext [32]byte
-
-// Ciphertext represents an encrypted plaintext.
-type Ciphertext [160]byte
+const (
+	PlaintextSize  = 32
+	CiphertextSize = 160
+)
 
 // Master is the interface used to extract private keys for arbitrary identities.
 type Master interface {
@@ -51,10 +47,17 @@ type Master interface {
 // messages for a particular identity.
 type Params interface {
 	// Encrypt encrypts m into C for the identity id.
-	Encrypt(id string, m *Plaintext, C *Ciphertext) error
+	//
+	// The slices m and C must of PlaintextSize and CiphertextSize respectively,
+	// and must not overlap.
+	Encrypt(id string, m, C []byte) error
 }
 
 // PrivateKey is the interface used to decrypt encrypted messages.
 type PrivateKey interface {
-	Decrypt(C *Ciphertext, m *Plaintext) error
+	// Decrypt decrypts ciphertext C into m.
+	//
+	// The slices m and C must of PlaintextSize and CiphertextSize respectively,
+	// and must not overlap.
+	Decrypt(C, m []byte) error
 }

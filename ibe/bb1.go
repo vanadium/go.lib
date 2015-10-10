@@ -110,7 +110,10 @@ type bb1params struct {
 	v                 *bn256.GT
 }
 
-func (e *bb1params) Encrypt(id string, m *Plaintext, C *Ciphertext) error {
+func (e *bb1params) Encrypt(id string, m, C []byte) error {
+	if err := checkSizes(m, C); err != nil {
+		return err
+	}
 	s, err := random()
 	if err != nil {
 		return err
@@ -149,7 +152,10 @@ type bb1PrivateKey struct {
 	d0, d1 bn256.G2
 }
 
-func (k *bb1PrivateKey) Decrypt(C *Ciphertext, m *Plaintext) error {
+func (k *bb1PrivateKey) Decrypt(C, m []byte) error {
+	if err := checkSizes(m, C); err != nil {
+		return err
+	}
 	var (
 		A     = C[0:len(m)]
 		B, C1 bn256.G1
@@ -204,5 +210,12 @@ func marshalG1(dst []byte, g *bn256.G1) error {
 		return fmt.Errorf("bn256.G1.Marshal returned a %d byte slice, expected %d: the BB1 IBE implementation is likely broken", len(src), len(dst))
 	}
 	copy(dst, src)
+	return nil
+}
+
+func checkSizes(m, C []byte) error {
+	if msize, Csize := len(m), len(C); msize != PlaintextSize || Csize != CiphertextSize {
+		return fmt.Errorf("provided plaintext and ciphertext are of sizes (%d, %d), want (%d, %d)", msize, Csize, PlaintextSize, CiphertextSize)
+	}
 	return nil
 }

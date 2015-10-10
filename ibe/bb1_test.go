@@ -37,35 +37,34 @@ func TestBB1Correctness(t *testing.T) {
 	}
 
 	// Encrypt
-	var (
-		m     Plaintext
-		C, C2 Ciphertext
-	)
-	if n := copy(m[:], []byte("AThirtyTwoBytePieceOfTextThisIs!")); n != len(m) {
-		t.Fatalf("Test string must be %d bytes, not %d", len(m), n)
+	m := []byte("AThirtyTwoBytePieceOfTextThisIs!")
+	C := make([]byte, CiphertextSize)
+	C2 := make([]byte, CiphertextSize)
+	if msize := len(m); msize != PlaintextSize {
+		t.Fatalf("Test string must be %d bytes, not %d", PlaintextSize, msize)
 	}
-	if err := master.Params().Encrypt(alice, &m, &C); err != nil {
+	if err := master.Params().Encrypt(alice, m, C); err != nil {
 		t.Fatal(err)
 	}
-	if err := master.Params().Encrypt(alice, &m, &C2); err != nil {
+	if err := master.Params().Encrypt(alice, m, C2); err != nil {
 		t.Fatal(err)
 	}
-	if bytes.Equal(C[:], C2[:]) {
+	if bytes.Equal(C, C2) {
 		t.Errorf("Repeated encryptions of the identical plaintext should not produce identical ciphertext")
 	}
 
 	// Decrypt
-	decrypt := func(sk PrivateKey) (*Plaintext, error) {
-		var ret Plaintext
-		if err := sk.Decrypt(&C, &ret); err != nil {
+	decrypt := func(sk PrivateKey) ([]byte, error) {
+		ret := make([]byte, PlaintextSize)
+		if err := sk.Decrypt(C, ret); err != nil {
 			return nil, err
 		}
-		return &ret, nil
+		return ret, nil
 	}
-	if decrypted, err := decrypt(aliceSK); err != nil || !bytes.Equal(decrypted[:], m[:]) {
+	if decrypted, err := decrypt(aliceSK); err != nil || !bytes.Equal(decrypted, m) {
 		t.Errorf("Got (%v, %v), want (%v, nil)", decrypted, err, m[:])
 	}
-	if decrypted, err := decrypt(aliceSK2); err != nil || !bytes.Equal(decrypted[:], m[:]) {
+	if decrypted, err := decrypt(aliceSK2); err != nil || !bytes.Equal(decrypted, m) {
 		t.Errorf("Got (%v, %v), want (%v, nil)", decrypted, err, m[:])
 	}
 	if decrypted, _ := decrypt(bobSK); bytes.Equal(decrypted[:], m[:]) {
@@ -74,10 +73,11 @@ func TestBB1Correctness(t *testing.T) {
 }
 
 var (
-	bb1        Master
-	bb1SK      PrivateKey
-	benchmarkm Plaintext
-	bb1C       Ciphertext
+	bb1   Master
+	bb1SK PrivateKey
+
+	benchmarkm = make([]byte, PlaintextSize)
+	bb1C       = make([]byte, CiphertextSize)
 )
 
 func TestBB1Marshaling(t *testing.T) {
@@ -90,30 +90,31 @@ func TestBB1Marshaling(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var m Plaintext
-	if n := copy(m[:], []byte("01234567899876543210123456789012")); n != len(m) {
-		t.Fatalf("%v vs. %v", n, len(m))
-	}
-	var C1, C2 Ciphertext
-	var m1, m2 Plaintext
+	m := []byte("01234567899876543210123456789012")
+	var (
+		C1 = make([]byte, CiphertextSize)
+		C2 = make([]byte, CiphertextSize)
+		m1 = make([]byte, PlaintextSize)
+		m2 = make([]byte, PlaintextSize)
+	)
 	// Encrypt with the original params, decrypt with the unmarshaled key.
-	if err := bb1P.Encrypt("alice", &m, &C1); err != nil {
+	if err := bb1P.Encrypt("alice", m, C1); err != nil {
 		t.Error(err)
 	} else if sk, err := UnmarshalPrivateKey(bb1P, skbytes); err != nil {
 		t.Error(err)
-	} else if err := sk.Decrypt(&C1, &m2); err != nil {
+	} else if err := sk.Decrypt(C1, m2); err != nil {
 		t.Error(err)
-	} else if !bytes.Equal(m[:], m2[:]) {
+	} else if !bytes.Equal(m, m2) {
 		t.Errorf("Got %q, want %q", m, m2)
 	}
 	// Encrypt with the unmarshaled params, decrypt with the original key.
 	if p, err := UnmarshalParams(pbytes); err != nil {
 		t.Error(err)
-	} else if err := p.Encrypt("alice", &m, &C2); err != nil {
+	} else if err := p.Encrypt("alice", m, C2); err != nil {
 		t.Error(err)
-	} else if err := bb1SK.Decrypt(&C2, &m1); err != nil {
+	} else if err := bb1SK.Decrypt(C2, m1); err != nil {
 		t.Error(err)
-	} else if !bytes.Equal(m[:], m1[:]) {
+	} else if !bytes.Equal(m, m1) {
 		t.Errorf("Got %q, want %q", m, m1)
 	}
 
@@ -157,7 +158,7 @@ func init() {
 	if _, err := rand.Read(benchmarkm[:]); err != nil {
 		panic(err)
 	}
-	if err := bb1.Params().Encrypt("alice", &benchmarkm, &bb1C); err != nil {
+	if err := bb1.Params().Encrypt("alice", benchmarkm, bb1C); err != nil {
 		panic(err)
 	}
 }
@@ -172,18 +173,18 @@ func BenchmarkExtractBB1(b *testing.B) {
 
 func BenchmarkEncryptBB(b *testing.B) {
 	p := bb1.Params()
-	var C Ciphertext
+	C := make([]byte, CiphertextSize)
 	for i := 0; i < b.N; i++ {
-		if err := p.Encrypt("alice", &benchmarkm, &C); err != nil {
+		if err := p.Encrypt("alice", benchmarkm, C); err != nil {
 			b.Fatal(err)
 		}
 	}
 }
 
 func BenchmarkDecryptBB(b *testing.B) {
-	var m Plaintext
+	m := make([]byte, PlaintextSize)
 	for i := 0; i < b.N; i++ {
-		if err := bb1SK.Decrypt(&bb1C, &m); err != nil {
+		if err := bb1SK.Decrypt(bb1C, m); err != nil {
 			b.Fatal(err)
 		}
 	}
