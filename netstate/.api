@@ -32,7 +32,7 @@ pkg netstate, method (AddrList) AsNetAddrs() []net.Addr
 pkg netstate, method (AddrList) Filter(AddressPredicate) AddrList
 pkg netstate, method (AddrList) Map(Mapper) AddrList
 pkg netstate, method (AddrList) String() string
-pkg netstate, method (AddressChooserFunc) ChooseAddress(string, []net.Addr) ([]net.Addr, error)
+pkg netstate, method (AddressChooserFunc) ChooseAddresses(string, []net.Addr) ([]net.Addr, error)
 pkg netstate, method (IPRouteList) Filter(RoutePredicate) IPRouteList
 pkg netstate, method (IPRouteList) String() string
 pkg netstate, method (InterfaceList) String() string
@@ -42,8 +42,8 @@ pkg netstate, type Address interface, DebugString() string
 pkg netstate, type Address interface, Interface() NetworkInterface
 pkg netstate, type Address interface, Network() string
 pkg netstate, type Address interface, String() string
-pkg netstate, type AddressChooser interface { ChooseAddress }
-pkg netstate, type AddressChooser interface, ChooseAddress(string, []net.Addr) ([]net.Addr, error)
+pkg netstate, type AddressChooser interface { ChooseAddresses }
+pkg netstate, type AddressChooser interface, ChooseAddresses(string, []net.Addr) ([]net.Addr, error)
 pkg netstate, type AddressChooserFunc func(protocol string, candidates []net.Addr) ([]net.Addr, error)
 pkg netstate, type AddressPredicate func(a Address) bool
 pkg netstate, type IPNetworkInterface interface { Addrs, Flags, HardwareAddr, IPRoutes, Index, MTU, Name, Networks, String }
