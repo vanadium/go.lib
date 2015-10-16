@@ -320,8 +320,5 @@ func (metadataFlag) String() string   { return "<just specify -metadata to activ
 func (metadataFlag) Set(string) error {
 	fmt.Println(BuiltIn.String())
 	os.Exit(0)
-	// TODO(toddw): change os.Exit(0) to return ErrFlag instead.  This needs to
-	// wait on a bugfix where the standard Go flag package doesn't check the error
-	// returned from Set for boolean flags.
 	return nil
 }

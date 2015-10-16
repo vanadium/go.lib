@@ -240,9 +240,9 @@ func TestInitAndFlag(t *testing.T) {
 	const id, value = "zzzTestID", "abcdefg"
 	x := FromMap(map[string]string{id: value})
 	cmdRun := exec.Command("go", "run", "-ldflags="+LDFlag(x), "./testdata/testbin.go", "-metadata")
-	outXML, err := cmdRun.Output()
+	outXML, err := cmdRun.CombinedOutput()
 	if err != nil {
-		t.Errorf("%v failed: %v\n%v", cmdRun.Args, err, outXML)
+		t.Errorf("%v failed: %v\n%s", cmdRun.Args, err, outXML)
 	}
 	wantXML := `<metadata>
   <md id="go.Arch">` + runtime.GOARCH + `</md>
