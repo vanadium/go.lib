@@ -5,6 +5,8 @@ pkg cmdline, func HideGlobalFlagsExcept(...*regexp.Regexp)
 pkg cmdline, func Main(*Command)
 pkg cmdline, func Parse(*Command, *Env, []string) (Runner, []string, error)
 pkg cmdline, func ParseAndRun(*Command, *Env, []string) error
+pkg cmdline, method (*Env) TimerPop()
+pkg cmdline, method (*Env) TimerPush(string)
 pkg cmdline, method (*Env) UsageErrorf(string, ...interface{}) error
 pkg cmdline, method (ErrExitCode) Error() string
 pkg cmdline, method (RunnerFunc) Run(*Env, []string) error
@@ -23,6 +25,7 @@ pkg cmdline, type Env struct
 pkg cmdline, type Env struct, Stderr io.Writer
 pkg cmdline, type Env struct, Stdin io.Reader
 pkg cmdline, type Env struct, Stdout io.Writer
+pkg cmdline, type Env struct, Timer timing.Timer
 pkg cmdline, type Env struct, Usage func(*Env, io.Writer)
 pkg cmdline, type Env struct, Vars map[string]string
 pkg cmdline, type ErrExitCode int

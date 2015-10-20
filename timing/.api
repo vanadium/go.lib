@@ -1,0 +1,45 @@
+pkg timing, func IntervalDuration(Interval, time.Time) time.Duration
+pkg timing, func NewCompactTimer(string) *CompactTimer
+pkg timing, func NewFullTimer(string) *FullTimer
+pkg timing, method (*CompactTimer) Finish()
+pkg timing, method (*CompactTimer) Pop()
+pkg timing, method (*CompactTimer) Push(string)
+pkg timing, method (*CompactTimer) Root() Interval
+pkg timing, method (*CompactTimer) String() string
+pkg timing, method (*FullTimer) Finish()
+pkg timing, method (*FullTimer) Pop()
+pkg timing, method (*FullTimer) Push(string)
+pkg timing, method (*FullTimer) Root() Interval
+pkg timing, method (*FullTimer) String() string
+pkg timing, method (FullInterval) Child(int) Interval
+pkg timing, method (FullInterval) End() time.Time
+pkg timing, method (FullInterval) Name() string
+pkg timing, method (FullInterval) NumChild() int
+pkg timing, method (FullInterval) Start() time.Time
+pkg timing, method (FullInterval) String() string
+pkg timing, method (IntervalPrinter) Print(io.Writer, Interval) error
+pkg timing, type CompactTimer struct
+pkg timing, type FullInterval struct
+pkg timing, type FullInterval struct, Children []FullInterval
+pkg timing, type FullInterval struct, EndTime time.Time
+pkg timing, type FullInterval struct, Label string
+pkg timing, type FullInterval struct, StartTime time.Time
+pkg timing, type FullTimer struct
+pkg timing, type FullTimer struct, FullRoot FullInterval
+pkg timing, type Interval interface { Child, End, Name, NumChild, Start, String }
+pkg timing, type Interval interface, Child(int) Interval
+pkg timing, type Interval interface, End() time.Time
+pkg timing, type Interval interface, Name() string
+pkg timing, type Interval interface, NumChild() int
+pkg timing, type Interval interface, Start() time.Time
+pkg timing, type Interval interface, String() string
+pkg timing, type IntervalPrinter struct
+pkg timing, type IntervalPrinter struct, Indent int
+pkg timing, type IntervalPrinter struct, MinGap time.Duration
+pkg timing, type IntervalPrinter struct, TimeFormat string
+pkg timing, type Timer interface { Finish, Pop, Push, Root, String }
+pkg timing, type Timer interface, Finish()
+pkg timing, type Timer interface, Pop()
+pkg timing, type Timer interface, Push(string)
+pkg timing, type Timer interface, Root() Interval
+pkg timing, type Timer interface, String() string

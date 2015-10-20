@@ -53,6 +53,7 @@ import (
 
 	"v.io/x/lib/envvar"
 	_ "v.io/x/lib/metadata" // for the -metadata flag
+	"v.io/x/lib/timing"
 )
 
 // Command represents a single command in a command-line program.  A program
@@ -121,8 +122,15 @@ type Topic struct {
 func Main(root *Command) {
 	env := EnvFromOS()
 	err := ParseAndRun(root, env, os.Args[1:])
-	os.Exit(ExitCode(err, env.Stderr))
+	code := ExitCode(err, env.Stderr)
+	if *flagTime && env.Timer != nil {
+		env.Timer.Finish()
+		timing.IntervalPrinter{}.Print(env.Stderr, env.Timer.Root())
+	}
+	os.Exit(code)
 }
+
+var flagTime = flag.Bool("time", false, "Dump timing information to stderr before exiting the program.")
 
 // Parse parses args against the command tree rooted at root down to a leaf
 // command.  A single path through the command tree is traversed, based on the
@@ -156,6 +164,8 @@ func Main(root *Command) {
 // Parse merges root flags into flag.CommandLine and sets ContinueOnError, so
 // that subsequent calls to flag.Parsed return true.
 func Parse(root *Command, env *Env, args []string) (Runner, []string, error) {
+	env.TimerPush("cmdline parse")
+	defer env.TimerPop()
 	if globalFlags == nil {
 		// Initialize our global flags to a cleaned copy.  We don't want the merging
 		// in parseFlags to contaminate the global flags, even if Parse is called
@@ -203,6 +213,8 @@ func ParseAndRun(root *Command, env *Env, args []string) error {
 	if err != nil {
 		return err
 	}
+	env.TimerPush("cmdline run")
+	defer env.TimerPop()
 	return runner.Run(env, args)
 }
 
@@ -337,7 +349,7 @@ func (cmd *Command) parse(path []*Command, env *Env, args []string) (Runner, []s
 	if cmd.LookPath {
 		// Look for a matching executable in PATH.
 		subCmd := cmd.Name + "-" + subName
-		if lookPath(subCmd, env.pathDirs()) {
+		if lookPath(env, subCmd) {
 			return binaryRunner{subCmd, cmdPath}, subArgs, nil
 		}
 	}
@@ -464,6 +476,8 @@ type binaryRunner struct {
 }
 
 func (b binaryRunner) Run(env *Env, args []string) error {
+	env.TimerPush("run " + b.subCmd)
+	defer env.TimerPop()
 	vars := envvar.CopyMap(env.Vars)
 	vars["CMDLINE_PREFIX"] = b.cmdPath
 	cmd := exec.Command(b.subCmd, args...)
@@ -481,10 +495,12 @@ func (b binaryRunner) Run(env *Env, args []string) error {
 	return err
 }
 
-// lookPath returns a boolean that indicates whether executable <name>
-// can be found in any of the given directories.
-func lookPath(name string, dirs []string) bool {
-	for _, dir := range dirs {
+// lookPath returns true iff an executable with the given name can be found in
+// any of the PATH directories.
+func lookPath(env *Env, name string) bool {
+	env.TimerPush("lookpath " + name)
+	defer env.TimerPop()
+	for _, dir := range env.pathDirs() {
 		fileInfos, err := ioutil.ReadDir(dir)
 		if err != nil {
 			continue
@@ -501,11 +517,13 @@ func lookPath(name string, dirs []string) bool {
 	return false
 }
 
-// lookPathAll returns a deduped list of all executables found in the given
-// directories whose name starts with "<name>-", and where the name doesn't
-// match the given seen set.  The seen set may be mutated by this function.
-func lookPathAll(name string, dirs []string, seen map[string]bool) (result []string) {
-	for _, dir := range dirs {
+// lookPathAll returns a deduped list of all executables found in the PATH
+// directories whose name starts with "name-", and where the name doesn't match
+// the given seen set.  The seen set may be mutated by this function.
+func lookPathAll(env *Env, name string, seen map[string]bool) (result []string) {
+	env.TimerPush("lookpathall " + name)
+	defer env.TimerPop()
+	for _, dir := range env.pathDirs() {
 		fileInfos, err := ioutil.ReadDir(dir)
 		if err != nil {
 			continue

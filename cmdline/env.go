@@ -13,6 +13,7 @@ import (
 
 	"v.io/x/lib/envvar"
 	"v.io/x/lib/textutil"
+	"v.io/x/lib/timing"
 )
 
 // EnvFromOS returns a new environment based on the operating system.
@@ -22,6 +23,7 @@ func EnvFromOS() *Env {
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 		Vars:   envvar.SliceToMap(os.Environ()),
+		Timer:  timing.NewFullTimer("root"),
 	}
 }
 
@@ -33,6 +35,7 @@ type Env struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Vars   map[string]string // Environment variables
+	Timer  timing.Timer
 
 	// Usage is a function that prints usage information to w.  Typically set by
 	// calls to Main or Parse to print usage of the leaf command.
@@ -46,7 +49,20 @@ func (e *Env) UsageErrorf(format string, args ...interface{}) error {
 	return usageErrorf(e, e.Usage, format, args...)
 }
 
-// Clone creates a deep copy of Env.
+// TimerPush calls e.Timer.Push(name), only if the Timer is non-nil.
+func (e *Env) TimerPush(name string) {
+	if e.Timer != nil {
+		e.Timer.Push(name)
+	}
+}
+
+// TimerPop calls e.Timer.Pop(), only if the Timer is non-nil.
+func (e *Env) TimerPop() {
+	if e.Timer != nil {
+		e.Timer.Pop()
+	}
+}
+
 func (e *Env) clone() *Env {
 	return &Env{
 		Stdin:  e.Stdin,
@@ -54,6 +70,7 @@ func (e *Env) clone() *Env {
 		Stderr: e.Stderr,
 		Vars:   envvar.CopyMap(e.Vars),
 		Usage:  e.Usage,
+		Timer:  e.Timer, // use the same timer for all operations
 	}
 }
 

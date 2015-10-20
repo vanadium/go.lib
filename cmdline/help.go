@@ -126,7 +126,7 @@ func runHelp(w *textutil.LineWriter, env *Env, args []string, path []*Command, c
 	if cmd.LookPath {
 		// Look for a matching executable in PATH.
 		extName := cmd.Name + "-" + subName
-		if lookPath(extName, env.pathDirs()) {
+		if lookPath(env, extName) {
 			runner := binaryRunner{extName, cmdPath}
 			envCopy := env.clone()
 			envCopy.Vars["CMDLINE_STYLE"] = config.style.String()
@@ -225,7 +225,7 @@ func usageAll(w *textutil.LineWriter, env *Env, path []*Command, config *helpCon
 		usageAll(w, env, append(path, help), config, false)
 	}
 	if cmd.LookPath {
-		extNames := lookPathAll(cmd.Name, env.pathDirs(), cmd.subNames())
+		extNames := lookPathAll(env, cmd.Name, cmd.subNames())
 		for _, extName := range extNames {
 			runner := binaryRunner{extName, cmdPath}
 			var buffer bytes.Buffer
@@ -277,6 +277,8 @@ func usageAll(w *textutil.LineWriter, env *Env, path []*Command, config *helpCon
 // avoid printing redundant information (e.g. help command, global flags).
 func usage(w *textutil.LineWriter, env *Env, path []*Command, config *helpConfig, firstCall bool) {
 	cmd, cmdPath := path[len(path)-1], pathName(config.prefix, path)
+	env.TimerPush("usage " + cmdPath)
+	defer env.TimerPop()
 	if config.style == styleShort {
 		fmt.Fprintln(w, cmd.Short)
 		return
@@ -305,7 +307,7 @@ func usage(w *textutil.LineWriter, env *Env, path []*Command, config *helpConfig
 	}
 	var extChildren []string
 	if cmd.LookPath {
-		extChildren = lookPathAll(cmd.Name, env.pathDirs(), cmd.subNames())
+		extChildren = lookPathAll(env, cmd.Name, cmd.subNames())
 	}
 	hasSubcommands := len(cmd.Children) > 0 || len(extChildren) > 0
 	if hasSubcommands {
