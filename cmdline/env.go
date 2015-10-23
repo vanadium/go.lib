@@ -23,7 +23,7 @@ func EnvFromOS() *Env {
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 		Vars:   envvar.SliceToMap(os.Environ()),
-		Timer:  timing.NewFullTimer("root"),
+		Timer:  timing.NewTimer("root"),
 	}
 }
 
@@ -35,7 +35,7 @@ type Env struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Vars   map[string]string // Environment variables
-	Timer  timing.Timer
+	Timer  *timing.Timer
 
 	// Usage is a function that prints usage information to w.  Typically set by
 	// calls to Main or Parse to print usage of the leaf command.

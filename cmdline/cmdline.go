@@ -125,7 +125,13 @@ func Main(root *Command) {
 	code := ExitCode(err, env.Stderr)
 	if *flagTime && env.Timer != nil {
 		env.Timer.Finish()
-		timing.IntervalPrinter{}.Print(env.Stderr, env.Timer.Root())
+		p := timing.IntervalPrinter{Zero: env.Timer.Zero}
+		if err := p.Print(env.Stderr, env.Timer.Intervals, env.Timer.Now()); err != nil {
+			code2 := ExitCode(err, env.Stderr)
+			if code == 0 {
+				code = code2
+			}
+		}
 	}
 	os.Exit(code)
 }

@@ -25,7 +25,7 @@ pkg cmdline, type Env struct
 pkg cmdline, type Env struct, Stderr io.Writer
 pkg cmdline, type Env struct, Stdin io.Reader
 pkg cmdline, type Env struct, Stdout io.Writer
-pkg cmdline, type Env struct, Timer timing.Timer
+pkg cmdline, type Env struct, Timer *timing.Timer
 pkg cmdline, type Env struct, Usage func(*Env, io.Writer)
 pkg cmdline, type Env struct, Vars map[string]string
 pkg cmdline, type ErrExitCode int
