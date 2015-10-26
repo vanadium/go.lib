@@ -32,11 +32,6 @@
 // systems (at the time of this writing, only for the Boneh-Boyen scheme).
 package ibe
 
-const (
-	PlaintextSize  = 32
-	CiphertextSize = 160
-)
-
 // Master is the interface used to extract private keys for arbitrary identities.
 type Master interface {
 	Extract(id string) (PrivateKey, error)
@@ -48,16 +43,25 @@ type Master interface {
 type Params interface {
 	// Encrypt encrypts m into C for the identity id.
 	//
-	// The slices m and C must of PlaintextSize and CiphertextSize respectively,
-	// and must not overlap.
+	// The slice C must be of size len(m) + CiphertextOverhead(), and the two
+	// slices must not overlap.
 	Encrypt(id string, m, C []byte) error
+
+	// The additional space required to encrypt a message, that is,
+	// if a message has length m, the size of the ciphertext is
+	// m + CiphertextOverhead().
+	CiphertextOverhead() int
 }
 
 // PrivateKey is the interface used to decrypt encrypted messages.
 type PrivateKey interface {
 	// Decrypt decrypts ciphertext C into m.
 	//
-	// The slices m and C must of PlaintextSize and CiphertextSize respectively,
-	// and must not overlap.
+	// The slice m must be of size len(C) - CiphertextOverhead(), and the two
+	// sices must not overlap.
 	Decrypt(C, m []byte) error
+
+	// Params returns the global system parameters of the Master that
+	// was used to extract this private key.
+	Params() Params
 }

@@ -11,6 +11,24 @@ import (
 	"testing"
 )
 
+func TestHashVal(t *testing.T) {
+	var (
+		prefix0 = [1]byte{0x00}
+		prefix1 = [1]byte{0x01}
+		msg0    = []byte("message 0")
+		msg1    = []byte("message 1")
+	)
+
+	// Hashes of distinct messages (with the same prefix) should be different
+	if bytes.Equal(hashval(prefix0, msg0)[:], hashval(prefix0, msg1)[:]) {
+		t.Errorf("Hashing two distinct values produced same output")
+	}
+	// Hashes of identical messages with different prefixes should be different
+	if bytes.Equal(hashval(prefix0, msg0)[:], hashval(prefix1, msg1)[:]) {
+		t.Errorf("Hashing two messages with different prefixes produced same output")
+	}
+}
+
 func TestBB1Correctness(t *testing.T) {
 	master, err := SetupBB1()
 	if err != nil {
@@ -38,11 +56,10 @@ func TestBB1Correctness(t *testing.T) {
 
 	// Encrypt
 	m := []byte("AThirtyTwoBytePieceOfTextThisIs!")
-	C := make([]byte, CiphertextSize)
-	C2 := make([]byte, CiphertextSize)
-	if msize := len(m); msize != PlaintextSize {
-		t.Fatalf("Test string must be %d bytes, not %d", PlaintextSize, msize)
-	}
+	overhead := master.Params().CiphertextOverhead()
+	C := make([]byte, len(m)+overhead)
+	C2 := make([]byte, len(m)+overhead)
+
 	if err := master.Params().Encrypt(alice, m, C); err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +72,7 @@ func TestBB1Correctness(t *testing.T) {
 
 	// Decrypt
 	decrypt := func(sk PrivateKey) ([]byte, error) {
-		ret := make([]byte, PlaintextSize)
+		ret := make([]byte, len(C)-overhead)
 		if err := sk.Decrypt(C, ret); err != nil {
 			return nil, err
 		}
@@ -67,17 +84,52 @@ func TestBB1Correctness(t *testing.T) {
 	if decrypted, err := decrypt(aliceSK2); err != nil || !bytes.Equal(decrypted, m) {
 		t.Errorf("Got (%v, %v), want (%v, nil)", decrypted, err, m[:])
 	}
-	if decrypted, _ := decrypt(bobSK); bytes.Equal(decrypted[:], m[:]) {
+	if _, err := decrypt(bobSK); err == nil {
 		t.Errorf("Decrypted message with a different PrivateKey")
 	}
 }
 
-var (
-	bb1   Master
-	bb1SK PrivateKey
+// Applying the Fujisaki-Okamoto transformation to the BB1 IBE
+// scheme yields a CCA2-secure encryption scheme. Since CCA2-security
+// implies non-malleability, we verify that a tampered ciphertext
+// does not properly decrypt in this test case.
+func TestBB1NonMalleability(t *testing.T) {
+	master, err := SetupBB1()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const alice = "alice"
+	aliceSK, err := master.Extract(alice)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	benchmarkm = make([]byte, PlaintextSize)
-	bb1C       = make([]byte, CiphertextSize)
+	m := []byte("01234567899876543210123456789012")
+	overhead := master.Params().CiphertextOverhead()
+	C := make([]byte, len(m)+overhead)
+
+	if err := master.Params().Encrypt(alice, m, C); err != nil {
+		t.Fatal(err)
+	}
+
+	out := make([]byte, len(C)-overhead)
+	// Test that an untampered C can be decrypted successfully.
+	if err := aliceSK.Decrypt(C, out); err != nil || !bytes.Equal(out, m) {
+		t.Fatal(err)
+	}
+	// Test that a tampered C cannot be decrypted successfully.
+	C[0] = C[0] ^ byte(1)
+	if err := aliceSK.Decrypt(C, out); err == nil {
+		t.Fatalf("successfully decrypted a tampered ciphetext: %v", err)
+	}
+}
+
+var (
+	bb1           Master
+	bb1SK         PrivateKey
+	benchmarkmlen = 64
+	benchmarkm    = make([]byte, benchmarkmlen)
+	bb1C          []byte
 )
 
 func TestBB1Marshaling(t *testing.T) {
@@ -91,11 +143,12 @@ func TestBB1Marshaling(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := []byte("01234567899876543210123456789012")
+	overhead := bb1P.CiphertextOverhead()
 	var (
-		C1 = make([]byte, CiphertextSize)
-		C2 = make([]byte, CiphertextSize)
-		m1 = make([]byte, PlaintextSize)
-		m2 = make([]byte, PlaintextSize)
+		C1 = make([]byte, len(m)+overhead)
+		C2 = make([]byte, len(m)+overhead)
+		m1 = make([]byte, len(m))
+		m2 = make([]byte, len(m))
 	)
 	// Encrypt with the original params, decrypt with the unmarshaled key.
 	if err := bb1P.Encrypt("alice", m, C1); err != nil {
@@ -158,6 +211,8 @@ func init() {
 	if _, err := rand.Read(benchmarkm[:]); err != nil {
 		panic(err)
 	}
+	overhead := bb1.Params().CiphertextOverhead()
+	bb1C = make([]byte, benchmarkmlen+overhead)
 	if err := bb1.Params().Encrypt("alice", benchmarkm, bb1C); err != nil {
 		panic(err)
 	}
@@ -173,7 +228,7 @@ func BenchmarkExtractBB1(b *testing.B) {
 
 func BenchmarkEncryptBB(b *testing.B) {
 	p := bb1.Params()
-	C := make([]byte, CiphertextSize)
+	C := make([]byte, benchmarkmlen+p.CiphertextOverhead())
 	for i := 0; i < b.N; i++ {
 		if err := p.Encrypt("alice", benchmarkm, C); err != nil {
 			b.Fatal(err)
@@ -182,7 +237,7 @@ func BenchmarkEncryptBB(b *testing.B) {
 }
 
 func BenchmarkDecryptBB(b *testing.B) {
-	m := make([]byte, PlaintextSize)
+	m := make([]byte, benchmarkmlen)
 	for i := 0; i < b.N; i++ {
 		if err := bb1SK.Decrypt(bb1C, m); err != nil {
 			b.Fatal(err)
