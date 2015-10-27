@@ -72,7 +72,7 @@ func TestConversions(t *testing.T) {
 	// No underlying network interface.
 	al := netstate.ConvertToAddresses([]net.Addr{netstate.NewNetAddr("tcp", "1.1.1.1")})
 	if got, want := len(al), 1; got != want {
-		t.Fatalf("got %v, want %v", got, want)
+		t.Fatalf("got %v, want %v, al: %v", got, want, al)
 	}
 	if got, want := al[0].Interface(), netstate.NetworkInterface(nil); got != want {
 		t.Fatalf("got %v, want %v", got, want)
@@ -81,7 +81,7 @@ func TestConversions(t *testing.T) {
 	// Not a netstate.Address, but has an underlying network interface.
 	al = netstate.ConvertToAddresses([]net.Addr{netstate.NewNetAddr("tcp", "127.0.0.1")})
 	if got, want := len(al), 1; got != want {
-		t.Fatalf("got %v, want %v", got, want)
+		t.Fatalf("got %v, want %v, al: %v", got, want, al)
 	}
 	if got, want := fmt.Sprintf("%T", al[0].Interface()), "netstate.ipifc"; got != want {
 		t.Fatalf("got %v, want %v", got, want)
@@ -92,11 +92,11 @@ func TestConversions(t *testing.T) {
 	all, _ := netstate.GetAllAddresses()
 	lb := all.Filter(netstate.IsLoopbackIP).Filter(netstate.IsUnicastIPv4)
 	if got, want := len(lb), 1; got != want {
-		t.Fatalf("got %v, want %v", got, want)
+		t.Fatalf("got %v, want %v, all: %v, lb: %v", got, want, all, lb)
 	}
 	al = netstate.ConvertToAddresses(lb.AsNetAddrs())
 	if got, want := len(al), 1; got != want {
-		t.Fatalf("got %v, want %v", got, want)
+		t.Fatalf("got %v, want %v, al: %v", got, want, al)
 	}
 	found := false
 	for _, a := range all {
