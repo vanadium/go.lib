@@ -36,8 +36,8 @@ var flagDefs = []struct {
 	{"max_stack_buf_size", &maxStackBufSize, 4192 * 1024, "max size in bytes of the buffer to use for logging stack traces"},
 	{"v", &verbosity, nil, "log level for V logs"},
 	{"stderrthreshold", &stderrThreshold, nil, "logs at or above this threshold go to stderr"},
-	{"vmodule", &vmodule, nil, "comma-separated list of pattern=N settings for filename-filtered logging"},
-	{"vpath", &vpath, nil, "comma-separated list of pattern=N settings for file pathname-filtered logging"},
+	{"vmodule", &vmodule, nil, "comma-separated list of globpattern=N settings for filename-filtered logging (without the .go suffix).  E.g. foo/bar/baz.go is matched by patterns baz or *az or b* but not by bar/baz or baz.go or az or b.*"},
+	{"vpath", &vpath, nil, "comma-separated list of regexppattern=N settings for file pathname-filtered logging (without the .go suffix).  E.g. foo/bar/baz.go is matched by patterns foo/bar/baz or fo.*az or oo/ba or b.z but not by foo/bar/baz.go or fo*az"},
 	{"log_backtrace_at", &traceLocation, nil, "when logging hits line file:N, emit a stack trace"},
 }
 
