@@ -16,50 +16,50 @@ type OverridePriorConfiguration bool
 type MaxStackBufSize int
 
 // If true, logs are written to standard error as well as to files.
-func (_ AlsoLogToStderr) LoggingOpt() {}
+func (AlsoLogToStderr) LoggingOpt() {}
 
 // Enable V-leveled logging at the specified level.
-func (_ Level) LoggingOpt() {}
+func (Level) LoggingOpt() {}
 
 // log files will be written to this directory instead of the
 // default temporary directory.
-func (_ LogDir) LoggingOpt() {}
+func (LogDir) LoggingOpt() {}
 
 // If true, logs are written to standard error instead of to files.
-func (_ LogToStderr) LoggingOpt() {}
+func (LogToStderr) LoggingOpt() {}
 
 // Set the max size (bytes) of the byte buffer to use for stack
 // traces. The default max is 4M; use powers of 2 since the
 // stack size will be grown exponentially until it exceeds the max.
 // A min of 128K is enforced and any attempts to reduce this will
 // be silently ignored.
-func (_ MaxStackBufSize) LoggingOpt() {}
+func (MaxStackBufSize) LoggingOpt() {}
 
 // The syntax of the argument is a comma-separated list of pattern=N,
 // where pattern is a literal file name (minus the ".go" suffix) or
 // "glob" pattern and N is a V level. For instance, gopher*=3
 // sets the V level to 3 in all Go files whose names begin "gopher".
-func (_ ModuleSpec) LoggingOpt() {}
+func (ModuleSpec) LoggingOpt() {}
 
 // The syntax of the argument is a comma-separated list of regexp=N,
 // where pattern is a regular expression matched against the full path name
 // of files and N is a V level. For instance, myco.com/web/.*=3
 // sets the V level to 3 in all Go files whose path names match myco.com/web/.*".
-func (_ FilepathSpec) LoggingOpt() {}
+func (FilepathSpec) LoggingOpt() {}
 
 // Log events at or above this severity are logged to standard
 // error as well as to files.
-func (_ StderrThreshold) LoggingOpt() {}
+func (StderrThreshold) LoggingOpt() {}
 
 // When set to a file and line number holding a logging statement, such as
 //	gopherflakes.go:234
 // a stack trace will be written to the Info log whenever execution
 // hits that statement. (Unlike with -vmodule, the ".go" must be
 // present.)
-func (_ TraceLocation) LoggingOpt() {}
+func (TraceLocation) LoggingOpt() {}
 
 // If true, enables automatic flushing of log output on every call
-func (_ AutoFlush) LoggingOpt() {}
+func (AutoFlush) LoggingOpt() {}
 
 // If true, allows this call to ConfigureLogger to override a prior configuration.
-func (_ OverridePriorConfiguration) LoggingOpt() {}
+func (OverridePriorConfiguration) LoggingOpt() {}

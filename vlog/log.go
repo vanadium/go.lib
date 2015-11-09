@@ -235,10 +235,10 @@ func (l *Logger) VDepth(depth int, v int) bool {
 
 type discardInfo struct{}
 
-func (_ *discardInfo) Info(...interface{})               {}
-func (_ *discardInfo) Infof(_ string, _ ...interface{})  {}
-func (_ *discardInfo) InfoDepth(_ int, _ ...interface{}) {}
-func (_ *discardInfo) InfoStack(_ bool)                  {}
+func (*discardInfo) Info(...interface{})           {}
+func (*discardInfo) Infof(string, ...interface{})  {}
+func (*discardInfo) InfoDepth(int, ...interface{}) {}
+func (*discardInfo) InfoStack(bool)                {}
 
 func (l *Logger) VI(v int) interface {
 	// Info logs to the INFO log.
