@@ -201,7 +201,7 @@ func (w *LineWriter) ForceVerbatim(v bool) error {
 //
 // Flush must be called after the last call to Write.
 func (w *LineWriter) Write(data []byte) (int, error) {
-	return RuneChunkWrite(w.runeDecoder, w.addRune, data)
+	return WriteRuneChunk(w.runeDecoder, w.addRune, data)
 }
 
 // Flush flushes any remaining buffered text, and resets the paragraph line
@@ -212,7 +212,7 @@ func (w *LineWriter) Write(data []byte) (int, error) {
 // Flush must be called after the last call to Write, and may be called an
 // arbitrary number of times before the last Write.
 func (w *LineWriter) Flush() error {
-	if err := RuneChunkFlush(w.runeDecoder, w.addRune); err != nil {
+	if err := FlushRuneChunk(w.runeDecoder, w.addRune); err != nil {
 		return err
 	}
 	// Add U+2028 to force the last line (if any) to be written.

@@ -37,58 +37,32 @@ type UTF8ChunkDecoder struct {
 
 var _ RuneChunkDecoder = (*UTF8ChunkDecoder)(nil)
 
-// Decode returns a RuneStreamDecoder that decodes the data chunk.  Call Next
-// repeatedly on the returned stream until it returns EOF to decode the chunk.
-//
-// If the data is chunked in the middle of an encoded rune, the final partial
-// rune in the chunk will be buffered, and the next call to Decode will continue
-// by combining the buffered data with the next chunk.
+// DecodeRune implements the RuneChunkDecoder interface method.
 //
 // Invalid encodings are transformed into U+FFFD, one byte at a time.  See
 // unicode/utf8.DecodeRune for details.
-func (d *UTF8ChunkDecoder) Decode(chunk []byte) RuneStreamDecoder {
-	return &utf8Stream{d, chunk, 0}
-}
-
-// DecodeLeftover returns a RuneStreamDecoder that decodes leftover buffered
-// data.  Call Next repeatedly on the returned stream until it returns EOF to
-// ensure all buffered data is processed.
-//
-// Since the only data that is buffered is the final partial rune, the returned
-// RuneStreamDecoder will only contain U+FFFD or EOF.
-func (d *UTF8ChunkDecoder) DecodeLeftover() RuneStreamDecoder {
-	return &utf8LeftoverStream{d, 0}
-}
-
-// nextRune decodes the next rune, logically combining any previously buffered
-// data with the data chunk.  It returns the decoded rune and the byte size of
-// the data that was used for the decoding.
-//
-// The returned size may be > 0 even if the returned rune == EOF, if a partial
-// rune was detected and buffered.  The returned size may be 0 even if the
-// returned rune != EOF, if previously buffered data was decoded.
-func (d *UTF8ChunkDecoder) nextRune(data []byte) (rune, int) {
+func (d *UTF8ChunkDecoder) DecodeRune(chunk []byte) (rune, int) {
 	if d.partialLen > 0 {
-		return d.nextRunePartial(data)
+		return d.decodeRunePartial(chunk)
 	}
-	r, size := utf8.DecodeRune(data)
-	if r == utf8.RuneError && !utf8.FullRune(data) {
-		// Initialize the partial rune buffer with remaining data.
-		d.partialLen = copy(d.partial[:], data)
-		return d.verifyPartial(d.partialLen, data)
+	r, size := utf8.DecodeRune(chunk)
+	if r == utf8.RuneError && !utf8.FullRune(chunk) {
+		// Initialize the partial rune buffer with chunk.
+		d.partialLen = copy(d.partial[:], chunk)
+		return d.verifyPartial(d.partialLen, chunk)
 	}
 	return r, size
 }
 
-// nextRunePartial implements nextRune when there is a previously buffered
+// decodeRunePartial implements decodeRune when there is a previously buffered
 // partial rune.
-func (d *UTF8ChunkDecoder) nextRunePartial(data []byte) (rune, int) {
-	// Append as much data as we can to the partial rune, and see if it's full.
+func (d *UTF8ChunkDecoder) decodeRunePartial(chunk []byte) (rune, int) {
+	// Append as much as we can to the partial rune, and see if it's full.
 	oldLen := d.partialLen
-	d.partialLen += copy(d.partial[oldLen:], data)
+	d.partialLen += copy(d.partial[oldLen:], chunk)
 	if !utf8.FullRune(d.partial[:d.partialLen]) {
 		// We still don't have a full rune - keep waiting.
-		return d.verifyPartial(d.partialLen-oldLen, data)
+		return d.verifyPartial(d.partialLen-oldLen, chunk)
 	}
 	// We finally have a full rune.
 	r, size := utf8.DecodeRune(d.partial[:d.partialLen])
@@ -100,15 +74,15 @@ func (d *UTF8ChunkDecoder) nextRunePartial(data []byte) (rune, int) {
 		// isn't a UTF-8 trailing byte.  In this case utf8.DecodeRune returns U+FFFD
 		// and size=1, to indicate we should skip the first byte.
 		//
-		// We shift the unread portion of the old partial data forward, and update
+		// We shift the unread portion of the old partial buffer forward, and update
 		// the partial len so that it's strictly decreasing.  The strictly
 		// decreasing property isn't necessary for correctness, but helps avoid
-		// repeatedly copying data into the partial buffer unecessarily.
+		// repeatedly copying into the partial buffer unecessarily.
 		copy(d.partial[:], d.partial[size:oldLen])
 		d.partialLen = oldLen - size
 		return r, 0
 	}
-	// We've used all the old buffered data; start decoding directly from data.
+	// We've used all of the partial buffer.
 	d.partialLen = 0
 	return r, size - oldLen
 }
@@ -125,47 +99,17 @@ func (d *UTF8ChunkDecoder) verifyPartial(ncopy int, data []byte) (rune, int) {
 	return EOF, len(data)
 }
 
-// utf8Stream implements UTF8ChunkDecoder.Decode.
-type utf8Stream struct {
-	d    *UTF8ChunkDecoder
-	data []byte
-	pos  int
-}
-
-var _ RuneStreamDecoder = (*utf8Stream)(nil)
-
-func (s *utf8Stream) Next() rune {
-	if s.pos == len(s.data) {
+// FlushRune implements the RuneChunkDecoder interface method.
+//
+// Since the only data that is buffered is the final partial rune, the return
+// value will only ever be U+FFFD or EOF.  No valid runes are ever returned by
+// this method, but multiple U+FFFD may be returned before EOF.
+func (d *UTF8ChunkDecoder) FlushRune() rune {
+	if d.partialLen == 0 {
 		return EOF
 	}
-	r, size := s.d.nextRune(s.data[s.pos:])
-	s.pos += size
+	r, size := utf8.DecodeRune(d.partial[:d.partialLen])
+	copy(d.partial[:], d.partial[size:])
+	d.partialLen -= size
 	return r
-}
-
-func (s *utf8Stream) BytePos() int {
-	return s.pos
-}
-
-// utf8LeftoverStream implements UTF8ChunkDecoder.DecodeLeftover.
-type utf8LeftoverStream struct {
-	d   *UTF8ChunkDecoder
-	pos int
-}
-
-var _ RuneStreamDecoder = (*utf8LeftoverStream)(nil)
-
-func (s *utf8LeftoverStream) Next() rune {
-	if s.d.partialLen == 0 {
-		return EOF
-	}
-	r, size := utf8.DecodeRune(s.d.partial[:s.d.partialLen])
-	copy(s.d.partial[:], s.d.partial[size:])
-	s.d.partialLen -= size
-	s.pos += size
-	return r
-}
-
-func (s *utf8LeftoverStream) BytePos() int {
-	return s.pos
 }

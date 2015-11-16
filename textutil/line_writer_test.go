@@ -273,7 +273,7 @@ func spaces(count int) string {
 	return strings.Repeat(" ", count)
 }
 
-func newUTF8LineWriter(t *testing.T, buf io.Writer, width int, lp lp, indents []int) *LineWriter {
+func newUTF8LineWriter(t testing.TB, buf io.Writer, width int, lp lp, indents []int) *LineWriter {
 	w := NewUTF8LineWriter(buf, width)
 	if lp.line != "" || lp.para != "" {
 		if err := w.SetLineTerminator(lp.line); err != nil {
@@ -295,9 +295,9 @@ func newUTF8LineWriter(t *testing.T, buf io.Writer, width int, lp lp, indents []
 	return w
 }
 
-func lineWriterWriteFlush(t *testing.T, w *LineWriter, text string, sizes []int) {
+func lineWriterWriteFlush(t testing.TB, w *LineWriter, text string, sizes []int) {
 	// Write chunks of different sizes until we've exhausted the input.
-	remain := text
+	remain := []byte(text)
 	for ix := 0; len(remain) > 0; ix++ {
 		var chunk []byte
 		chunk, remain = nextChunk(remain, sizes, ix)
@@ -310,4 +310,42 @@ func lineWriterWriteFlush(t *testing.T, w *LineWriter, text string, sizes []int)
 	if err := w.Flush(); err != nil {
 		t.Errorf("%q Flush() got %v, want nil", text, err)
 	}
+}
+
+func benchUTF8LineWriter(b *testing.B, width int, sizes []int) {
+	for i := 0; i < b.N; i++ {
+		var buf bytes.Buffer
+		w := newUTF8LineWriter(b, &buf, width, lp{}, nil)
+		lineWriterWriteFlush(b, w, benchText, sizes)
+	}
+}
+
+func BenchmarkUTF8LineWriter_Sizes_0_Width_0(b *testing.B) {
+	benchUTF8LineWriter(b, 0, nil)
+}
+func BenchmarkUTF8LineWriter_Sizes_0_Width_10(b *testing.B) {
+	benchUTF8LineWriter(b, 10, nil)
+}
+func BenchmarkUTF8LineWriter_Sizes_0_Width_Inf(b *testing.B) {
+	benchUTF8LineWriter(b, -1, nil)
+}
+
+func BenchmarkUTF8LineWriter_Sizes_1_Width_0(b *testing.B) {
+	benchUTF8LineWriter(b, 0, []int{1})
+}
+func BenchmarkUTF8LineWriter_Sizes_1_Width_10(b *testing.B) {
+	benchUTF8LineWriter(b, 10, []int{1})
+}
+func BenchmarkUTF8LineWriter_Sizes_1_Width_Inf(b *testing.B) {
+	benchUTF8LineWriter(b, -1, []int{1})
+}
+
+func BenchmarkUTF8LineWriter_Sizes_1_2_3_Width_0(b *testing.B) {
+	benchUTF8LineWriter(b, 0, []int{1, 2, 3})
+}
+func BenchmarkUTF8LineWriter_Sizes_1_2_3_Width_10(b *testing.B) {
+	benchUTF8LineWriter(b, 10, []int{1, 2, 3})
+}
+func BenchmarkUTF8LineWriter_Sizes_1_2_3_Width_Inf(b *testing.B) {
+	benchUTF8LineWriter(b, -1, []int{1, 2, 3})
 }

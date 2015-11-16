@@ -23,16 +23,6 @@ type RuneEncoder interface {
 	Encode(r rune, buf *bytes.Buffer)
 }
 
-// RuneStreamDecoder is the interface to a decoder of a contiguous stream of
-// runes.
-type RuneStreamDecoder interface {
-	// Next returns the next rune.  Invalid encodings are returned as U+FFFD.
-	// Returns EOF at the end of the stream.
-	Next() rune
-	// BytePos returns the current byte position in the original data buffer.
-	BytePos() int
-}
-
 // RuneChunkDecoder is the interface to a decoder of a stream of encoded runes
 // that may be arbitrarily chunked.
 //
@@ -40,45 +30,53 @@ type RuneStreamDecoder interface {
 // wrappers, to handle buffering when chunk boundaries may occur in the middle
 // of an encoded rune.
 type RuneChunkDecoder interface {
-	// Decode returns a RuneStreamDecoder that decodes the data chunk.  Call Next
-	// repeatedly on the returned stream until it returns EOF to decode the chunk.
-	Decode(chunk []byte) RuneStreamDecoder
-	// DecodeLeftover returns a RuneStreamDecoder that decodes leftover buffered
-	// data.  Call Next repeatedly on the returned stream until it returns EOF to
-	// ensure all buffered data is processed.
-	DecodeLeftover() RuneStreamDecoder
+	// DecodeRune returns the next rune in chunk, and its width in bytes.  If
+	// chunk represents a partial rune, the chunk is buffered and returns EOF and
+	// the size of the chunk.  Subsequent calls to DecodeRune will combine
+	// previously buffered data when decoding.
+	DecodeRune(chunk []byte) (r rune, n int)
+	// FlushRune returns the next buffered rune.  Returns EOF when all buffered
+	// data is returned.
+	FlushRune() rune
 }
 
-// RuneChunkWrite is a helper that calls d.Decode(data) and repeatedly calls
-// Next in a loop, calling fn for every rune that is decoded.  Returns the
-// number of bytes in data that were successfully processed.  If fn returns an
-// error, Write will return with that error, without processing any more data.
+// WriteRuneChunk is a helper that repeatedly calls d.DecodeRune(chunk) until
+// EOF, calling fn for every rune that is decoded.  Returns the number of bytes
+// in data that were successfully processed.  If fn returns an error,
+// WriteRuneChunk will return with that error, without processing any more data.
 //
 // This is a convenience for implementing io.Writer, given a RuneChunkDecoder.
-func RuneChunkWrite(d RuneChunkDecoder, fn func(rune) error, data []byte) (int, error) {
-	stream := d.Decode(data)
-	for r := stream.Next(); r != EOF; r = stream.Next() {
+func WriteRuneChunk(d RuneChunkDecoder, fn func(rune) error, chunk []byte) (int, error) {
+	pos := 0
+	for pos < len(chunk) {
+		r, size := d.DecodeRune(chunk[pos:])
+		pos += size
+		if r == EOF {
+			break
+		}
 		if err := fn(r); err != nil {
-			return stream.BytePos(), err
+			return pos, err
 		}
 	}
-	return stream.BytePos(), nil
+	return pos, nil
 }
 
-// RuneChunkFlush is a helper that calls d.DecodeLeftover and repeatedly calls
-// Next in a loop, calling fn for every rune that is decoded.  If fn returns an
-// error, Flush will return with that error, without processing any more data.
+// FlushRuneChunk is a helper that repeatedly calls d.FlushRune until EOF,
+// calling fn for every rune that is decoded.  If fn returns an error, Flush
+// will return with that error, without processing any more data.
 //
 // This is a convenience for implementing an additional Flush() call on an
 // implementation of io.Writer, given a RuneChunkDecoder.
-func RuneChunkFlush(d RuneChunkDecoder, fn func(rune) error) error {
-	stream := d.DecodeLeftover()
-	for r := stream.Next(); r != EOF; r = stream.Next() {
+func FlushRuneChunk(d RuneChunkDecoder, fn func(rune) error) error {
+	for {
+		r := d.FlushRune()
+		if r == EOF {
+			return nil
+		}
 		if err := fn(r); err != nil {
 			return err
 		}
 	}
-	return nil
 }
 
 // bytePos and runePos distinguish positions that are used in either domain;

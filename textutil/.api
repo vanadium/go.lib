@@ -2,12 +2,12 @@ pkg textutil, const EOF rune
 pkg textutil, const LineSeparator ideal-char
 pkg textutil, const ParagraphSeparator ideal-char
 pkg textutil, func ByteReplaceWriter(io.Writer, byte, string) io.Writer
+pkg textutil, func FlushRuneChunk(RuneChunkDecoder, func(rune) error) error
 pkg textutil, func NewLineWriter(io.Writer, int, RuneChunkDecoder, RuneEncoder) *LineWriter
 pkg textutil, func NewUTF8LineWriter(io.Writer, int) *LineWriter
 pkg textutil, func PrefixWriter(io.Writer, string) io.Writer
-pkg textutil, func RuneChunkFlush(RuneChunkDecoder, func(rune) error) error
-pkg textutil, func RuneChunkWrite(RuneChunkDecoder, func(rune) error, []byte) (int, error)
 pkg textutil, func TerminalSize() (int, int, error)
+pkg textutil, func WriteRuneChunk(RuneChunkDecoder, func(rune) error, []byte) (int, error)
 pkg textutil, method (*LineWriter) Flush() error
 pkg textutil, method (*LineWriter) ForceVerbatim(bool) error
 pkg textutil, method (*LineWriter) SetIndents(...string) error
@@ -15,17 +15,14 @@ pkg textutil, method (*LineWriter) SetLineTerminator(string) error
 pkg textutil, method (*LineWriter) SetParagraphSeparator(string) error
 pkg textutil, method (*LineWriter) Width() int
 pkg textutil, method (*LineWriter) Write([]byte) (int, error)
-pkg textutil, method (*UTF8ChunkDecoder) Decode([]byte) RuneStreamDecoder
-pkg textutil, method (*UTF8ChunkDecoder) DecodeLeftover() RuneStreamDecoder
+pkg textutil, method (*UTF8ChunkDecoder) DecodeRune([]byte) (rune, int)
+pkg textutil, method (*UTF8ChunkDecoder) FlushRune() rune
 pkg textutil, method (UTF8Encoder) Encode(rune, *bytes.Buffer)
 pkg textutil, type LineWriter struct
-pkg textutil, type RuneChunkDecoder interface { Decode, DecodeLeftover }
-pkg textutil, type RuneChunkDecoder interface, Decode([]byte) RuneStreamDecoder
-pkg textutil, type RuneChunkDecoder interface, DecodeLeftover() RuneStreamDecoder
+pkg textutil, type RuneChunkDecoder interface { DecodeRune, FlushRune }
+pkg textutil, type RuneChunkDecoder interface, DecodeRune([]byte) (rune, int)
+pkg textutil, type RuneChunkDecoder interface, FlushRune() rune
 pkg textutil, type RuneEncoder interface { Encode }
 pkg textutil, type RuneEncoder interface, Encode(rune, *bytes.Buffer)
-pkg textutil, type RuneStreamDecoder interface { BytePos, Next }
-pkg textutil, type RuneStreamDecoder interface, BytePos() int
-pkg textutil, type RuneStreamDecoder interface, Next() rune
 pkg textutil, type UTF8ChunkDecoder struct
 pkg textutil, type UTF8Encoder struct
