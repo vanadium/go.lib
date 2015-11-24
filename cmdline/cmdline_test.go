@@ -367,8 +367,8 @@ func TestBothChildrenAndRunnerNoArgs(t *testing.T) {
 Cmdrun has the echo command and a Run function with no args.
 
 Usage:
-   cmdrun
-   cmdrun <command>
+   cmdrun [flags]
+   cmdrun [flags] <command>
 
 The cmdrun commands are:
    echo        Print strings on stdout
@@ -387,8 +387,8 @@ The global flags are:
 			Stdout: `Cmdrun has the echo command and a Run function with no args.
 
 Usage:
-   cmdrun
-   cmdrun <command>
+   cmdrun [flags]
+   cmdrun [flags] <command>
 
 The cmdrun commands are:
    echo        Print strings on stdout
@@ -407,7 +407,7 @@ The global flags are:
 			Stdout: `Echo prints any strings passed in to stdout.
 
 Usage:
-   cmdrun echo [strings]
+   cmdrun echo [flags] [strings]
 
 [strings] are arbitrary strings that will be echoed.
 
@@ -423,8 +423,8 @@ The global flags are:
 			Stdout: `Cmdrun has the echo command and a Run function with no args.
 
 Usage:
-   cmdrun
-   cmdrun <command>
+   cmdrun [flags]
+   cmdrun [flags] <command>
 
 The cmdrun commands are:
    echo        Print strings on stdout
@@ -442,7 +442,7 @@ Cmdrun echo - Print strings on stdout
 Echo prints any strings passed in to stdout.
 
 Usage:
-   cmdrun echo [strings]
+   cmdrun echo [flags] [strings]
 
 [strings] are arbitrary strings that will be echoed.
 ================================================================================
@@ -462,9 +462,10 @@ Usage:
 The cmdrun help flags are:
  -style=compact
    The formatting style for help output:
-      compact - Good for compact cmdline output.
-      full    - Good for cmdline output, shows all global flags.
-      godoc   - Good for godoc processing.
+      compact   - Good for compact cmdline output.
+      full      - Good for cmdline output, shows all global flags.
+      godoc     - Good for godoc processing.
+      shortonly - Only output short description.
    Override the default by setting the CMDLINE_STYLE environment variable.
  -width=80
    Format output to this target width in runes, or unlimited if width < 0.
@@ -480,8 +481,8 @@ The cmdrun help flags are:
 Cmdrun has the echo command and a Run function with no args.
 
 Usage:
-   cmdrun
-   cmdrun <command>
+   cmdrun [flags]
+   cmdrun [flags] <command>
 
 The cmdrun commands are:
    echo        Print strings on stdout
@@ -511,7 +512,7 @@ The global flags are:
 Echo prints any strings passed in to stdout.
 
 Usage:
-   cmdrun echo [strings]
+   cmdrun echo [flags] [strings]
 
 [strings] are arbitrary strings that will be echoed.
 
@@ -553,7 +554,7 @@ Echo prints any strings passed in to stdout.
 Onecmd only has the echo command.
 
 Usage:
-   onecmd <command>
+   onecmd [flags] <command>
 
 The onecmd commands are:
    echo        Print strings on stdout
@@ -575,7 +576,7 @@ The global flags are:
 Onecmd only has the echo command.
 
 Usage:
-   onecmd <command>
+   onecmd [flags] <command>
 
 The onecmd commands are:
    echo        Print strings on stdout
@@ -594,7 +595,7 @@ The global flags are:
 			Stdout: `Onecmd only has the echo command.
 
 Usage:
-   onecmd <command>
+   onecmd [flags] <command>
 
 The onecmd commands are:
    echo        Print strings on stdout
@@ -613,7 +614,7 @@ The global flags are:
 			Stdout: `Echo prints any strings passed in to stdout.
 
 Usage:
-   onecmd echo [strings]
+   onecmd echo [flags] [strings]
 
 [strings] are arbitrary strings that will be echoed.
 
@@ -640,9 +641,10 @@ Usage:
 The onecmd help flags are:
  -style=compact
    The formatting style for help output:
-      compact - Good for compact cmdline output.
-      full    - Good for cmdline output, shows all global flags.
-      godoc   - Good for godoc processing.
+      compact   - Good for compact cmdline output.
+      full      - Good for cmdline output, shows all global flags.
+      godoc     - Good for godoc processing.
+      shortonly - Only output short description.
    Override the default by setting the CMDLINE_STYLE environment variable.
  -width=80
    Format output to this target width in runes, or unlimited if width < 0.
@@ -661,7 +663,7 @@ The global flags are:
 			Stdout: `Onecmd only has the echo command.
 
 Usage:
-   onecmd <command>
+   onecmd [flags] <command>
 
 The onecmd commands are:
    echo        Print strings on stdout
@@ -679,7 +681,7 @@ Onecmd echo - Print strings on stdout
 Echo prints any strings passed in to stdout.
 
 Usage:
-   onecmd echo [strings]
+   onecmd echo [flags] [strings]
 
 [strings] are arbitrary strings that will be echoed.
 ================================================================================
@@ -699,9 +701,10 @@ Usage:
 The onecmd help flags are:
  -style=compact
    The formatting style for help output:
-      compact - Good for compact cmdline output.
-      full    - Good for cmdline output, shows all global flags.
-      godoc   - Good for godoc processing.
+      compact   - Good for compact cmdline output.
+      full      - Good for cmdline output, shows all global flags.
+      godoc     - Good for godoc processing.
+      shortonly - Only output short description.
    Override the default by setting the CMDLINE_STYLE environment variable.
  -width=80
    Format output to this target width in runes, or unlimited if width < 0.
@@ -717,7 +720,7 @@ The onecmd help flags are:
 Onecmd only has the echo command.
 
 Usage:
-   onecmd <command>
+   onecmd [flags] <command>
 
 The onecmd commands are:
    echo        Print strings on stdout
@@ -747,7 +750,7 @@ The global flags are:
 Echo prints any strings passed in to stdout.
 
 Usage:
-   onecmd echo [strings]
+   onecmd echo [flags] [strings]
 
 [strings] are arbitrary strings that will be echoed.
 
@@ -875,9 +878,11 @@ Multi echo - Print strings on stdout
 Echo prints any strings passed in to stdout.
 
 Usage:
-   multi echo [strings]
+   multi echo [flags] [strings]
 
 [strings] are arbitrary strings that will be echoed.
+
+Run "multi help -style=full echo" to show all flags.
 ================================================================================
 Multi echoopt - Print strings on stdout with opts
 
@@ -891,6 +896,8 @@ Usage:
 The multi echoopt flags are:
  -n=false
    Do not output trailing newline
+
+Run "multi help -style=full echoopt" to show all flags.
 ================================================================================
 Multi help - Display help for commands or topics
 
@@ -908,9 +915,10 @@ Usage:
 The multi help flags are:
  -style=compact
    The formatting style for help output:
-      compact - Good for compact cmdline output.
-      full    - Good for cmdline output, shows all global flags.
-      godoc   - Good for godoc processing.
+      compact   - Good for compact cmdline output.
+      full      - Good for cmdline output, shows all global flags.
+      godoc     - Good for godoc processing.
+      shortonly - Only output short description.
    Override the default by setting the CMDLINE_STYLE environment variable.
  -width=80
    Format output to this target width in runes, or unlimited if width < 0.
@@ -923,7 +931,7 @@ The multi help flags are:
 			Stdout: `Echo prints any strings passed in to stdout.
 
 Usage:
-   multi echo [strings]
+   multi echo [flags] [strings]
 
 [strings] are arbitrary strings that will be echoed.
 
@@ -932,6 +940,8 @@ The global flags are:
    global test flag 1
  -global2=0
    global test flag 2
+
+Run "multi help -style=full echo" to show all flags.
 `,
 		},
 		{
@@ -952,6 +962,8 @@ The global flags are:
    global test flag 1
  -global2=0
    global test flag 2
+
+Run "multi help -style=full echoopt" to show all flags.
 `,
 		},
 		{
@@ -1037,7 +1049,7 @@ The global flags are:
 Echo prints any strings passed in to stdout.
 
 Usage:
-   multi echo [strings]
+   multi echo [flags] [strings]
 
 [strings] are arbitrary strings that will be echoed.
 
@@ -1046,6 +1058,8 @@ The global flags are:
    global test flag 1
  -global2=0
    global test flag 2
+
+Run "multi help -style=full echo" to show all flags.
 `,
 		},
 		{
@@ -1242,15 +1256,19 @@ The toplevelprog echoprog additional help topics are:
 The toplevelprog echoprog flags are:
  -extra=false
    Print an extra arg
+
+Run "toplevelprog echoprog help -style=full" to show all flags.
 ================================================================================
 Toplevelprog echoprog echo - Print strings on stdout
 
 Echo prints any strings passed in to stdout.
 
 Usage:
-   toplevelprog echoprog echo [strings]
+   toplevelprog echoprog echo [flags] [strings]
 
 [strings] are arbitrary strings that will be echoed.
+
+Run "toplevelprog echoprog help -style=full echo" to show all flags.
 ================================================================================
 Toplevelprog echoprog echoopt - Print strings on stdout with opts
 
@@ -1264,6 +1282,8 @@ Usage:
 The toplevelprog echoprog echoopt flags are:
  -n=false
    Do not output trailing newline
+
+Run "toplevelprog echoprog help -style=full echoopt" to show all flags.
 ================================================================================
 Toplevelprog echoprog topic3 - Help topic 3 short
 
@@ -1274,9 +1294,11 @@ Toplevelprog hello - Print strings on stdout preceded by Hello
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
-   toplevelprog hello [strings]
+   toplevelprog hello [flags] [strings]
 
 [strings] are arbitrary strings that will be printed.
+
+Run "toplevelprog help -style=full hello" to show all flags.
 ================================================================================
 Toplevelprog help - Display help for commands or topics
 
@@ -1294,9 +1316,10 @@ Usage:
 The toplevelprog help flags are:
  -style=compact
    The formatting style for help output:
-      compact - Good for compact cmdline output.
-      full    - Good for cmdline output, shows all global flags.
-      godoc   - Good for godoc processing.
+      compact   - Good for compact cmdline output.
+      full      - Good for cmdline output, shows all global flags.
+      godoc     - Good for godoc processing.
+      shortonly - Only output short description.
    Override the default by setting the CMDLINE_STYLE environment variable.
  -width=80
    Format output to this target width in runes, or unlimited if width < 0.
@@ -1338,6 +1361,8 @@ The global flags are:
    global test flag 1
  -global2=0
    global test flag 2
+
+Run "toplevelprog echoprog help -style=full" to show all flags.
 `,
 		},
 		{
@@ -1376,15 +1401,19 @@ The global flags are:
    global test flag 1
  -global2=0
    global test flag 2
+
+Run "toplevelprog echoprog help -style=full" to show all flags.
 ================================================================================
 Toplevelprog echoprog echo - Print strings on stdout
 
 Echo prints any strings passed in to stdout.
 
 Usage:
-   toplevelprog echoprog echo [strings]
+   toplevelprog echoprog echo [flags] [strings]
 
 [strings] are arbitrary strings that will be echoed.
+
+Run "toplevelprog echoprog help -style=full echo" to show all flags.
 ================================================================================
 Toplevelprog echoprog echoopt - Print strings on stdout with opts
 
@@ -1398,6 +1427,8 @@ Usage:
 The toplevelprog echoprog echoopt flags are:
  -n=false
    Do not output trailing newline
+
+Run "toplevelprog echoprog help -style=full echoopt" to show all flags.
 ================================================================================
 Toplevelprog echoprog help - Display help for commands or topics
 
@@ -1415,9 +1446,10 @@ Usage:
 The toplevelprog echoprog help flags are:
  -style=compact
    The formatting style for help output:
-      compact - Good for compact cmdline output.
-      full    - Good for cmdline output, shows all global flags.
-      godoc   - Good for godoc processing.
+      compact   - Good for compact cmdline output.
+      full      - Good for cmdline output, shows all global flags.
+      godoc     - Good for godoc processing.
+      shortonly - Only output short description.
    Override the default by setting the CMDLINE_STYLE environment variable.
  -width=80
    Format output to this target width in runes, or unlimited if width < 0.
@@ -1447,6 +1479,8 @@ The global flags are:
    global test flag 1
  -global2=0
    global test flag 2
+
+Run "toplevelprog echoprog help -style=full echoopt" to show all flags.
 `,
 		},
 		{
@@ -1464,7 +1498,7 @@ The global flags are:
 			Stdout: `Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
-   toplevelprog hello [strings]
+   toplevelprog hello [flags] [strings]
 
 [strings] are arbitrary strings that will be printed.
 
@@ -1473,6 +1507,8 @@ The global flags are:
    global test flag 1
  -global2=0
    global test flag 2
+
+Run "toplevelprog help -style=full hello" to show all flags.
 `,
 		},
 		{
@@ -1559,7 +1595,7 @@ The global flags are:
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
-   toplevelprog hello [strings]
+   toplevelprog hello [flags] [strings]
 
 [strings] are arbitrary strings that will be printed.
 
@@ -1568,6 +1604,8 @@ The global flags are:
    global test flag 1
  -global2=0
    global test flag 2
+
+Run "toplevelprog help -style=full hello" to show all flags.
 `,
 		},
 		{
@@ -1695,7 +1733,7 @@ Hello prints any strings passed in to stdout preceded by "Hello".
 Prog1 has two variants of hello and a subprogram prog2.
 
 Usage:
-   prog1 <command>
+   prog1 [flags] <command>
 
 The prog1 commands are:
    hello11     Print strings on stdout preceded by Hello
@@ -1716,7 +1754,7 @@ The global flags are:
 			Stdout: `Prog1 has two variants of hello and a subprogram prog2.
 
 Usage:
-   prog1 <command>
+   prog1 [flags] <command>
 
 The prog1 commands are:
    hello11     Print strings on stdout preceded by Hello
@@ -1737,7 +1775,7 @@ The global flags are:
 			Stdout: `Prog1 has two variants of hello and a subprogram prog2.
 
 Usage:
-   prog1 <command>
+   prog1 [flags] <command>
 
 The prog1 commands are:
    hello11     Print strings on stdout preceded by Hello
@@ -1757,7 +1795,7 @@ Prog1 hello11 - Print strings on stdout preceded by Hello
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
-   prog1 hello11 [strings]
+   prog1 hello11 [flags] [strings]
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
@@ -1766,7 +1804,7 @@ Prog1 hello12 - Print strings on stdout preceded by Hello
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
-   prog1 hello12 [strings]
+   prog1 hello12 [flags] [strings]
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
@@ -1775,7 +1813,7 @@ Prog1 prog2 - Set of hello commands
 Prog2 has two variants of hello and a subprogram prog3.
 
 Usage:
-   prog1 prog2 <command>
+   prog1 prog2 [flags] <command>
 
 The prog1 prog2 commands are:
    hello21     Print strings on stdout preceded by Hello
@@ -1787,7 +1825,7 @@ Prog1 prog2 hello21 - Print strings on stdout preceded by Hello
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
-   prog1 prog2 hello21 [strings]
+   prog1 prog2 hello21 [flags] [strings]
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
@@ -1796,7 +1834,7 @@ Prog1 prog2 prog3 - Set of hello commands
 Prog3 has two variants of hello.
 
 Usage:
-   prog1 prog2 prog3 <command>
+   prog1 prog2 prog3 [flags] <command>
 
 The prog1 prog2 prog3 commands are:
    hello31     Print strings on stdout preceded by Hello
@@ -1807,7 +1845,7 @@ Prog1 prog2 prog3 hello31 - Print strings on stdout preceded by Hello
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
-   prog1 prog2 prog3 hello31 [strings]
+   prog1 prog2 prog3 hello31 [flags] [strings]
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
@@ -1816,7 +1854,7 @@ Prog1 prog2 prog3 hello32 - Print strings on stdout preceded by Hello
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
-   prog1 prog2 prog3 hello32 [strings]
+   prog1 prog2 prog3 hello32 [flags] [strings]
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
@@ -1825,7 +1863,7 @@ Prog1 prog2 hello22 - Print strings on stdout preceded by Hello
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
-   prog1 prog2 hello22 [strings]
+   prog1 prog2 hello22 [flags] [strings]
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
@@ -1845,9 +1883,10 @@ Usage:
 The prog1 help flags are:
  -style=compact
    The formatting style for help output:
-      compact - Good for compact cmdline output.
-      full    - Good for cmdline output, shows all global flags.
-      godoc   - Good for godoc processing.
+      compact   - Good for compact cmdline output.
+      full      - Good for cmdline output, shows all global flags.
+      godoc     - Good for godoc processing.
+      shortonly - Only output short description.
    Override the default by setting the CMDLINE_STYLE environment variable.
  -width=80
    Format output to this target width in runes, or unlimited if width < 0.
@@ -1860,7 +1899,7 @@ The prog1 help flags are:
 			Stdout: `Prog2 has two variants of hello and a subprogram prog3.
 
 Usage:
-   prog1 prog2 <command>
+   prog1 prog2 [flags] <command>
 
 The prog1 prog2 commands are:
    hello21     Print strings on stdout preceded by Hello
@@ -1880,7 +1919,7 @@ Prog1 prog2 hello21 - Print strings on stdout preceded by Hello
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
-   prog1 prog2 hello21 [strings]
+   prog1 prog2 hello21 [flags] [strings]
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
@@ -1889,7 +1928,7 @@ Prog1 prog2 prog3 - Set of hello commands
 Prog3 has two variants of hello.
 
 Usage:
-   prog1 prog2 prog3 <command>
+   prog1 prog2 prog3 [flags] <command>
 
 The prog1 prog2 prog3 commands are:
    hello31     Print strings on stdout preceded by Hello
@@ -1900,7 +1939,7 @@ Prog1 prog2 prog3 hello31 - Print strings on stdout preceded by Hello
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
-   prog1 prog2 prog3 hello31 [strings]
+   prog1 prog2 prog3 hello31 [flags] [strings]
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
@@ -1909,7 +1948,7 @@ Prog1 prog2 prog3 hello32 - Print strings on stdout preceded by Hello
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
-   prog1 prog2 prog3 hello32 [strings]
+   prog1 prog2 prog3 hello32 [flags] [strings]
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
@@ -1918,7 +1957,7 @@ Prog1 prog2 hello22 - Print strings on stdout preceded by Hello
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
-   prog1 prog2 hello22 [strings]
+   prog1 prog2 hello22 [flags] [strings]
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
@@ -1938,9 +1977,10 @@ Usage:
 The prog1 prog2 help flags are:
  -style=compact
    The formatting style for help output:
-      compact - Good for compact cmdline output.
-      full    - Good for cmdline output, shows all global flags.
-      godoc   - Good for godoc processing.
+      compact   - Good for compact cmdline output.
+      full      - Good for cmdline output, shows all global flags.
+      godoc     - Good for godoc processing.
+      shortonly - Only output short description.
    Override the default by setting the CMDLINE_STYLE environment variable.
  -width=80
    Format output to this target width in runes, or unlimited if width < 0.
@@ -1953,7 +1993,7 @@ The prog1 prog2 help flags are:
 			Stdout: `Prog3 has two variants of hello.
 
 Usage:
-   prog1 prog2 prog3 <command>
+   prog1 prog2 prog3 [flags] <command>
 
 The prog1 prog2 prog3 commands are:
    hello31     Print strings on stdout preceded by Hello
@@ -1972,7 +2012,7 @@ Prog1 prog2 prog3 hello31 - Print strings on stdout preceded by Hello
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
-   prog1 prog2 prog3 hello31 [strings]
+   prog1 prog2 prog3 hello31 [flags] [strings]
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
@@ -1981,7 +2021,7 @@ Prog1 prog2 prog3 hello32 - Print strings on stdout preceded by Hello
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
-   prog1 prog2 prog3 hello32 [strings]
+   prog1 prog2 prog3 hello32 [flags] [strings]
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
@@ -2001,9 +2041,10 @@ Usage:
 The prog1 prog2 prog3 help flags are:
  -style=compact
    The formatting style for help output:
-      compact - Good for compact cmdline output.
-      full    - Good for cmdline output, shows all global flags.
-      godoc   - Good for godoc processing.
+      compact   - Good for compact cmdline output.
+      full      - Good for cmdline output, shows all global flags.
+      godoc     - Good for godoc processing.
+      shortonly - Only output short description.
    Override the default by setting the CMDLINE_STYLE environment variable.
  -width=80
    Format output to this target width in runes, or unlimited if width < 0.
@@ -2016,7 +2057,7 @@ The prog1 prog2 prog3 help flags are:
 			Stdout: `Prog3 has two variants of hello.
 
 Usage:
-   prog1 prog2 prog3 <command>
+   prog1 prog2 prog3 [flags] <command>
 
 The prog1 prog2 prog3 commands are:
    hello31     Print strings on stdout preceded by Hello
@@ -2035,7 +2076,7 @@ Prog1 prog2 prog3 hello31 - Print strings on stdout preceded by Hello
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
-   prog1 prog2 prog3 hello31 [strings]
+   prog1 prog2 prog3 hello31 [flags] [strings]
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
@@ -2044,7 +2085,7 @@ Prog1 prog2 prog3 hello32 - Print strings on stdout preceded by Hello
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
-   prog1 prog2 prog3 hello32 [strings]
+   prog1 prog2 prog3 hello32 [flags] [strings]
 
 [strings] are arbitrary strings that will be printed.
 ================================================================================
@@ -2064,9 +2105,10 @@ Usage:
 The prog1 prog2 prog3 help flags are:
  -style=compact
    The formatting style for help output:
-      compact - Good for compact cmdline output.
-      full    - Good for cmdline output, shows all global flags.
-      godoc   - Good for godoc processing.
+      compact   - Good for compact cmdline output.
+      full      - Good for cmdline output, shows all global flags.
+      godoc     - Good for godoc processing.
+      shortonly - Only output short description.
    Override the default by setting the CMDLINE_STYLE environment variable.
  -width=80
    Format output to this target width in runes, or unlimited if width < 0.
@@ -2079,7 +2121,7 @@ The prog1 prog2 prog3 help flags are:
 			Stdout: `Prog1 has two variants of hello and a subprogram prog2.
 
 Usage:
-   prog1 <command>
+   prog1 [flags] <command>
 
 The prog1 commands are:
    hello11     Print strings on stdout preceded by Hello
@@ -2098,7 +2140,7 @@ Prog1 hello11 - Print strings on stdout preceded by Hello
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
-   prog1 hello11 [strings]
+   prog1 hello11 [flags] [strings]
 
 [strings] are arbitrary strings that will be printed.
 
@@ -2107,7 +2149,7 @@ Prog1 hello12 - Print strings on stdout preceded by Hello
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
-   prog1 hello12 [strings]
+   prog1 hello12 [flags] [strings]
 
 [strings] are arbitrary strings that will be printed.
 
@@ -2116,7 +2158,7 @@ Prog1 prog2 - Set of hello commands
 Prog2 has two variants of hello and a subprogram prog3.
 
 Usage:
-   prog1 prog2 <command>
+   prog1 prog2 [flags] <command>
 
 The prog1 prog2 commands are:
    hello21     Print strings on stdout preceded by Hello
@@ -2128,7 +2170,7 @@ Prog1 prog2 hello21 - Print strings on stdout preceded by Hello
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
-   prog1 prog2 hello21 [strings]
+   prog1 prog2 hello21 [flags] [strings]
 
 [strings] are arbitrary strings that will be printed.
 
@@ -2137,7 +2179,7 @@ Prog1 prog2 prog3 - Set of hello commands
 Prog3 has two variants of hello.
 
 Usage:
-   prog1 prog2 prog3 <command>
+   prog1 prog2 prog3 [flags] <command>
 
 The prog1 prog2 prog3 commands are:
    hello31     Print strings on stdout preceded by Hello
@@ -2148,7 +2190,7 @@ Prog1 prog2 prog3 hello31 - Print strings on stdout preceded by Hello
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
-   prog1 prog2 prog3 hello31 [strings]
+   prog1 prog2 prog3 hello31 [flags] [strings]
 
 [strings] are arbitrary strings that will be printed.
 
@@ -2157,7 +2199,7 @@ Prog1 prog2 prog3 hello32 - Print strings on stdout preceded by Hello
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
-   prog1 prog2 prog3 hello32 [strings]
+   prog1 prog2 prog3 hello32 [flags] [strings]
 
 [strings] are arbitrary strings that will be printed.
 
@@ -2166,7 +2208,7 @@ Prog1 prog2 hello22 - Print strings on stdout preceded by Hello
 Hello prints any strings passed in to stdout preceded by "Hello".
 
 Usage:
-   prog1 prog2 hello22 [strings]
+   prog1 prog2 hello22 [flags] [strings]
 
 [strings] are arbitrary strings that will be printed.
 
@@ -2186,9 +2228,10 @@ Usage:
 The prog1 help flags are:
  -style=compact
    The formatting style for help output:
-      compact - Good for compact cmdline output.
-      full    - Good for cmdline output, shows all global flags.
-      godoc   - Good for godoc processing.
+      compact   - Good for compact cmdline output.
+      full      - Good for cmdline output, shows all global flags.
+      godoc     - Good for godoc processing.
+      shortonly - Only output short description.
    Override the default by setting the CMDLINE_STYLE environment variable.
  -width=<terminal width>
    Format output to this target width in runes, or unlimited if width < 0.
@@ -2225,7 +2268,7 @@ func TestLongCommands(t *testing.T) {
 			Stdout: `Test help strings when there are long commands.
 
 Usage:
-   program <command>
+   program [flags] <command>
 
 The program commands are:
    x                      description of short command.
@@ -2247,7 +2290,7 @@ The global flags are:
 similarly have to be wrapped
 
 Usage:
-   program thisisaverylongcommand
+   program thisisaverylongcommand [flags]
 
 The global flags are:
  -global1=
@@ -2280,7 +2323,7 @@ func TestHideGlobalFlags(t *testing.T) {
 			Stdout: `Test hiding global flags.
 
 Usage:
-   program <command>
+   program [flags] <command>
 
 The program commands are:
    child       description of child command.
@@ -2291,7 +2334,7 @@ The global flags are:
  -global2=0
    global test flag 2
 
-Run "program help -style=full" to show all global flags.
+Run "program help -style=full" to show all flags.
 `,
 		},
 		{
@@ -2299,13 +2342,13 @@ Run "program help -style=full" to show all global flags.
 			Stdout: `blah blah blah
 
 Usage:
-   program child
+   program child [flags]
 
 The global flags are:
  -global2=0
    global test flag 2
 
-Run "program help -style=full child" to show all global flags.
+Run "program help -style=full child" to show all flags.
 `,
 		},
 		{
@@ -2313,7 +2356,7 @@ Run "program help -style=full child" to show all global flags.
 			Stdout: `Test hiding global flags.
 
 Usage:
-   program <command>
+   program [flags] <command>
 
 The program commands are:
    child       description of child command.
@@ -2333,7 +2376,7 @@ The global flags are:
 			Stdout: `blah blah blah
 
 Usage:
-   program child
+   program child [flags]
 
 The global flags are:
  -global2=0
@@ -2362,13 +2405,13 @@ func TestHideGlobalFlagsRootNoChildren(t *testing.T) {
 			Stdout: `Test hiding global flags, root no children.
 
 Usage:
-   program
+   program [flags]
 
 The global flags are:
  -global2=0
    global test flag 2
 
-Run "CMDLINE_STYLE=full program -help" to show all global flags.
+Run "CMDLINE_STYLE=full program -help" to show all flags.
 `,
 		},
 		{
@@ -2377,7 +2420,7 @@ Run "CMDLINE_STYLE=full program -help" to show all global flags.
 			Stdout: `Test hiding global flags, root no children.
 
 Usage:
-   program
+   program [flags]
 
 The global flags are:
  -global2=0
@@ -2442,8 +2485,8 @@ func TestRootCommandFlags(t *testing.T) {
 	}
 }
 
-func TestBinarySubcommand(t *testing.T) {
-	// Create a temporary directory for the binary subcommands.
+func TestExternalSubcommand(t *testing.T) {
+	// Create a temporary directory for the external subcommands.
 	tmpDir, err := ioutil.TempDir("", "cmdline-test")
 	if err != nil {
 		t.Fatalf("%v", err)
@@ -2458,8 +2501,8 @@ func TestBinarySubcommand(t *testing.T) {
 	tokens = append([]string{tmpDir, tmpDir}, tokens...)
 	os.Setenv("PATH", strings.Join(tokens, string(os.PathListSeparator)))
 
-	// Build the binary subcommands.
-	for _, subCmd := range []string{"flat", "foreign", "nested", "repeated", "exitcode"} {
+	// Build the external subcommands.
+	for _, subCmd := range []string{"exitcode", "flags", "flat", "foreign", "nested", "repeated"} {
 		cmd := exec.Command("go", "build", "-o", filepath.Join(tmpDir, "unlikely-"+subCmd), filepath.Join(".", "testdata", subCmd+".go"))
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("%v, %v", string(out), err)
@@ -2487,6 +2530,7 @@ func TestBinarySubcommand(t *testing.T) {
 			},
 		},
 	}
+	cmd.Flags.StringVar(new(string), "shared", "", "description of shared")
 
 	var tests = []testCase{
 		{
@@ -2497,7 +2541,7 @@ func TestBinarySubcommand(t *testing.T) {
 			Stdout: `Long description of command unlikely.
 
 Usage:
-   unlikely <command>
+   unlikely [flags] <command>
 
 The unlikely commands are:
    dumpenv     Short description of command dumpenv
@@ -2505,10 +2549,15 @@ The unlikely commands are:
    help        Display help for commands or topics
 The unlikely external commands are:
    exitcode    Short description of command exitcode
+   flags       Short description of command flags
    flat        Short description of command flat
    foreign     No description available
    nested      Short description of command nested
 Run "unlikely help [command]" for command usage.
+
+The unlikely flags are:
+ -shared=
+   description of shared
 
 The global flags are:
  -global1=
@@ -2525,7 +2574,7 @@ The global flags are:
 			Stdout: `Long description of command unlikely.
 
 Usage:
-   unlikely <command>
+   unlikely [flags] <command>
 
 The unlikely commands are:
    dumpenv     Short description of command dumpenv
@@ -2533,10 +2582,15 @@ The unlikely commands are:
    help        Display help for commands or topics
 The unlikely external commands are:
    exitcode    Short description of command exitcode
+   flags       Short description of command flags
    flat        Short description of command flat
    foreign     No description available
    nested      Short description of command nested
 Run "unlikely help [command]" for command usage.
+
+The unlikely flags are:
+ -shared=
+   description of shared
 
 The global flags are:
  -global1=
@@ -2553,7 +2607,7 @@ The global flags are:
 			Stdout: `Long description of command unlikely.
 
 Usage:
-   unlikely <command>
+   unlikely [flags] <command>
 
 The unlikely commands are:
    dumpenv     Short description of command dumpenv
@@ -2561,10 +2615,15 @@ The unlikely commands are:
    help        Display help for commands or topics
 The unlikely external commands are:
    exitcode    Short description of command exitcode
+   flags       Short description of command flags
    flat        Short description of command flat
    foreign     No description available
    nested      Short description of command nested
 Run "unlikely help [command]" for command usage.
+
+The unlikely flags are:
+ -shared=
+   description of shared
 
 The global flags are:
  -global1=
@@ -2577,14 +2636,18 @@ Unlikely dumpenv - Short description of command dumpenv
 Long description of command dumpenv.
 
 Usage:
-   unlikely dumpenv
+   unlikely dumpenv [flags]
+
+Run "unlikely help -style=full dumpenv" to show all flags.
 ================================================================================
 Unlikely repeated - Repeated appears as both a child and as a binary
 
 Long description of command repeated.
 
 Usage:
-   unlikely repeated
+   unlikely repeated [flags]
+
+Run "unlikely help -style=full repeated" to show all flags.
 ================================================================================
 Unlikely help - Display help for commands or topics
 
@@ -2602,9 +2665,10 @@ Usage:
 The unlikely help flags are:
  -style=compact
    The formatting style for help output:
-      compact - Good for compact cmdline output.
-      full    - Good for cmdline output, shows all global flags.
-      godoc   - Good for godoc processing.
+      compact   - Good for compact cmdline output.
+      full      - Good for cmdline output, shows all global flags.
+      godoc     - Good for godoc processing.
+      shortonly - Only output short description.
    Override the default by setting the CMDLINE_STYLE environment variable.
  -width=80
    Format output to this target width in runes, or unlimited if width < 0.
@@ -2616,16 +2680,33 @@ Unlikely exitcode - Short description of command exitcode
 Long description of command exitcode.
 
 Usage:
-   unlikely exitcode [args]
+   unlikely exitcode [flags] [args]
 
 [args] are ignored
+================================================================================
+Unlikely flags - Short description of command flags
+
+Long description of command flags.
+
+Usage:
+   unlikely flags [flags] [args]
+
+[args] are ignored
+
+The unlikely flags flags are:
+ -global1=
+   description of global1
+ -local=
+   description of local
+ -shared=
+   description of shared
 ================================================================================
 Unlikely flat - Short description of command flat
 
 Long description of command flat.
 
 Usage:
-   unlikely flat [args]
+   unlikely flat [flags] [args]
 
 [args] are ignored
 ================================================================================
@@ -2636,7 +2717,7 @@ Unlikely nested - Short description of command nested
 Long description of command nested.
 
 Usage:
-   unlikely nested <command>
+   unlikely nested [flags] <command>
 
 The unlikely nested commands are:
    child       Short description of command child
@@ -2646,7 +2727,7 @@ Unlikely nested child - Short description of command child
 Long description of command child.
 
 Usage:
-   unlikely nested child
+   unlikely nested child [flags]
 `,
 		},
 		{
@@ -2657,7 +2738,7 @@ Usage:
 			Stdout: `Long description of command unlikely.
 
 Usage:
-   unlikely <command>
+   unlikely [flags] <command>
 
 The unlikely commands are:
    dumpenv     Short description of command dumpenv
@@ -2665,9 +2746,14 @@ The unlikely commands are:
    help        Display help for commands or topics
 The unlikely external commands are:
    exitcode    Short description of command exitcode
+   flags       Short description of command flags
    flat        Short description of command flat
    foreign     No description available
    nested      Short description of command nested
+
+The unlikely flags are:
+ -shared=
+   description of shared
 
 The global flags are:
  -global1=
@@ -2680,14 +2766,22 @@ Unlikely dumpenv - Short description of command dumpenv
 Long description of command dumpenv.
 
 Usage:
-   unlikely dumpenv
+   unlikely dumpenv [flags]
+
+The unlikely dumpenv flags are:
+ -shared=
+   description of shared
 
 Unlikely repeated - Repeated appears as both a child and as a binary
 
 Long description of command repeated.
 
 Usage:
-   unlikely repeated
+   unlikely repeated [flags]
+
+The unlikely repeated flags are:
+ -shared=
+   description of shared
 
 Unlikely help - Display help for commands or topics
 
@@ -2705,9 +2799,10 @@ Usage:
 The unlikely help flags are:
  -style=compact
    The formatting style for help output:
-      compact - Good for compact cmdline output.
-      full    - Good for cmdline output, shows all global flags.
-      godoc   - Good for godoc processing.
+      compact   - Good for compact cmdline output.
+      full      - Good for cmdline output, shows all global flags.
+      godoc     - Good for godoc processing.
+      shortonly - Only output short description.
    Override the default by setting the CMDLINE_STYLE environment variable.
  -width=<terminal width>
    Format output to this target width in runes, or unlimited if width < 0.
@@ -2719,16 +2814,33 @@ Unlikely exitcode - Short description of command exitcode
 Long description of command exitcode.
 
 Usage:
-   unlikely exitcode [args]
+   unlikely exitcode [flags] [args]
 
 [args] are ignored
+
+Unlikely flags - Short description of command flags
+
+Long description of command flags.
+
+Usage:
+   unlikely flags [flags] [args]
+
+[args] are ignored
+
+The unlikely flags flags are:
+ -global1=
+   description of global1
+ -local=
+   description of local
+ -shared=
+   description of shared
 
 Unlikely flat - Short description of command flat
 
 Long description of command flat.
 
 Usage:
-   unlikely flat [args]
+   unlikely flat [flags] [args]
 
 [args] are ignored
 
@@ -2739,7 +2851,7 @@ Unlikely nested - Short description of command nested
 Long description of command nested.
 
 Usage:
-   unlikely nested <command>
+   unlikely nested [flags] <command>
 
 The unlikely nested commands are:
    child       Short description of command child
@@ -2749,7 +2861,7 @@ Unlikely nested child - Short description of command child
 Long description of command child.
 
 Usage:
-   unlikely nested child
+   unlikely nested child [flags]
 `,
 		},
 		{
@@ -2763,7 +2875,7 @@ Usage:
 Long description of command flat.
 
 Usage:
-   unlikely flat [args]
+   unlikely flat [flags] [args]
 
 [args] are ignored
 
@@ -2785,7 +2897,7 @@ The global flags are:
 Long description of command child.
 
 Usage:
-   unlikely nested child
+   unlikely nested child [flags]
 
 The global flags are:
  -metadata=<just specify -metadata to activate>
@@ -2812,6 +2924,49 @@ The global flags are:
 				"PATH": strings.Join(tokens, string(os.PathListSeparator)),
 			},
 			Err: "exit code 42",
+		},
+		{
+			Args: []string{"flags"},
+			Vars: map[string]string{
+				"PATH": strings.Join(tokens, string(os.PathListSeparator)),
+			},
+			Stdout: `global1="" shared="" local="" []` + "\n",
+		},
+		{
+			Args: []string{"-global1=A B", "-shared=C D", "flags"},
+			Vars: map[string]string{
+				"PATH": strings.Join(tokens, string(os.PathListSeparator)),
+			},
+			Stdout:      `global1="A B" shared="C D" local="" []` + "\n",
+			GlobalFlag1: "A B",
+		},
+		{
+			Args: []string{"flags", "-global1=A B", "-shared=C D"},
+			Vars: map[string]string{
+				"PATH": strings.Join(tokens, string(os.PathListSeparator)),
+			},
+			Stdout: `global1="A B" shared="C D" local="" []` + "\n",
+		},
+		{
+			Args: []string{"flags", "-global1=A B", "-shared=C D", "-local=E F"},
+			Vars: map[string]string{
+				"PATH": strings.Join(tokens, string(os.PathListSeparator)),
+			},
+			Stdout: `global1="A B" shared="C D" local="E F" []` + "\n",
+		},
+		{
+			Args: []string{"flags", "x", "y", "z"},
+			Vars: map[string]string{
+				"PATH": strings.Join(tokens, string(os.PathListSeparator)),
+			},
+			Stdout: `global1="" shared="" local="" ["x" "y" "z"]` + "\n",
+		},
+		{
+			Args: []string{"flags", "-global1=A B", "-shared=C D", "-local=E F", "x", "y", "z"},
+			Vars: map[string]string{
+				"PATH": strings.Join(tokens, string(os.PathListSeparator)),
+			},
+			Stdout: `global1="A B" shared="C D" local="E F" ["x" "y" "z"]` + "\n",
 		},
 	}
 	runTestCases(t, cmd, tests)

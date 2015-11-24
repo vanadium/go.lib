@@ -17,15 +17,13 @@
 // precedes it.  Flags registered on flag.CommandLine are considered global
 // flags, and are allowed anywhere a command-specific flag is allowed.
 //
-// Pretty usage documentation is automatically generated, and
-// accessible either via the standard -h / -help flags from the Go
-// flag package, or a special help command.  The help command is
-// automatically appended to commands that already have at least one
-// child, and don't already have a "help" child. Commands that do not
-// have any children will exit with an error if invoked with the "help
-// ..."  arguments; this behavior is relied on when generating
-// recursive help to distinguish between binary-based subcommands with
-// and without children.
+// Pretty usage documentation is automatically generated, and accessible either
+// via the standard -h / -help flags from the Go flag package, or a special help
+// command.  The help command is automatically appended to commands that already
+// have at least one child, and don't already have a "help" child.  Commands
+// that do not have any children will exit with an error if invoked with the
+// arguments "help ..."; this behavior is relied on when generating recursive
+// help to distinguish between external subcommands with and without children.
 //
 // Pitfalls
 //
@@ -48,6 +46,7 @@ import (
 	"os"
 	"os/exec"
 	"reflect"
+	"sort"
 	"strings"
 	"syscall"
 
@@ -61,16 +60,28 @@ import (
 // each subcommand.  The command graph must be a tree; each command may either
 // have no parent (the root) or exactly one parent, and cycles are not allowed.
 type Command struct {
-	Name     string       // Name of the command.
-	Short    string       // Short description, shown in help called on parent.
-	Long     string       // Long description, shown in help called on itself.
-	Flags    flag.FlagSet // Flags for the command.
-	ArgsName string       // Name of the args, shown in usage line.
-	ArgsLong string       // Long description of the args, shown in help.
-	LookPath bool         // Check for subcommands in PATH.
+	Name     string // Name of the command.
+	Short    string // Short description, shown in help called on parent.
+	Long     string // Long description, shown in help called on itself.
+	ArgsName string // Name of the args, shown in usage line.
+	ArgsLong string // Long description of the args, shown in help.
+
+	// Flags defined for this command.  When a flag F is defined on a command C,
+	// we allow F to be specified on the command line immediately after C, or
+	// after any descendant of C.
+	Flags flag.FlagSet
 
 	// Children of the command.
 	Children []*Command
+
+	// LookPath indicates whether to look for external subcommands in the
+	// directories specified by the PATH environment variable.  The compiled-in
+	// children always take precedence; the check for external children only
+	// occurs if none of the compiled-in children match.
+	//
+	// All global flags and flags set on ancestor commands are passed through to
+	// the external child.
+	LookPath bool
 
 	// Runner that runs the command.
 	// Use RunnerFunc to adapt regular functions into Runners.
@@ -121,6 +132,9 @@ type Topic struct {
 //   }
 func Main(root *Command) {
 	env := EnvFromOS()
+	if env.Timer != nil && len(env.Timer.Intervals) > 0 {
+		env.Timer.Intervals[0].Name = pathName(env.prefix(), []*Command{root})
+	}
 	err := ParseAndRun(root, env, os.Args[1:])
 	code := ExitCode(err, env.Stderr)
 	if *flagTime && env.Timer != nil {
@@ -186,14 +200,14 @@ func Parse(root *Command, env *Env, args []string) (Runner, []string, error) {
 	if err := checkTreeInvariants(path, env); err != nil {
 		return nil, nil, err
 	}
-	runner, args, err := root.parse(nil, env, args)
+	runner, args, err := root.parse(nil, env, args, make(map[string]string))
 	if err != nil {
 		return nil, nil, err
 	}
-	// Clear envvars that start with "CMDLINE_" when we're returning a
-	// user-specified runner, to avoid polluting the environment.  In particular
-	// CMDLINE_PREFIX and CMDLINE_FIRST_CALL are only meant to be passed to binary
-	// subcommands, and shouldn't be propagated through the user's runner.
+	// Clear envvars that start with "CMDLINE_" when returning a user-specified
+	// runner, to avoid polluting the environment.  In particular CMDLINE_PREFIX
+	// and CMDLINE_FIRST_CALL are only meant to be passed to external children,
+	// and shouldn't be propagated through the user's runner.
 	switch runner.(type) {
 	case helpRunner, binaryRunner:
 		// The help and binary runners need the envvars to be set.
@@ -318,18 +332,22 @@ func pathName(prefix string, path []*Command) string {
 	return name
 }
 
-func (cmd *Command) parse(path []*Command, env *Env, args []string) (Runner, []string, error) {
+func (cmd *Command) parse(path []*Command, env *Env, args []string, setFlags map[string]string) (Runner, []string, error) {
 	path = append(path, cmd)
 	cmdPath := pathName(env.prefix(), path)
 	runHelp := makeHelpRunner(path, env)
 	env.Usage = runHelp.usageFunc
-	// Parse flags and retrieve the args remaining after the parse.
-	args, err := parseFlags(path, env, args)
+	// Parse flags and retrieve the args remaining after the parse, as well as the
+	// flags that were set.
+	args, setF, err := parseFlags(path, env, args)
 	switch {
 	case err == flag.ErrHelp:
 		return runHelp, nil, nil
 	case err != nil:
 		return nil, nil, env.UsageErrorf("%s: %v", cmdPath, err)
+	}
+	for key, val := range setF {
+		setFlags[key] = val
 	}
 	// First handle the no-args case.
 	if len(args) == 0 {
@@ -344,19 +362,20 @@ func (cmd *Command) parse(path []*Command, env *Env, args []string) (Runner, []s
 	if len(cmd.Children) > 0 {
 		for _, child := range cmd.Children {
 			if child.Name == subName {
-				return child.parse(path, env, subArgs)
+				return child.parse(path, env, subArgs, setFlags)
 			}
 		}
 		// Every non-leaf command gets a default help command.
 		if helpName == subName {
-			return runHelp.newCommand().parse(path, env, subArgs)
+			return runHelp.newCommand().parse(path, env, subArgs, setFlags)
 		}
 	}
 	if cmd.LookPath {
 		// Look for a matching executable in PATH.
 		subCmd := cmd.Name + "-" + subName
 		if lookPath(env, subCmd) {
-			return binaryRunner{subCmd, cmdPath}, subArgs, nil
+			extArgs := append(flagsAsArgs(setFlags), subArgs...)
+			return binaryRunner{subCmd, cmdPath}, extArgs, nil
 		}
 	}
 	// No matching subcommands, check various error cases.
@@ -377,7 +396,9 @@ func (cmd *Command) parse(path []*Command, env *Env, args []string) (Runner, []s
 	return cmd.Runner, args, nil
 }
 
-func parseFlags(path []*Command, env *Env, args []string) ([]string, error) {
+// parseFlags parses the flags from args for the command with the given path and
+// env.  Returns the remaining non-flag args and the flags that were set.
+func parseFlags(path []*Command, env *Env, args []string) ([]string, map[string]string, error) {
 	cmd, isRoot := path[len(path)-1], len(path) == 1
 	// Parse the merged command-specific and global flags.
 	var flags *flag.FlagSet
@@ -391,7 +412,7 @@ func parseFlags(path []*Command, env *Env, args []string) ([]string, error) {
 		mergeFlags(flags, &cmd.Flags)
 	} else {
 		// Command flags take precedence over global flags for non-root commands.
-		flags = copyFlags(&cmd.Flags)
+		flags = pathFlags(path)
 		mergeFlags(flags, globalFlags)
 	}
 	// Silence the many different ways flags.Parse can produce ugly output; we
@@ -413,9 +434,9 @@ func parseFlags(path []*Command, env *Env, args []string) ([]string, error) {
 		}()
 	}
 	if err := flags.Parse(args); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return flags.Args(), nil
+	return flags.Args(), extractSetFlags(flags), nil
 }
 
 func mergeFlags(dst, src *flag.FlagSet) {
@@ -424,6 +445,7 @@ func mergeFlags(dst, src *flag.FlagSet) {
 		// Note that flag.Var will panic if it sees a collision.
 		if dst.Lookup(f.Name) == nil {
 			dst.Var(f.Value, f.Name, f.Usage)
+			dst.Lookup(f.Name).DefValue = f.DefValue
 		}
 	})
 }
@@ -432,6 +454,39 @@ func copyFlags(flags *flag.FlagSet) *flag.FlagSet {
 	cp := new(flag.FlagSet)
 	mergeFlags(cp, flags)
 	return cp
+}
+
+// pathFlags returns the flags that are allowed for the last command in the
+// path.  Flags defined on ancestors are also allowed, except on "help".
+func pathFlags(path []*Command) *flag.FlagSet {
+	cmd := path[len(path)-1]
+	flags := copyFlags(&cmd.Flags)
+	if cmd.Name != helpName {
+		// Walk backwards to merge flags up to the root command.  If this takes too
+		// long, we could consider memoizing previous results.
+		for p := len(path) - 2; p >= 0; p-- {
+			mergeFlags(flags, &path[p].Flags)
+		}
+	}
+	return flags
+}
+
+func extractSetFlags(flags *flag.FlagSet) map[string]string {
+	// Use FlagSet.Visit rather than VisitAll to restrict to flags that are set.
+	setFlags := make(map[string]string)
+	flags.Visit(func(f *flag.Flag) {
+		setFlags[f.Name] = f.Value.String()
+	})
+	return setFlags
+}
+
+func flagsAsArgs(x map[string]string) []string {
+	var args []string
+	for key, val := range x {
+		args = append(args, "-"+key+"="+val)
+	}
+	sort.Strings(args)
+	return args
 }
 
 // subNames returns the sub names of c which should be ignored when using look

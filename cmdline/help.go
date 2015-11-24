@@ -21,9 +21,9 @@ import (
 const missingDescription = "No description available"
 
 // helpRunner is a Runner that implements the "help" functionality.  Help is
-// requested for the last command in rootPath, which must not be empty.
+// requested for the last command in path, which must not be empty.
 type helpRunner struct {
-	rootPath []*Command
+	path []*Command
 	*helpConfig
 }
 
@@ -49,13 +49,13 @@ type helpConfig struct {
 func (h helpRunner) Run(env *Env, args []string) error {
 	w := textutil.NewUTF8LineWriter(env.Stdout, h.width)
 	defer w.Flush()
-	return runHelp(w, env, args, h.rootPath, h.helpConfig)
+	return runHelp(w, env, args, h.path, h.helpConfig)
 }
 
 // usageFunc is used as the implementation of the Env.Usage function.
 func (h helpRunner) usageFunc(env *Env, writer io.Writer) {
 	w := textutil.NewUTF8LineWriter(writer, h.width)
-	usage(w, env, h.rootPath, h.helpConfig, h.helpConfig.firstCall)
+	usage(w, env, h.path, h.helpConfig, h.helpConfig.firstCall)
 	w.Flush()
 }
 
@@ -84,9 +84,10 @@ Help with args displays the usage of the specified sub-command or help topic.
 	}
 	help.Flags.Var(&h.style, "style", `
 The formatting style for help output:
-   compact - Good for compact cmdline output.
-   full    - Good for cmdline output, shows all global flags.
-   godoc   - Good for godoc processing.
+   compact   - Good for compact cmdline output.
+   full      - Good for cmdline output, shows all global flags.
+   godoc     - Good for godoc processing.
+   shortonly - Only output short description.
 Override the default by setting the CMDLINE_STYLE environment variable.
 `)
 	help.Flags.IntVar(&h.width, "width", h.width, `
@@ -279,7 +280,7 @@ func usage(w *textutil.LineWriter, env *Env, path []*Command, config *helpConfig
 	cmd, cmdPath := path[len(path)-1], pathName(config.prefix, path)
 	env.TimerPush("usage " + cmdPath)
 	defer env.TimerPop()
-	if config.style == styleShort {
+	if config.style == styleShortOnly {
 		fmt.Fprintln(w, cmd.Short)
 		return
 	}
@@ -295,7 +296,7 @@ func usage(w *textutil.LineWriter, env *Env, path []*Command, config *helpConfig
 	// Usage line.
 	fmt.Fprintln(w, "Usage:")
 	cmdPathF := "   " + cmdPath
-	if countFlags(&cmd.Flags, nil, true) > 0 {
+	if countFlags(pathFlags(path), nil, true) > 0 || countFlags(globalFlags, nil, true) > 0 {
 		cmdPathF += " [flags]"
 	}
 	if cmd.Runner != nil {
@@ -356,7 +357,7 @@ func usage(w *textutil.LineWriter, env *Env, path []*Command, config *helpConfig
 			envCopy := env.clone()
 			envCopy.Stdout = &buffer
 			envCopy.Stderr = &buffer
-			envCopy.Vars["CMDLINE_STYLE"] = "short"
+			envCopy.Vars["CMDLINE_STYLE"] = "shortonly"
 			short := missingDescription
 			if err := runner.Run(envCopy, []string{"-help"}); err == nil {
 				// The external child supports "-help".
@@ -397,55 +398,76 @@ func usage(w *textutil.LineWriter, env *Env, path []*Command, config *helpConfig
 			fmt.Fprintf(w, "Run \"%s help [topic]\" for topic details.\n", cmdPath)
 		}
 	}
-	flagsUsage(w, path, config, firstCall)
-}
-
-func flagsUsage(w *textutil.LineWriter, path []*Command, config *helpConfig, firstCall bool) {
-	cmd, cmdPath := path[len(path)-1], pathName(config.prefix, path)
-	// Flags.
-	if countFlags(&cmd.Flags, nil, true) > 0 {
-		fmt.Fprintln(w)
-		fmt.Fprintln(w, "The", cmdPath, "flags are:")
-		printFlags(w, &cmd.Flags, config.style, nil, true)
-	}
+	hidden := flagsUsage(w, path, config)
 	// Only show global flags on the first call.
-	if !firstCall {
-		return
+	if firstCall {
+		hidden = globalFlagsUsage(w, config) || hidden
 	}
-	hasCompact := countFlags(globalFlags, nonHiddenGlobalFlags, true) > 0
-	hasFull := countFlags(globalFlags, nonHiddenGlobalFlags, false) > 0
-	if config.style != styleCompact {
-		// Non-compact style, always show all global flags.
-		if hasCompact || hasFull {
-			fmt.Fprintln(w)
-			fmt.Fprintln(w, "The global flags are:")
-			printFlags(w, globalFlags, config.style, nonHiddenGlobalFlags, true)
-			if hasCompact && hasFull {
-				fmt.Fprintln(w)
-			}
-			printFlags(w, globalFlags, config.style, nonHiddenGlobalFlags, false)
-		}
-		return
-	}
-	// Compact style, only show compact flags and a reminder if there are more.
-	if hasCompact {
+	if hidden {
 		fmt.Fprintln(w)
-		fmt.Fprintln(w, "The global flags are:")
-		printFlags(w, globalFlags, config.style, nonHiddenGlobalFlags, true)
-	}
-	if hasFull {
-		fmt.Fprintln(w)
-		fullhelp := fmt.Sprintf(`Run "%s help -style=full" to show all global flags.`, cmdPath)
+		fullhelp := fmt.Sprintf(`Run "%s help -style=full" to show all flags.`, cmdPath)
 		if len(cmd.Children) == 0 {
 			if len(path) > 1 {
 				parentPath := pathName(config.prefix, path[:len(path)-1])
-				fullhelp = fmt.Sprintf(`Run "%s help -style=full %s" to show all global flags.`, parentPath, cmd.Name)
+				fullhelp = fmt.Sprintf(`Run "%s help -style=full %s" to show all flags.`, parentPath, cmd.Name)
 			} else {
-				fullhelp = fmt.Sprintf(`Run "CMDLINE_STYLE=full %s -help" to show all global flags.`, cmdPath)
+				fullhelp = fmt.Sprintf(`Run "CMDLINE_STYLE=full %s -help" to show all flags.`, cmdPath)
 			}
 		}
 		fmt.Fprintln(w, fullhelp)
 	}
+}
+
+func flagsUsage(w *textutil.LineWriter, path []*Command, config *helpConfig) bool {
+	cmd, cmdPath := path[len(path)-1], pathName(config.prefix, path)
+	allFlags := pathFlags(path)
+	numCompact := countFlags(&cmd.Flags, nil, true)
+	numFull := countFlags(allFlags, nil, true) - numCompact
+	if config.style == styleCompact {
+		// Compact style, only show compact flags.
+		if numCompact > 0 {
+			fmt.Fprintln(w)
+			fmt.Fprintln(w, "The", cmdPath, "flags are:")
+			printFlags(w, &cmd.Flags, nil, config.style, nil, true)
+		}
+		return numFull > 0
+	}
+	// Non-compact style, always show all flags.
+	if numCompact > 0 || numFull > 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "The", cmdPath, "flags are:")
+		printFlags(w, &cmd.Flags, nil, config.style, nil, true)
+		if numCompact > 0 && numFull > 0 {
+			fmt.Fprintln(w)
+		}
+		printFlags(w, allFlags, &cmd.Flags, config.style, nil, true)
+	}
+	return false
+}
+
+func globalFlagsUsage(w *textutil.LineWriter, config *helpConfig) bool {
+	numCompact := countFlags(globalFlags, nonHiddenGlobalFlags, true)
+	numFull := countFlags(globalFlags, nonHiddenGlobalFlags, false)
+	if config.style == styleCompact {
+		// Compact style, only show compact flags.
+		if numCompact > 0 {
+			fmt.Fprintln(w)
+			fmt.Fprintln(w, "The global flags are:")
+			printFlags(w, globalFlags, nil, config.style, nonHiddenGlobalFlags, true)
+		}
+		return numFull > 0
+	}
+	// Non-compact style, always show all global flags.
+	if numCompact > 0 || numFull > 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "The global flags are:")
+		printFlags(w, globalFlags, nil, config.style, nonHiddenGlobalFlags, true)
+		if numCompact > 0 && numFull > 0 {
+			fmt.Fprintln(w)
+		}
+		printFlags(w, globalFlags, nil, config.style, nonHiddenGlobalFlags, false)
+	}
+	return false
 }
 
 func countFlags(flags *flag.FlagSet, regexps []*regexp.Regexp, match bool) (num int) {
@@ -457,8 +479,11 @@ func countFlags(flags *flag.FlagSet, regexps []*regexp.Regexp, match bool) (num 
 	return
 }
 
-func printFlags(w *textutil.LineWriter, flags *flag.FlagSet, style style, regexps []*regexp.Regexp, match bool) {
+func printFlags(w *textutil.LineWriter, flags, filter *flag.FlagSet, style style, regexps []*regexp.Regexp, match bool) {
 	flags.VisitAll(func(f *flag.Flag) {
+		if filter != nil && filter.Lookup(f.Name) != nil {
+			return
+		}
 		if match != matchRegexps(regexps, f.Name) {
 			return
 		}

@@ -121,10 +121,10 @@ func (e *Env) firstCall() bool {
 type style int
 
 const (
-	styleCompact style = iota // Default style, good for compact cmdline output.
-	styleFull                 // Similar to compact but shows global flags.
-	styleGoDoc                // Style good for godoc processing.
-	styleShort                // Style good for displaying help of binary subcommands.
+	styleCompact   style = iota // Default style, good for compact cmdline output.
+	styleFull                   // Similar to compact but shows all global flags.
+	styleGoDoc                  // Good for godoc processing.
+	styleShortOnly              // Only output short description.
 )
 
 func (s *style) String() string {
@@ -135,8 +135,8 @@ func (s *style) String() string {
 		return "full"
 	case styleGoDoc:
 		return "godoc"
-	case styleShort:
-		return "short"
+	case styleShortOnly:
+		return "shortonly"
 	default:
 		panic(fmt.Errorf("unhandled style %d", *s))
 	}
@@ -151,8 +151,8 @@ func (s *style) Set(value string) error {
 		*s = styleFull
 	case "godoc":
 		*s = styleGoDoc
-	case "short":
-		*s = styleShort
+	case "shortonly":
+		*s = styleShortOnly
 	default:
 		return fmt.Errorf("unknown style %q", value)
 	}
