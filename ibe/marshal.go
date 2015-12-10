@@ -85,7 +85,7 @@ func UnmarshalParams(data []byte) (Params, error) {
 		if len(data) != marshaledBB1ParamsSize {
 			return nil, fmt.Errorf("invalid size")
 		}
-		p := &bb1params{v: new(bn256.GT)}
+		p := newbb1params()
 		one := big.NewInt(1)
 		p.g.ScalarBaseMult(one)
 		p.gHat.ScalarBaseMult(one)
@@ -145,7 +145,10 @@ func UnmarshalPrivateKey(params Params, data []byte) (PrivateKey, error) {
 		if len(data) != marshaledBB1PrivateKeySize {
 			return nil, fmt.Errorf("invalid size")
 		}
-		k := new(bb1PrivateKey)
+		k := &bb1PrivateKey{
+			d0: new(bn256.G2),
+			d1: new(bn256.G2),
+		}
 		if _, ok := k.d0.Unmarshal(advance(marshaledG2Size)); !ok {
 			return nil, fmt.Errorf("failed to unmarshal d0")
 		}

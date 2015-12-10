@@ -69,9 +69,9 @@ var (
 // to encrypt the data under the symmetric key.
 func SetupBB1() (Master, error) {
 	var (
-		m     = &bb1master{params: new(bb1params)}
-		pk    = m.params   // shorthand
-		g0Hat = &(m.g0Hat) // shorthand
+		m     = &bb1master{params: newbb1params(), g0Hat: new(bn256.G2)}
+		pk    = m.params // shorthand
+		g0Hat = m.g0Hat  // shorthand
 	)
 
 	// Set generators
@@ -102,13 +102,13 @@ func SetupBB1() (Master, error) {
 	alphabeta := new(big.Int).Mul(alpha, beta)
 	g0Hat.ScalarBaseMult(alphabeta.Mod(alphabeta, bn256.Order)) // g0Hat = gHat^*(alpha*beta)
 
-	pk.v = bn256.Pair(&pk.g, g0Hat)
+	pk.v = bn256.Pair(pk.g, g0Hat)
 	return m, nil
 }
 
 type bb1master struct {
 	params *bb1params // Public params
-	g0Hat  bn256.G2   // Master key
+	g0Hat  *bn256.G2  // Master key
 }
 
 func (m *bb1master) Extract(id string) (PrivateKey, error) {
@@ -118,12 +118,16 @@ func (m *bb1master) Extract(id string) (PrivateKey, error) {
 	}
 
 	var (
-		ret = &bb1PrivateKey{params: m.params}
+		ret = &bb1PrivateKey{
+			params: m.params,
+			d0:     new(bn256.G2),
+			d1:     new(bn256.G2),
+		}
 		// A bunch of shorthands
-		d0    = new(bn256.G2)
-		g1Hat = &(m.params.g1Hat)
-		g0Hat = &(m.g0Hat)
-		hHat  = &(m.params.hHat)
+		d0    = ret.d0
+		g1Hat = m.params.g1Hat
+		g0Hat = m.g0Hat
+		hHat  = m.params.hHat
 		i     = val2bignum(idPrefix, []byte(id))
 	)
 	// ret.d0 = g0Hat * (g1Hat^i * hHat)^r
@@ -138,9 +142,21 @@ func (m *bb1master) Extract(id string) (PrivateKey, error) {
 func (m *bb1master) Params() Params { return m.params }
 
 type bb1params struct {
-	g, g1, h          bn256.G1
-	gHat, g1Hat, hHat bn256.G2
+	g, g1, h          *bn256.G1
+	gHat, g1Hat, hHat *bn256.G2
 	v                 *bn256.GT
+}
+
+func newbb1params() *bb1params {
+	return &bb1params{
+		g:     new(bn256.G1),
+		g1:    new(bn256.G1),
+		h:     new(bn256.G1),
+		gHat:  new(bn256.G2),
+		g1Hat: new(bn256.G2),
+		hHat:  new(bn256.G2),
+		v:     new(bn256.GT),
+	}
 }
 
 // Helper method that checks that the ciphertext slice for a given message has
@@ -163,8 +179,8 @@ func (e *bb1params) encapsulateKeyStart(sigma *[encKeySize]byte, s *big.Int, C [
 	}
 
 	var (
-		vs    bn256.GT
-		tmpG1 bn256.G1
+		vs    = new(bn256.GT)
+		tmpG1 = new(bn256.G1)
 		// Ciphertext C = (A, B, C1) - this method computes the first two components
 		A = C[0:encKeySize]
 		B = C[encKeySize : encKeySize+marshaledG1Size]
@@ -213,7 +229,7 @@ func (e *bb1params) Encrypt(id string, m, C []byte) error {
 		s      = computeKemRandomness(&sigma, m) // H_1(sigma, m)
 		symKey = computeDemKey(&sigma)           // H_2(sigma)
 
-		tmpG1 bn256.G1
+		tmpG1 = new(bn256.G1)
 		// Ciphertext C = (kem, dem)
 		kem = C[0:kemSize]
 		dem = C[kemSize:]
@@ -226,10 +242,10 @@ func (e *bb1params) Encrypt(id string, m, C []byte) error {
 	C1 := kem[encKeySize+marshaledG1Size:]
 
 	// C1 = (g1^H(id) h)^s
-	tmpG1.ScalarMult(&e.g1, val2bignum(idPrefix, []byte(id)))
-	tmpG1.Add(&tmpG1, &e.h)
-	tmpG1.ScalarMult(&tmpG1, s)
-	if err := marshalG1(C1, &tmpG1); err != nil {
+	tmpG1.ScalarMult(e.g1, val2bignum(idPrefix, []byte(id)))
+	tmpG1.Add(tmpG1, e.h)
+	tmpG1.ScalarMult(tmpG1, s)
+	if err := marshalG1(C1, tmpG1); err != nil {
 		return err
 	}
 
@@ -250,7 +266,7 @@ func (e *bb1params) CiphertextOverhead() int {
 
 type bb1PrivateKey struct {
 	params *bb1params // public parameters
-	d0, d1 bn256.G2
+	d0, d1 *bn256.G2
 }
 
 func (k *bb1PrivateKey) Decrypt(C, m []byte) error {
@@ -258,9 +274,10 @@ func (k *bb1PrivateKey) Decrypt(C, m []byte) error {
 		return err
 	}
 	var (
-		A     = C[0:encKeySize]
-		B, C1 bn256.G1
-		D     = C[kemSize:]
+		A  = C[0:encKeySize]
+		B  = new(bn256.G1)
+		C1 = new(bn256.G1)
+		D  = C[kemSize:]
 	)
 	if _, ok := B.Unmarshal(C[encKeySize : encKeySize+marshaledG1Size]); !ok {
 		return errBadCiphertext
@@ -270,8 +287,8 @@ func (k *bb1PrivateKey) Decrypt(C, m []byte) error {
 	}
 	// sigma = A ⊕ H(e(B, d0)/e(C1,d1))
 	var (
-		numerator   = bn256.Pair(&B, &k.d0)
-		denominator = bn256.Pair(&C1, &k.d1)
+		numerator   = bn256.Pair(B, k.d0)
+		denominator = bn256.Pair(C1, k.d1)
 		hash        = hashval(ibePrefix, numerator.Add(numerator, denominator.Neg(denominator)).Marshal())
 	)
 	var sigma [encKeySize]byte
