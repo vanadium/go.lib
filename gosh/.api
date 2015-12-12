@@ -1,0 +1,54 @@
+pkg gosh, func Call(string, ...interface{}) error
+pkg gosh, func MaybeRunFnAndExit()
+pkg gosh, func MaybeWatchParent()
+pkg gosh, func NewBufferedPipe() io.ReadWriteCloser
+pkg gosh, func NewShell(Opts) *Shell
+pkg gosh, func Register(string, interface{}) *Fn
+pkg gosh, func Run(func() int) int
+pkg gosh, func SendReady()
+pkg gosh, func SendVars(map[string]string)
+pkg gosh, func WatchParent()
+pkg gosh, method (*Cmd) AwaitReady()
+pkg gosh, method (*Cmd) AwaitVars(...string) map[string]string
+pkg gosh, method (*Cmd) CombinedOutput() []byte
+pkg gosh, method (*Cmd) Output() ([]byte, []byte)
+pkg gosh, method (*Cmd) Process() *os.Process
+pkg gosh, method (*Cmd) Run()
+pkg gosh, method (*Cmd) Shutdown(os.Signal)
+pkg gosh, method (*Cmd) Start()
+pkg gosh, method (*Cmd) StderrPipe() io.Reader
+pkg gosh, method (*Cmd) StdoutPipe() io.Reader
+pkg gosh, method (*Cmd) Wait()
+pkg gosh, method (*Fn) Call(...interface{}) error
+pkg gosh, method (*Shell) AddToCleanup(func())
+pkg gosh, method (*Shell) BuildGoPkg(string, ...string) string
+pkg gosh, method (*Shell) Cleanup()
+pkg gosh, method (*Shell) Cmd(string, ...string) *Cmd
+pkg gosh, method (*Shell) Fn(*Fn, ...interface{}) *Cmd
+pkg gosh, method (*Shell) HandleError(error)
+pkg gosh, method (*Shell) Main(*Fn, ...string) *Cmd
+pkg gosh, method (*Shell) MakeTempDir() string
+pkg gosh, method (*Shell) MakeTempFile() *os.File
+pkg gosh, method (*Shell) Ok()
+pkg gosh, method (*Shell) Popd()
+pkg gosh, method (*Shell) Pushd(string)
+pkg gosh, method (*Shell) Rename(string, string)
+pkg gosh, method (*Shell) Wait()
+pkg gosh, type Cmd struct
+pkg gosh, type Cmd struct, Args []string
+pkg gosh, type Cmd struct, OutputDir string
+pkg gosh, type Cmd struct, Stdin io.Reader
+pkg gosh, type Cmd struct, SuppressOutput bool
+pkg gosh, type Cmd struct, Vars map[string]string
+pkg gosh, type Fn struct
+pkg gosh, type Opts struct
+pkg gosh, type Opts struct, BinDir string
+pkg gosh, type Opts struct, ChildOutputDir string
+pkg gosh, type Opts struct, Errorf func(string, ...interface{})
+pkg gosh, type Opts struct, Logf func(string, ...interface{})
+pkg gosh, type Opts struct, SuppressChildOutput bool
+pkg gosh, type Shell struct
+pkg gosh, type Shell struct, Args []string
+pkg gosh, type Shell struct, Err error
+pkg gosh, type Shell struct, Opts Opts
+pkg gosh, type Shell struct, Vars map[string]string
