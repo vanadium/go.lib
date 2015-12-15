@@ -6,7 +6,7 @@ package gosh_test
 
 // TODO(sadovsky): Add more tests:
 // - variadic function registration and invocation
-// - shell cleanup
+// - effects of Shell.Cleanup
 // - Cmd.{Wait,Run}
 // - Shell.{Args,Wait,Rename,MakeTempFile,MakeTempDir}
 // - Opts (including defaulting behavior)
@@ -119,7 +119,7 @@ func TestCmds(t *testing.T) {
 	binPath = sh.BuildGoPkg("v.io/x/lib/gosh/internal/gosh_example_client")
 	c = sh.Cmd(binPath, "-addr="+addr)
 	stdout, _ := c.Output()
-	eq(t, string(stdout), "Hello, world!\n")
+	eq(t, stdout, "Hello, world!\n")
 }
 
 var (
@@ -141,37 +141,38 @@ func TestFns(t *testing.T) {
 	// Run client.
 	c = sh.Fn(get, addr)
 	stdout, _ := c.Output()
-	eq(t, string(stdout), "Hello, world!\n")
+	eq(t, stdout, "Hello, world!\n")
 }
 
 func TestShellMain(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Errorf: makeErrorf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 	stdout, _ := sh.Main(lib.HelloWorldMain).Output()
-	eq(t, string(stdout), "Hello, world!\n")
+	eq(t, stdout, "Hello, world!\n")
 }
 
 var write = gosh.Register("write", func(stdout, stderr bool) error {
+	tenMs := 10 * time.Millisecond
 	if stdout {
-		time.Sleep(time.Millisecond)
+		time.Sleep(tenMs)
 		if _, err := os.Stdout.Write([]byte("A")); err != nil {
 			return err
 		}
 	}
 	if stderr {
-		time.Sleep(time.Millisecond)
+		time.Sleep(tenMs)
 		if _, err := os.Stderr.Write([]byte("B")); err != nil {
 			return err
 		}
 	}
 	if stdout {
-		time.Sleep(time.Millisecond)
+		time.Sleep(tenMs)
 		if _, err := os.Stdout.Write([]byte("A")); err != nil {
 			return err
 		}
 	}
 	if stderr {
-		time.Sleep(time.Millisecond)
+		time.Sleep(tenMs)
 		if _, err := os.Stderr.Write([]byte("B")); err != nil {
 			return err
 		}
@@ -194,32 +195,32 @@ func TestStdoutStderr(t *testing.T) {
 	// Write to stdout only.
 	c := sh.Fn(write, true, false)
 	stdoutPipe, stderrPipe := c.StdoutPipe(), c.StderrPipe()
-	eq(t, string(c.CombinedOutput()), "AA")
+	eq(t, c.CombinedOutput(), "AA")
 	eq(t, toString(stdoutPipe), "AA")
 	eq(t, toString(stderrPipe), "")
 	stdout, stderr := sh.Fn(write, true, false).Output()
-	eq(t, string(stdout), "AA")
-	eq(t, string(stderr), "")
+	eq(t, stdout, "AA")
+	eq(t, stderr, "")
 
 	// Write to stderr only.
 	c = sh.Fn(write, false, true)
 	stdoutPipe, stderrPipe = c.StdoutPipe(), c.StderrPipe()
-	eq(t, string(c.CombinedOutput()), "BB")
+	eq(t, c.CombinedOutput(), "BB")
 	eq(t, toString(stdoutPipe), "")
 	eq(t, toString(stderrPipe), "BB")
 	stdout, stderr = sh.Fn(write, false, true).Output()
-	eq(t, string(stdout), "")
-	eq(t, string(stderr), "BB")
+	eq(t, stdout, "")
+	eq(t, stderr, "BB")
 
 	// Write to both stdout and stderr.
 	c = sh.Fn(write, true, true)
 	stdoutPipe, stderrPipe = c.StdoutPipe(), c.StderrPipe()
-	eq(t, string(c.CombinedOutput()), "ABAB")
+	eq(t, c.CombinedOutput(), "ABAB")
 	eq(t, toString(stdoutPipe), "AA")
 	eq(t, toString(stderrPipe), "BB")
 	stdout, stderr = sh.Fn(write, true, true).Output()
-	eq(t, string(stdout), "AA")
-	eq(t, string(stderr), "BB")
+	eq(t, stdout, "AA")
+	eq(t, stderr, "BB")
 }
 
 var sleep = gosh.Register("sleep", func(d time.Duration) {
@@ -285,13 +286,6 @@ func TestHandleErrorPanics(t *testing.T) {
 	}()
 }
 
-// Tests that sh.Cleanup succeeds even if sh.Err is not nil.
-func TestCleanupAfterError(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Errorf: t.Logf})
-	sh.Err = fakeError
-	sh.Cleanup()
-}
-
 // Tests that sh.Cleanup panics under various conditions.
 func TestCleanupPanics(t *testing.T) {
 	func() { // errDidNotCallNewShell
@@ -299,12 +293,20 @@ func TestCleanupPanics(t *testing.T) {
 		defer func() { neq(t, recover(), nil) }()
 		sh.Cleanup()
 	}()
-	func() { // errAlreadyCalledCleanup
-		sh := gosh.NewShell(gosh.Opts{Errorf: t.Logf})
-		sh.Cleanup()
-		defer func() { neq(t, recover(), nil) }()
-		sh.Cleanup()
-	}()
+}
+
+// Tests that sh.Cleanup succeeds even if sh.Err is not nil.
+func TestCleanupAfterError(t *testing.T) {
+	sh := gosh.NewShell(gosh.Opts{Errorf: makeErrorf(t), Logf: t.Logf})
+	sh.Err = fakeError
+	sh.Cleanup()
+}
+
+// Tests that sh.Cleanup can be called multiple times.
+func TestMultipleCleanup(t *testing.T) {
+	sh := gosh.NewShell(gosh.Opts{Errorf: makeErrorf(t), Logf: t.Logf})
+	sh.Cleanup()
+	sh.Cleanup()
 }
 
 func TestMain(m *testing.M) {

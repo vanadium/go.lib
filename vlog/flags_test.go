@@ -11,14 +11,11 @@ import (
 	"path/filepath"
 	"testing"
 
+	"v.io/x/lib/gosh"
 	"v.io/x/lib/vlog"
-
-	"v.io/x/ref/test/modules"
 )
 
-//go:generate jiri test generate
-
-var child = modules.Register(func(env *modules.Env, args ...string) error {
+var child = gosh.Register("child", func() error {
 	tmp := filepath.Join(os.TempDir(), "foo")
 	flag.Set("log_dir", tmp)
 	flag.Set("vmodule", "foo=2")
@@ -42,19 +39,14 @@ var child = modules.Register(func(env *modules.Env, args ...string) error {
 		return fmt.Errorf("max_stack_buf_size unexpectedly set to %v", v)
 	}
 	return nil
-}, "child")
+})
 
 func TestFlags(t *testing.T) {
-	sh, err := modules.NewShell(nil, nil, testing.Verbose(), t)
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	defer sh.Cleanup(nil, nil)
-	h, err := sh.Start(nil, child)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err = h.Shutdown(nil, os.Stderr); err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
+	sh := gosh.NewShell(gosh.Opts{Errorf: t.Fatalf, Logf: t.Logf})
+	defer sh.Cleanup()
+	sh.Fn(child).Run()
+}
+
+func TestMain(m *testing.M) {
+	os.Exit(gosh.Run(m.Run))
 }

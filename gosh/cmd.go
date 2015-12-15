@@ -116,7 +116,7 @@ func (c *Cmd) Run() {
 
 // Output calls Start followed by Wait, then returns this command's stdout and
 // stderr.
-func (c *Cmd) Output() ([]byte, []byte) {
+func (c *Cmd) Output() (string, string) {
 	c.sh.Ok()
 	stdout, stderr, err := c.output()
 	c.sh.HandleError(err)
@@ -125,7 +125,7 @@ func (c *Cmd) Output() ([]byte, []byte) {
 
 // CombinedOutput calls Start followed by Wait, then returns this command's
 // combined stdout and stderr.
-func (c *Cmd) CombinedOutput() []byte {
+func (c *Cmd) CombinedOutput() string {
 	c.sh.Ok()
 	res, err := c.combinedOutput()
 	c.sh.HandleError(err)
@@ -393,12 +393,12 @@ func (c *Cmd) run() error {
 	return c.wait()
 }
 
-func (c *Cmd) output() ([]byte, []byte, error) {
+func (c *Cmd) output() (string, string, error) {
 	var stdout, stderr bytes.Buffer
 	addWriter(&c.stdoutWriters, &stdout)
 	addWriter(&c.stderrWriters, &stderr)
 	err := c.run()
-	return stdout.Bytes(), stderr.Bytes(), err
+	return stdout.String(), stderr.String(), err
 }
 
 type threadSafeBuffer struct {
@@ -412,18 +412,18 @@ func (b *threadSafeBuffer) Write(p []byte) (int, error) {
 	return b.buf.Write(p)
 }
 
-func (b *threadSafeBuffer) Bytes() []byte {
+func (b *threadSafeBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return b.buf.Bytes()
+	return b.buf.String()
 }
 
-func (c *Cmd) combinedOutput() ([]byte, error) {
+func (c *Cmd) combinedOutput() (string, error) {
 	buf := &threadSafeBuffer{}
 	addWriter(&c.stdoutWriters, buf)
 	addWriter(&c.stderrWriters, buf)
 	err := c.run()
-	return buf.Bytes(), err
+	return buf.String(), err
 }
 
 func (c *Cmd) process() (*os.Process, error) {

@@ -10,8 +10,8 @@ pkg gosh, func SendVars(map[string]string)
 pkg gosh, func WatchParent()
 pkg gosh, method (*Cmd) AwaitReady()
 pkg gosh, method (*Cmd) AwaitVars(...string) map[string]string
-pkg gosh, method (*Cmd) CombinedOutput() []byte
-pkg gosh, method (*Cmd) Output() ([]byte, []byte)
+pkg gosh, method (*Cmd) CombinedOutput() string
+pkg gosh, method (*Cmd) Output() (string, string)
 pkg gosh, method (*Cmd) Process() *os.Process
 pkg gosh, method (*Cmd) Run()
 pkg gosh, method (*Cmd) Shutdown(os.Signal)
