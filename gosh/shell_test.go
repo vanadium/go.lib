@@ -242,6 +242,35 @@ func TestShutdown(t *testing.T) {
 	}
 }
 
+var exit = gosh.Register("exit", func(code int) {
+	os.Exit(code)
+})
+
+func TestExitErrorIsOk(t *testing.T) {
+	sh := gosh.NewShell(gosh.Opts{Errorf: makeErrorf(t), Logf: t.Logf})
+	defer sh.Cleanup()
+
+	// Exit code 0 is not an error.
+	c := sh.Fn(exit, 0)
+	c.Run()
+	ok(t, c.Err)
+	ok(t, sh.Err)
+
+	// Exit code 1 is an error.
+	c = sh.Fn(exit, 1)
+	c.ExitErrorIsOk = true
+	c.Run()
+	nok(t, c.Err)
+	ok(t, sh.Err)
+
+	// If ExitErrorIsOk is false, exit code 1 triggers sh.HandleError.
+	sh.Opts.Errorf = func(string, ...interface{}) {}
+	c = sh.Fn(exit, 1)
+	c.Run()
+	nok(t, c.Err)
+	nok(t, sh.Err)
+}
+
 // Tests that sh.Ok panics under various conditions.
 func TestOkPanics(t *testing.T) {
 	func() { // errDidNotCallNewShell

@@ -43,7 +43,8 @@ var (
 
 // Shell represents a shell. Not thread-safe.
 type Shell struct {
-	// Err is the most recent error (may be nil).
+	// Err is the most recent error from this Shell or any of its Cmds (may be
+	// nil).
 	Err error
 	// Opts is the Opts struct for this Shell, with default values filled in.
 	Opts Opts

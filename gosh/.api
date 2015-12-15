@@ -36,6 +36,8 @@ pkg gosh, method (*Shell) Rename(string, string)
 pkg gosh, method (*Shell) Wait()
 pkg gosh, type Cmd struct
 pkg gosh, type Cmd struct, Args []string
+pkg gosh, type Cmd struct, Err error
+pkg gosh, type Cmd struct, ExitErrorIsOk bool
 pkg gosh, type Cmd struct, OutputDir string
 pkg gosh, type Cmd struct, Stdin io.Reader
 pkg gosh, type Cmd struct, SuppressOutput bool

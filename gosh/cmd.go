@@ -26,17 +26,22 @@ var (
 // Cmd represents a command. Not thread-safe.
 // Public fields should not be modified after calling Start.
 type Cmd struct {
+	// Err is the most recent error from this Cmd (may be nil).
+	Err error
 	// Vars is the map of env vars for this Cmd.
 	Vars map[string]string
 	// Args is the list of args for this Cmd.
 	Args []string
+	// Stdin specifies this Cmd's stdin. See comments in exec.Cmd for detailed
+	// semantics.
+	Stdin io.Reader
 	// SuppressOutput is inherited from Shell.Opts.SuppressChildOutput.
 	SuppressOutput bool
 	// OutputDir is inherited from Shell.Opts.ChildOutputDir.
 	OutputDir string
-	// Stdin specifies this Cmd's stdin. See comments in exec.Cmd for detailed
-	// semantics.
-	Stdin io.Reader
+	// ExitErrorIsOk specifies whether an *exec.ExitError should be reported via
+	// Shell.HandleError.
+	ExitErrorIsOk bool
 	// Internal state.
 	sh             *Shell
 	c              *exec.Cmd
@@ -51,37 +56,37 @@ type Cmd struct {
 	recvVars       map[string]string // protected by condVars.L
 }
 
-// StdoutPipe returns a Reader backed by a buffered pipe for this command's
+// StdoutPipe returns a Reader backed by a buffered pipe for the command's
 // stdout. Must be called before Start. May be called more than once; each
 // invocation creates a new pipe.
 func (c *Cmd) StdoutPipe() io.Reader {
 	c.sh.Ok()
 	res, err := c.stdoutPipe()
-	c.sh.HandleError(err)
+	c.handleError(err)
 	return res
 }
 
-// StderrPipe returns a Reader backed by a buffered pipe for this command's
+// StderrPipe returns a Reader backed by a buffered pipe for the command's
 // stderr. Must be called before Start. May be called more than once; each
 // invocation creates a new pipe.
 func (c *Cmd) StderrPipe() io.Reader {
 	c.sh.Ok()
 	res, err := c.stderrPipe()
-	c.sh.HandleError(err)
+	c.handleError(err)
 	return res
 }
 
-// Start starts this command.
+// Start starts the command.
 func (c *Cmd) Start() {
 	c.sh.Ok()
-	c.sh.HandleError(c.start())
+	c.handleError(c.start())
 }
 
 // AwaitReady waits for the child process to call SendReady. Must not be called
 // before Start or after Wait.
 func (c *Cmd) AwaitReady() {
 	c.sh.Ok()
-	c.sh.HandleError(c.awaitReady())
+	c.handleError(c.awaitReady())
 }
 
 // AwaitVars waits for the child process to send values for the given vars
@@ -89,54 +94,54 @@ func (c *Cmd) AwaitReady() {
 func (c *Cmd) AwaitVars(keys ...string) map[string]string {
 	c.sh.Ok()
 	res, err := c.awaitVars(keys...)
-	c.sh.HandleError(err)
+	c.handleError(err)
 	return res
 }
 
-// Wait waits for this command to exit.
+// Wait waits for the command to exit.
 func (c *Cmd) Wait() {
 	c.sh.Ok()
-	c.sh.HandleError(c.wait())
+	c.handleError(c.wait())
 }
 
 // TODO(sadovsky): Maybe add a method to send SIGINT, wait for a bit, then send
 // SIGKILL if the process hasn't exited.
 
-// Shutdown sends the given signal to this command, then waits for it to exit.
+// Shutdown sends the given signal to the command, then waits for it to exit.
 func (c *Cmd) Shutdown(sig os.Signal) {
 	c.sh.Ok()
-	c.sh.HandleError(c.shutdown(sig))
+	c.handleError(c.shutdown(sig))
 }
 
 // Run calls Start followed by Wait.
 func (c *Cmd) Run() {
 	c.sh.Ok()
-	c.sh.HandleError(c.run())
+	c.handleError(c.run())
 }
 
-// Output calls Start followed by Wait, then returns this command's stdout and
+// Output calls Start followed by Wait, then returns the command's stdout and
 // stderr.
 func (c *Cmd) Output() (string, string) {
 	c.sh.Ok()
 	stdout, stderr, err := c.output()
-	c.sh.HandleError(err)
+	c.handleError(err)
 	return stdout, stderr
 }
 
-// CombinedOutput calls Start followed by Wait, then returns this command's
+// CombinedOutput calls Start followed by Wait, then returns the command's
 // combined stdout and stderr.
 func (c *Cmd) CombinedOutput() string {
 	c.sh.Ok()
 	res, err := c.combinedOutput()
-	c.sh.HandleError(err)
+	c.handleError(err)
 	return res
 }
 
-// Process returns the underlying process handle for this command.
+// Process returns the underlying process handle for the command.
 func (c *Cmd) Process() *os.Process {
 	c.sh.Ok()
 	res, err := c.process()
-	c.sh.HandleError(err)
+	c.handleError(err)
 	return res
 }
 
@@ -169,6 +174,16 @@ func newCmd(sh *Shell, vars map[string]string, name string, args ...string) (*Cm
 	}
 	sh.cmds = append(sh.cmds, c)
 	return c, nil
+}
+
+func (c *Cmd) handleError(err error) {
+	c.Err = err
+	if c.ExitErrorIsOk {
+		if _, ok := err.(*exec.ExitError); ok {
+			return
+		}
+	}
+	c.sh.HandleError(err)
 }
 
 func (c *Cmd) calledStart() bool {
@@ -296,7 +311,7 @@ func (c *Cmd) start() error {
 	c.c = exec.Command(c.name, c.Args...)
 	c.c.Env = mapToSlice(c.Vars)
 	c.c.Stdin = c.Stdin
-	t := time.Now().UTC().Format("20060102.150405.000000")
+	t := time.Now().Format("20060102.150405.000000")
 	var err error
 	if c.c.Stdout, err = c.initMultiWriter(os.Stdout, t); err != nil {
 		return err
