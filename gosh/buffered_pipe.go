@@ -17,9 +17,9 @@ type bufferedPipe struct {
 	err  error
 }
 
-// NewBufferedPipe returns a new pipe backed by an unbounded in-memory buffer.
-// Writes on the pipe never block; reads on the pipe block until data is
-// available.
+// NewBufferedPipe returns a new thread-safe pipe backed by an unbounded
+// in-memory buffer. Writes on the pipe never block; reads on the pipe block
+// until data is available.
 func NewBufferedPipe() io.ReadWriteCloser {
 	return &bufferedPipe{cond: sync.NewCond(&sync.Mutex{})}
 }

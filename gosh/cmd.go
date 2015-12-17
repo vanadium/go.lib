@@ -56,6 +56,23 @@ type Cmd struct {
 	recvVars       map[string]string // protected by condVars.L
 }
 
+// TODO(sadovsky):
+// - Change "Errorf" to "Fatalf" everywhere.
+// - Drop "CombinedOutput", change "Output" to "StdoutStderr", and add "Stdout".
+// - Add Cmd.Clone method that returns a new Cmd with the same configuration.
+// - Add Cmd.StdinPipe method that creates a new bufferedPipe, returns a
+//   WriteCloser, and stores a ReadCloser. Cmd.StdinPipe cannot be called more
+//   than once.
+// - In Cmd.Start, start a goroutine that monitors the started process and
+//   closes the stdinPipe ReadCloser (if it's not already closed) when the
+//   process exits.
+// - Make it so awaitReady and awaitVars return an error if/when our goroutine
+//   detects that the process has exited.
+// - Add unit test for piping from one Cmd's stdout to another's stdin. It
+//   should be possible to wait on just the last Cmd.
+// - Add unit test to demonstrate that Cmd.Wait returns immediately for a
+//   process that blocks on non-nil stdin if Cmd.StdinPipe was never called.
+
 // StdoutPipe returns a Reader backed by a buffered pipe for the command's
 // stdout. Must be called before Start. May be called more than once; each
 // invocation creates a new pipe.
@@ -328,7 +345,7 @@ func (c *Cmd) start() error {
 	return err
 }
 
-// TODO(sadovsky): Add timeouts for Cmd.{awaitReady,awaitVars,wait}.
+// TODO(sadovsky): Maybe add timeouts for Cmd.{awaitReady,awaitVars,wait}.
 
 func (c *Cmd) awaitReady() error {
 	if !c.calledStart() {
