@@ -7,7 +7,28 @@ package textutil
 import (
 	"bytes"
 	"io"
+	"unicode/utf8"
 )
+
+// WriteFlusher is the interface that groups the basic Write and Flush methods.
+//
+// Flush is typically provided when Write calls perform buffering; Flush
+// immediately outputs the buffered data.  Flush must be called after the last
+// call to Write, and may be called an arbitrary number of times before the last
+// Write.
+//
+// If the type is also a Closer, Close implies a Flush call.
+type WriteFlusher interface {
+	io.Writer
+	Flush() error
+}
+
+// WriteFlushCloser is the interface that groups the basic Write, Flush and
+// Close methods.
+type WriteFlushCloser interface {
+	WriteFlusher
+	io.Closer
+}
 
 // PrefixWriter returns an io.Writer that wraps w, where the prefix is written
 // out immediately before the first non-empty Write call.
@@ -26,6 +47,77 @@ func (w *prefixWriter) Write(data []byte) (int, error) {
 		w.prefix = nil
 	}
 	return w.w.Write(data)
+}
+
+// PrefixLineWriter returns a WriteFlushCloser that wraps w.  Any occurrence of
+// EOL (\f, \n, \r, \v, LineSeparator or ParagraphSeparator) causes the
+// preceeding line to be written to w, with the given prefix.  Data without EOL
+// is buffered until the next EOL, or Flush or Close call.  A single Write call
+// may result in zero or more Write calls on the underlying writer.
+func PrefixLineWriter(w io.Writer, prefix string) WriteFlushCloser {
+	return &prefixLineWriter{w, []byte(prefix), nil}
+}
+
+type prefixLineWriter struct {
+	w      io.Writer
+	prefix []byte
+	buf    []byte
+}
+
+const eolRunesAsString = "\f\n\r\v" + string(LineSeparator) + string(ParagraphSeparator)
+
+func (w *prefixLineWriter) Write(data []byte) (int, error) {
+	totalLen := len(data)
+	for len(data) > 0 {
+		index := bytes.IndexAny(data, eolRunesAsString)
+		if index == -1 {
+			// No EOL: buffer remaining data.
+			// TODO(toddw): Flush at a max size, to avoid unbounded growth?
+			w.buf = append(w.buf, data...)
+			return totalLen, nil
+		}
+		// Saw EOL: write prefix, buffer, and data including EOL.
+		if _, err := w.w.Write(w.prefix); err != nil {
+			return totalLen - len(data), err
+		}
+		if _, err := w.w.Write(w.buf); err != nil {
+			return totalLen - len(data), err
+		}
+		w.buf = w.buf[:0]
+		_, eolSize := utf8.DecodeRune(data[index:])
+		n, err := w.w.Write(data[:index+eolSize])
+		data = data[n:]
+		if err != nil {
+			return totalLen - len(data), err
+		}
+	}
+	return totalLen, nil
+}
+
+func (w *prefixLineWriter) Flush() error {
+	if len(w.buf) > 0 {
+		if _, err := w.w.Write(w.prefix); err != nil {
+			return err
+		}
+		if _, err := w.w.Write(w.buf); err != nil {
+			return err
+		}
+		w.buf = w.buf[:0]
+	}
+	if f, ok := w.w.(WriteFlusher); ok {
+		return f.Flush()
+	}
+	return nil
+}
+
+func (w *prefixLineWriter) Close() error {
+	firstErr := w.Flush()
+	if c, ok := w.w.(io.Closer); ok {
+		if err := c.Close(); firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
 }
 
 // ByteReplaceWriter returns an io.Writer that wraps w, where all occurrences of
