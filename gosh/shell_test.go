@@ -103,6 +103,25 @@ func TestPushdPopd(t *testing.T) {
 	eq(t, calledErrorf, true)
 }
 
+func TestPushdNoPopdCleanup(t *testing.T) {
+	startDir, err := os.Getwd()
+	ok(t, err)
+
+	sh := gosh.NewShell(gosh.Opts{Errorf: makeErrorf(t), Logf: t.Logf})
+	tmpDir := sh.MakeTempDir()
+	sh.Pushd(tmpDir)
+	cwd, err := os.Getwd()
+	ok(t, err)
+	eq(t, cwd, tmpDir)
+	// There is no matching popd; the cwd is tmpDir, which is deleted by Cleanup.
+	// Cleanup needs to put us back in startDir, otherwise all subsequent Pushd
+	// calls will fail.
+	sh.Cleanup()
+	cwd, err = os.Getwd()
+	ok(t, err)
+	eq(t, cwd, startDir)
+}
+
 func TestCmds(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Errorf: makeErrorf(t), Logf: t.Logf})
 	defer sh.Cleanup()

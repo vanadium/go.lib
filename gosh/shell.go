@@ -539,6 +539,13 @@ func (sh *Shell) cleanup() {
 			sh.logf("os.RemoveAll(%q) failed: %v\n", tempDir, err)
 		}
 	}
+	// Change back to the top of the dir stack.
+	if len(sh.dirStack) > 0 {
+		dir := sh.dirStack[0]
+		if err := os.Chdir(dir); err != nil {
+			sh.logf("os.Chdir(%q) failed: %v\n", dir, err)
+		}
+	}
 	// Call any registered cleanup functions in LIFO order.
 	for i := len(sh.cleanupFns) - 1; i >= 0; i-- {
 		sh.cleanupFns[i]()
