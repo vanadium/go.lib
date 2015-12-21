@@ -6,15 +6,14 @@ package gosh
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"sync"
 )
 
 type bufferedPipe struct {
-	cond *sync.Cond
-	buf  bytes.Buffer
-	err  error
+	cond   *sync.Cond
+	buf    bytes.Buffer
+	closed bool
 }
 
 // NewBufferedPipe returns a new thread-safe pipe backed by an unbounded
@@ -29,11 +28,12 @@ func (p *bufferedPipe) Read(d []byte) (n int, err error) {
 	p.cond.L.Lock()
 	defer p.cond.L.Unlock()
 	for {
+		// Read any remaining data before checking whether the pipe is closed.
 		if p.buf.Len() > 0 {
 			return p.buf.Read(d)
 		}
-		if p.err != nil {
-			return 0, p.err
+		if p.closed {
+			return 0, io.EOF
 		}
 		p.cond.Wait()
 	}
@@ -43,8 +43,8 @@ func (p *bufferedPipe) Read(d []byte) (n int, err error) {
 func (p *bufferedPipe) Write(d []byte) (n int, err error) {
 	p.cond.L.Lock()
 	defer p.cond.L.Unlock()
-	if p.err != nil {
-		return 0, errors.New("write on closed pipe")
+	if p.closed {
+		return 0, io.ErrClosedPipe
 	}
 	defer p.cond.Signal()
 	return p.buf.Write(d)
@@ -54,9 +54,9 @@ func (p *bufferedPipe) Write(d []byte) (n int, err error) {
 func (p *bufferedPipe) Close() error {
 	p.cond.L.Lock()
 	defer p.cond.L.Unlock()
-	if p.err == nil {
+	if !p.closed {
 		defer p.cond.Signal()
-		p.err = io.EOF
+		p.closed = true
 	}
 	return nil
 }

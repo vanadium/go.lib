@@ -38,7 +38,6 @@ var (
 	errAlreadyCalledCleanup        = errors.New("gosh: already called Shell.Cleanup")
 	errDidNotCallMaybeRunFnAndExit = errors.New("gosh: did not call Shell.MaybeRunFnAndExit")
 	errDidNotCallNewShell          = errors.New("gosh: did not call gosh.NewShell")
-	errShellErrIsNotNil            = errors.New("gosh: Shell.Err is not nil")
 )
 
 // Shell represents a shell. Not thread-safe.
@@ -65,15 +64,15 @@ type Shell struct {
 
 // Opts configures Shell.
 type Opts struct {
-	// Errorf is called whenever an error is encountered.
+	// Fatalf is called whenever an error is encountered.
 	// If not specified, defaults to panic(fmt.Sprintf(format, v...)).
-	Errorf func(format string, v ...interface{})
+	Fatalf func(format string, v ...interface{})
 	// Logf is called to log things.
 	// If not specified, defaults to log.Printf(format, v...).
 	Logf func(format string, v ...interface{})
 	// Child stdout and stderr are propagated up to the parent's stdout and stderr
-	// iff SuppressChildOutput is false.
-	SuppressChildOutput bool
+	// iff PropagateChildOutput is true.
+	PropagateChildOutput bool
 	// If specified, each child's stdout and stderr streams are also piped to
 	// files in this directory.
 	// If not specified, defaults to GOSH_CHILD_OUTPUT_DIR.
@@ -90,12 +89,12 @@ func NewShell(opts Opts) *Shell {
 	return sh
 }
 
-// HandleError sets sh.Err. If err is not nil, it also calls sh.Opts.Errorf.
+// HandleError sets sh.Err. If err is not nil, it also calls sh.Opts.Fatalf.
 func (sh *Shell) HandleError(err error) {
 	sh.Ok()
 	sh.Err = err
-	if err != nil && sh.Opts.Errorf != nil {
-		sh.Opts.Errorf("%v", err)
+	if err != nil && sh.Opts.Fatalf != nil {
+		sh.Opts.Fatalf("%v", err)
 	}
 }
 
@@ -210,7 +209,7 @@ func (sh *Shell) Ok() {
 	}
 	// Panic on incorrect usage of Shell.
 	if sh.Err != nil {
-		panic(errShellErrIsNotNil)
+		panic(fmt.Errorf("gosh: Shell.Err is not nil: %v", sh.Err))
 	}
 	sh.cleanupMu.Lock()
 	defer sh.cleanupMu.Unlock()
@@ -232,11 +231,11 @@ func onTerminationSignal(fn func(os.Signal)) {
 	}()
 }
 
-// Note: On error, newShell returns a *Shell with Opts.Errorf initialized to
+// Note: On error, newShell returns a *Shell with Opts.Fatalf initialized to
 // simplify things for the caller.
 func newShell(opts Opts) (*Shell, error) {
-	if opts.Errorf == nil {
-		opts.Errorf = func(format string, v ...interface{}) {
+	if opts.Fatalf == nil {
+		opts.Fatalf = func(format string, v ...interface{}) {
 			panic(fmt.Sprintf(format, v...))
 		}
 	}
@@ -262,15 +261,6 @@ func newShell(opts Opts) (*Shell, error) {
 				return sh, err
 			}
 		}
-	}
-	// Set this process's PGID to its PID so that its child processes can be
-	// identified reliably.
-	// http://man7.org/linux/man-pages/man2/setpgid.2.html
-	// TODO(sadovsky): Is there any way to reliably kill all spawned subprocesses
-	// without modifying external state?
-	if err := syscall.Setpgid(0, 0); err != nil {
-		sh.cleanup()
-		return sh, err
 	}
 	// Call sh.cleanup() if needed when a termination signal is received.
 	onTerminationSignal(func(sig os.Signal) {
@@ -302,7 +292,7 @@ func (sh *Shell) cmd(vars map[string]string, name string, args ...string) (*Cmd,
 	if err != nil {
 		return nil, err
 	}
-	c.SuppressOutput = sh.Opts.SuppressChildOutput
+	c.PropagateOutput = sh.Opts.PropagateChildOutput
 	c.OutputDir = sh.Opts.ChildOutputDir
 	return c, nil
 }
@@ -330,7 +320,7 @@ func (sh *Shell) main(fn *Fn, args ...string) (*Cmd, error) {
 	// Check that fn has the required signature.
 	t := fn.value.Type()
 	if t.NumIn() != 0 || t.NumOut() != 0 {
-		return nil, errors.New("main function must have no input or output parameters")
+		return nil, errors.New("gosh: main function must have no input or output parameters")
 	}
 	b, err := encInvocation(fn.name)
 	if err != nil {
@@ -345,14 +335,12 @@ func (sh *Shell) wait() error {
 	// need not hold cleanupMu when accessing sh.cmds below.
 	var res error
 	for _, c := range sh.cmds {
-		if !c.calledStart() || c.calledWait {
+		if !c.started || c.calledWait {
 			continue
 		}
-		if err := c.wait(); err != nil {
-			sh.logf("Cmd.Wait() failed: %v\n", err)
-			if res == nil {
-				res = err
-			}
+		if err := c.wait(); !c.errorIsOk(err) {
+			sh.logf("%s (PID %d) failed: %v\n", c.Path, c.c.Process.Pid, err)
+			res = err
 		}
 	}
 	return res
@@ -392,7 +380,7 @@ func (sh *Shell) buildGoPkg(pkg string, flags ...string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	c.SuppressOutput = true
+	c.PropagateOutput = false
 	if err := c.run(); err != nil {
 		return "", err
 	}
@@ -444,7 +432,7 @@ func (sh *Shell) pushd(dir string) error {
 
 func (sh *Shell) popd() error {
 	if len(sh.dirStack) == 0 {
-		return errors.New("dir stack is empty")
+		return errors.New("gosh: dir stack is empty")
 	}
 	dir := sh.dirStack[len(sh.dirStack)-1]
 	if err := os.Chdir(dir); err != nil {
@@ -468,24 +456,21 @@ func (sh *Shell) addToCleanup(fn func()) error {
 func (sh *Shell) forEachRunningCmd(fn func(*Cmd)) bool {
 	anyRunning := false
 	for _, c := range sh.cmds {
-		if !c.calledStart() || c.c.Process == nil {
-			continue // not started
-		}
-		if pgid, err := syscall.Getpgid(c.c.Process.Pid); err != nil || pgid != os.Getpid() {
-			continue // not our child
-		}
-		anyRunning = true
-		if fn != nil {
-			fn(c)
+		if c.isRunning() {
+			anyRunning = true
+			if fn != nil {
+				fn(c)
+			}
 		}
 	}
 	return anyRunning
 }
 
-// Note: It is safe to run Shell.terminateRunningCmds() concurrently with
-// Cmd.wait(). In particular, Shell.terminateRunningCmds() only reads
-// c.c.Process.{Pid,Path} and calls c.c.Process.{Signal,Kill}, all of which are
-// thread-safe with Cmd.wait().
+// Note: It is safe to run Shell.terminateRunningCmds concurrently with the
+// waiter goroutine and with Cmd.wait. In particular, Shell.terminateRunningCmds
+// only reads c.c.Process.Pid and calls c.c.Process.{Signal,Kill}, all of which
+// are thread-safe with the waiter goroutine and with Cmd.wait.
+// TODO(sadovsky): Not quite true. See TODO in Cmd.shutdown.
 func (sh *Shell) terminateRunningCmds() {
 	// Try SIGINT first; if that doesn't work, use SIGKILL.
 	anyRunning := sh.forEachRunningCmd(func(c *Cmd) {
@@ -493,11 +478,11 @@ func (sh *Shell) terminateRunningCmds() {
 			sh.logf("%d.Signal(os.Interrupt) failed: %v\n", c.c.Process.Pid, err)
 		}
 	})
-	// If any child is still running, wait for 50ms.
+	// If any child is still running, wait for 100ms.
 	if anyRunning {
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 		anyRunning = sh.forEachRunningCmd(func(c *Cmd) {
-			sh.logf("%s (PID %d) did not die\n", c.c.Path, c.c.Process.Pid)
+			sh.logf("%s (PID %d) did not die\n", c.Path, c.c.Process.Pid)
 		})
 	}
 	// If any child is still running, wait for another second, then send SIGKILL
@@ -515,14 +500,8 @@ func (sh *Shell) terminateRunningCmds() {
 
 func (sh *Shell) cleanup() {
 	sh.calledCleanup = true
-	// Terminate all children that are still running. Note, newShell() calls
-	// syscall.Setpgid().
-	pgid, pid := syscall.Getpgrp(), os.Getpid()
-	if pgid != pid {
-		sh.logf("PGID (%d) != PID (%d); skipping subprocess termination\n", pgid, pid)
-	} else {
-		sh.terminateRunningCmds()
-	}
+	// Terminate all children that are still running.
+	sh.terminateRunningCmds()
 	// Close and delete all temporary files.
 	for _, tempFile := range sh.tempFiles {
 		name := tempFile.Name()

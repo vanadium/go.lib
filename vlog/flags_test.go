@@ -42,7 +42,7 @@ var child = gosh.Register("child", func() error {
 })
 
 func TestFlags(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Errorf: t.Fatalf, Logf: t.Logf})
+	sh := gosh.NewShell(gosh.Opts{Fatalf: t.Fatalf, Logf: t.Logf})
 	defer sh.Cleanup()
 	sh.Fn(child).Run()
 }

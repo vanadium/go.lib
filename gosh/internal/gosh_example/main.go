@@ -12,7 +12,7 @@ import (
 )
 
 func ExampleCmds() {
-	sh := gosh.NewShell(gosh.Opts{SuppressChildOutput: true})
+	sh := gosh.NewShell(gosh.Opts{})
 	defer sh.Cleanup()
 
 	// Start server.
@@ -26,37 +26,36 @@ func ExampleCmds() {
 	// Run client.
 	binPath = sh.BuildGoPkg("v.io/x/lib/gosh/internal/gosh_example_client")
 	c = sh.Cmd(binPath, "-addr="+addr)
-	stdout, _ := c.Output()
-	fmt.Print(stdout)
+	fmt.Print(c.Stdout())
 }
 
 var (
-	get   = gosh.Register("get", lib.Get)
-	serve = gosh.Register("serve", lib.Serve)
+	getFn   = gosh.Register("get", lib.Get)
+	serveFn = gosh.Register("serve", lib.Serve)
 )
 
 func ExampleFns() {
-	sh := gosh.NewShell(gosh.Opts{SuppressChildOutput: true})
+	sh := gosh.NewShell(gosh.Opts{})
 	defer sh.Cleanup()
 
 	// Start server.
-	c := sh.Fn(serve)
+	c := sh.Fn(serveFn)
 	c.Start()
 	c.AwaitReady()
 	addr := c.AwaitVars("Addr")["Addr"]
 	fmt.Println(addr)
 
 	// Run client.
-	c = sh.Fn(get, addr)
-	stdout, _ := c.Output()
-	fmt.Print(stdout)
+	c = sh.Fn(getFn, addr)
+	fmt.Print(c.Stdout())
 }
 
 func ExampleShellMain() {
 	sh := gosh.NewShell(gosh.Opts{})
 	defer sh.Cleanup()
-	stdout, _ := sh.Main(lib.HelloWorldMain).Output()
-	fmt.Print(stdout)
+
+	c := sh.Main(lib.HelloWorldMain)
+	fmt.Print(c.Stdout())
 }
 
 func main() {

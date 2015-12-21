@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -28,50 +29,58 @@ var (
 type Cmd struct {
 	// Err is the most recent error from this Cmd (may be nil).
 	Err error
+	// Path is the path of the command to run.
+	Path string
 	// Vars is the map of env vars for this Cmd.
 	Vars map[string]string
 	// Args is the list of args for this Cmd.
 	Args []string
-	// Stdin specifies this Cmd's stdin. See comments in exec.Cmd for detailed
-	// semantics.
-	Stdin io.Reader
-	// SuppressOutput is inherited from Shell.Opts.SuppressChildOutput.
-	SuppressOutput bool
+	// PropagateOutput is inherited from Shell.Opts.PropagateChildOutput.
+	PropagateOutput bool
 	// OutputDir is inherited from Shell.Opts.ChildOutputDir.
 	OutputDir string
 	// ExitErrorIsOk specifies whether an *exec.ExitError should be reported via
 	// Shell.HandleError.
 	ExitErrorIsOk bool
+	// Stdin is a string to write to the child's stdin.
+	Stdin string
 	// Internal state.
-	sh             *Shell
-	c              *exec.Cmd
-	name           string
-	calledWait     bool
-	stdoutWriters  []io.Writer
-	stderrWriters  []io.Writer
-	closeAfterWait []io.Closer
-	condReady      *sync.Cond
-	recvReady      bool // protected by condReady.L
-	condVars       *sync.Cond
-	recvVars       map[string]string // protected by condVars.L
+	sh               *Shell
+	c                *exec.Cmd
+	stdinWriteCloser io.WriteCloser // from exec.Cmd.StdinPipe
+	calledStart      bool
+	calledWait       bool
+	waitChan         chan error
+	started          bool // protected by sh.cleanupMu
+	exitedMu         sync.Mutex
+	exited           bool // protected by exitedMu
+	stdoutWriters    []io.Writer
+	stderrWriters    []io.Writer
+	closers          []io.Closer
+	condReady        *sync.Cond
+	recvReady        bool // protected by condReady.L
+	condVars         *sync.Cond
+	recvVars         map[string]string // protected by condVars.L
 }
 
-// TODO(sadovsky):
-// - Change "Errorf" to "Fatalf" everywhere.
-// - Drop "CombinedOutput", change "Output" to "StdoutStderr", and add "Stdout".
-// - Add Cmd.Clone method that returns a new Cmd with the same configuration.
-// - Add Cmd.StdinPipe method that creates a new bufferedPipe, returns a
-//   WriteCloser, and stores a ReadCloser. Cmd.StdinPipe cannot be called more
-//   than once.
-// - In Cmd.Start, start a goroutine that monitors the started process and
-//   closes the stdinPipe ReadCloser (if it's not already closed) when the
-//   process exits.
-// - Make it so awaitReady and awaitVars return an error if/when our goroutine
-//   detects that the process has exited.
-// - Add unit test for piping from one Cmd's stdout to another's stdin. It
-//   should be possible to wait on just the last Cmd.
-// - Add unit test to demonstrate that Cmd.Wait returns immediately for a
-//   process that blocks on non-nil stdin if Cmd.StdinPipe was never called.
+// Clone returns a new Cmd with a copy of this Cmd's configuration.
+func (c *Cmd) Clone() *Cmd {
+	c.sh.Ok()
+	res, err := c.clone()
+	c.handleError(err)
+	return res
+}
+
+// StdinPipe returns a thread-safe WriteCloser backed by a buffered pipe for the
+// command's stdin. The returned WriteCloser will be closed when the process
+// exits. Must be called before Start. It is safe to call StdinPipe multiple
+// times; calls after the first return the pipe created by the first call.
+func (c *Cmd) StdinPipe() io.WriteCloser {
+	c.sh.Ok()
+	res, err := c.stdinPipe()
+	c.handleError(err)
+	return res
+}
 
 // StdoutPipe returns a Reader backed by a buffered pipe for the command's
 // stdout. Must be called before Start. May be called more than once; each
@@ -91,6 +100,22 @@ func (c *Cmd) StderrPipe() io.Reader {
 	res, err := c.stderrPipe()
 	c.handleError(err)
 	return res
+}
+
+// AddStdoutWriter configures this Cmd to tee the child's stdout to the given
+// Writer. If this Writer is a Closer and is not os.Stdout or os.Stderr, it will
+// be closed when the process exits.
+func (c *Cmd) AddStdoutWriter(w io.Writer) {
+	c.sh.Ok()
+	c.handleError(c.addStdoutWriter(w))
+}
+
+// AddStderrWriter configures this Cmd to tee the child's stderr to the given
+// Writer. If this Writer is a Closer and is not os.Stdout or os.Stderr, it will
+// be closed when the process exits.
+func (c *Cmd) AddStderrWriter(w io.Writer) {
+	c.sh.Ok()
+	c.handleError(c.addStderrWriter(w))
 }
 
 // Start starts the command.
@@ -136,22 +161,21 @@ func (c *Cmd) Run() {
 	c.handleError(c.run())
 }
 
-// Output calls Start followed by Wait, then returns the command's stdout and
-// stderr.
-func (c *Cmd) Output() (string, string) {
+// Stdout calls Start followed by Wait, then returns the command's stdout.
+func (c *Cmd) Stdout() string {
 	c.sh.Ok()
-	stdout, stderr, err := c.output()
-	c.handleError(err)
-	return stdout, stderr
-}
-
-// CombinedOutput calls Start followed by Wait, then returns the command's
-// combined stdout and stderr.
-func (c *Cmd) CombinedOutput() string {
-	c.sh.Ok()
-	res, err := c.combinedOutput()
+	res, err := c.stdout()
 	c.handleError(err)
 	return res
+}
+
+// StdoutStderr calls Start followed by Wait, then returns the command's stdout
+// and stderr.
+func (c *Cmd) StdoutStderr() (string, string) {
+	c.sh.Ok()
+	stdout, stderr, err := c.stdoutStderr()
+	c.handleError(err)
+	return stdout, stderr
 }
 
 // Process returns the underlying process handle for the command.
@@ -165,20 +189,14 @@ func (c *Cmd) Process() *os.Process {
 ////////////////////////////////////////
 // Internals
 
-func newCmd(sh *Shell, vars map[string]string, name string, args ...string) (*Cmd, error) {
-	// Mimics https://golang.org/src/os/exec/exec.go Command.
-	if filepath.Base(name) == name {
-		if lp, err := exec.LookPath(name); err != nil {
-			return nil, err
-		} else {
-			name = lp
-		}
-	}
+func newCmdInternal(sh *Shell, vars map[string]string, path string, args []string) (*Cmd, error) {
 	c := &Cmd{
+		Path:      path,
 		Vars:      vars,
 		Args:      args,
 		sh:        sh,
-		name:      name,
+		c:         &exec.Cmd{},
+		waitChan:  make(chan error, 1),
 		condReady: sync.NewCond(&sync.Mutex{}),
 		condVars:  sync.NewCond(&sync.Mutex{}),
 		recvVars:  map[string]string{},
@@ -193,28 +211,60 @@ func newCmd(sh *Shell, vars map[string]string, name string, args ...string) (*Cm
 	return c, nil
 }
 
-func (c *Cmd) handleError(err error) {
-	c.Err = err
-	if c.ExitErrorIsOk {
-		if _, ok := err.(*exec.ExitError); ok {
-			return
+func newCmd(sh *Shell, vars map[string]string, name string, args ...string) (*Cmd, error) {
+	// Mimics https://golang.org/src/os/exec/exec.go Command.
+	if filepath.Base(name) == name {
+		if lp, err := exec.LookPath(name); err != nil {
+			return nil, err
+		} else {
+			name = lp
 		}
 	}
-	c.sh.HandleError(err)
+	return newCmdInternal(sh, vars, name, args)
 }
 
-func (c *Cmd) calledStart() bool {
-	return c.c != nil
+func (c *Cmd) errorIsOk(err error) bool {
+	if c.ExitErrorIsOk {
+		if _, ok := err.(*exec.ExitError); ok {
+			return true
+		}
+	}
+	return err == nil
 }
 
-func closeAll(closers []io.Closer) {
-	for _, c := range closers {
-		c.Close()
+func (c *Cmd) handleError(err error) {
+	c.Err = err
+	if !c.errorIsOk(err) {
+		c.sh.HandleError(err)
 	}
 }
 
-func addWriter(writers *[]io.Writer, w io.Writer) {
+func (c *Cmd) addWriter(writers *[]io.Writer, w io.Writer) {
 	*writers = append(*writers, w)
+	// Check for os.Stdout and os.Stderr so that we don't close these when a
+	// single command exits. This technique isn't foolproof (since, for example,
+	// os.Stdout may be wrapped in another WriteCloser), but in practice it should
+	// be adequate.
+	if w != os.Stdout && w != os.Stderr {
+		if wc, ok := w.(io.Closer); ok {
+			c.closers = append(c.closers, wc)
+		}
+	}
+}
+
+func (c *Cmd) closeClosers() {
+	for _, c := range c.closers {
+		c.Close() // best-effort; ignore returned error
+	}
+}
+
+func (c *Cmd) isRunning() bool {
+	if !c.started {
+		return false
+	}
+	c.exitedMu.Lock()
+	defer c.exitedMu.Unlock()
+	return !c.exited
 }
 
 // recvWriter listens for gosh messages from a child process.
@@ -269,55 +319,100 @@ func (c *Cmd) initMultiWriter(f *os.File, t string) (io.Writer, error) {
 	var writers *[]io.Writer
 	if f == os.Stdout {
 		writers = &c.stdoutWriters
+		c.addWriter(writers, &recvWriter{c: c})
 	} else {
 		writers = &c.stderrWriters
 	}
-	if !c.SuppressOutput {
-		addWriter(writers, f)
+	if c.PropagateOutput {
+		c.addWriter(writers, f)
 	}
 	if c.OutputDir != "" {
 		suffix := "stderr"
 		if f == os.Stdout {
 			suffix = "stdout"
 		}
-		name := filepath.Join(c.OutputDir, filepath.Base(c.name)+"."+t+"."+suffix)
+		name := filepath.Join(c.OutputDir, filepath.Base(c.Path)+"."+t+"."+suffix)
 		file, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 		if err != nil {
 			return nil, err
 		}
-		addWriter(writers, file)
-		c.closeAfterWait = append(c.closeAfterWait, file)
-	}
-	if f == os.Stdout {
-		addWriter(writers, &recvWriter{c: c})
+		c.addWriter(writers, file)
 	}
 	return io.MultiWriter(*writers...), nil
 }
 
+func (c *Cmd) clone() (*Cmd, error) {
+	vars := make(map[string]string, len(c.Vars))
+	for k, v := range c.Vars {
+		vars[k] = v
+	}
+	args := make([]string, len(c.Args))
+	copy(args, c.Args)
+	res, err := newCmdInternal(c.sh, vars, c.Path, args)
+	if err != nil {
+		return nil, err
+	}
+	res.PropagateOutput = c.PropagateOutput
+	res.OutputDir = c.OutputDir
+	res.ExitErrorIsOk = c.ExitErrorIsOk
+	res.Stdin = c.Stdin
+	return res, nil
+}
+
+func (c *Cmd) stdinPipe() (io.WriteCloser, error) {
+	if c.calledStart {
+		return nil, errAlreadyCalledStart
+	}
+	if c.stdinWriteCloser != nil {
+		return c.stdinWriteCloser, nil
+	}
+	var err error
+	c.stdinWriteCloser, err = c.c.StdinPipe()
+	return c.stdinWriteCloser, err
+}
+
 func (c *Cmd) stdoutPipe() (io.Reader, error) {
-	if c.calledStart() {
+	if c.calledStart {
 		return nil, errAlreadyCalledStart
 	}
 	p := NewBufferedPipe()
-	addWriter(&c.stdoutWriters, p)
-	c.closeAfterWait = append(c.closeAfterWait, p)
+	c.addWriter(&c.stdoutWriters, p)
 	return p, nil
 }
 
 func (c *Cmd) stderrPipe() (io.Reader, error) {
-	if c.calledStart() {
+	if c.calledStart {
 		return nil, errAlreadyCalledStart
 	}
 	p := NewBufferedPipe()
-	addWriter(&c.stderrWriters, p)
-	c.closeAfterWait = append(c.closeAfterWait, p)
+	c.addWriter(&c.stderrWriters, p)
 	return p, nil
 }
 
-func (c *Cmd) start() error {
-	if c.calledStart() {
+func (c *Cmd) addStdoutWriter(w io.Writer) error {
+	if c.calledStart {
 		return errAlreadyCalledStart
 	}
+	c.addWriter(&c.stdoutWriters, w)
+	return nil
+}
+
+func (c *Cmd) addStderrWriter(w io.Writer) error {
+	if c.calledStart {
+		return errAlreadyCalledStart
+	}
+	c.addWriter(&c.stderrWriters, w)
+	return nil
+}
+
+// TODO(sadovsky): Maybe wrap every child process with a "supervisor" process
+// that calls WatchParent().
+
+func (c *Cmd) start() error {
+	if c.calledStart {
+		return errAlreadyCalledStart
+	}
+	c.calledStart = true
 	// Protect against Cmd.start() writing to c.c.Process concurrently with
 	// signal-triggered Shell.cleanup() reading from it.
 	c.sh.cleanupMu.Lock()
@@ -325,9 +420,16 @@ func (c *Cmd) start() error {
 	if c.sh.calledCleanup {
 		return errAlreadyCalledCleanup
 	}
-	c.c = exec.Command(c.name, c.Args...)
+	// Configure the command.
+	c.c.Path = c.Path
 	c.c.Env = mapToSlice(c.Vars)
-	c.c.Stdin = c.Stdin
+	c.c.Args = append([]string{c.Path}, c.Args...)
+	if c.Stdin != "" {
+		if c.stdinWriteCloser != nil {
+			return errors.New("gosh: cannot both set Stdin and call StdinPipe")
+		}
+		c.c.Stdin = strings.NewReader(c.Stdin)
+	}
 	t := time.Now().Format("20060102.150405.000000")
 	var err error
 	if c.c.Stdout, err = c.initMultiWriter(os.Stdout, t); err != nil {
@@ -336,19 +438,38 @@ func (c *Cmd) start() error {
 	if c.c.Stderr, err = c.initMultiWriter(os.Stderr, t); err != nil {
 		return err
 	}
-	// TODO(sadovsky): Maybe wrap every child process with a "supervisor" process
-	// that calls WatchParent().
+	// Start the command.
 	err = c.c.Start()
 	if err != nil {
-		closeAll(c.closeAfterWait)
+		c.exitedMu.Lock()
+		c.exited = true
+		c.exitedMu.Unlock()
+		c.closeClosers()
+		c.waitChan <- errors.New("gosh: start failed")
+		return err
 	}
-	return err
+	c.started = true
+	// Spawn a "waiter" goroutine that calls exec.Cmd.Wait and thus waits for the
+	// process to exit. Calling exec.Cmd.Wait here rather than in gosh.Cmd.Wait
+	// ensures that the child process is reaped once it exits. Note, gosh.Cmd.wait
+	// blocks on waitChan.
+	go func() {
+		err := c.c.Wait()
+		c.exitedMu.Lock()
+		c.exited = true
+		c.exitedMu.Unlock()
+		c.closeClosers()
+		c.waitChan <- err
+	}()
+	return nil
 }
 
-// TODO(sadovsky): Maybe add timeouts for Cmd.{awaitReady,awaitVars,wait}.
+// TODO(sadovsky): Make it so Cmd.{awaitReady,awaitVars} return an error if/when
+// we detect that the process has exited. Also, maybe add optional timeouts for
+// Cmd.{awaitReady,awaitVars,wait}.
 
 func (c *Cmd) awaitReady() error {
-	if !c.calledStart() {
+	if !c.started {
 		return errDidNotCallStart
 	} else if c.calledWait {
 		return errAlreadyCalledWait
@@ -363,7 +484,7 @@ func (c *Cmd) awaitReady() error {
 }
 
 func (c *Cmd) awaitVars(keys ...string) (map[string]string, error) {
-	if !c.calledStart() {
+	if !c.started {
 		return nil, errDidNotCallStart
 	} else if c.calledWait {
 		return nil, errAlreadyCalledWait
@@ -392,20 +513,26 @@ func (c *Cmd) awaitVars(keys ...string) (map[string]string, error) {
 }
 
 func (c *Cmd) wait() error {
-	if !c.calledStart() {
+	if !c.started {
 		return errDidNotCallStart
 	} else if c.calledWait {
 		return errAlreadyCalledWait
 	}
 	c.calledWait = true
-	err := c.c.Wait()
-	closeAll(c.closeAfterWait)
-	return err
+	return <-c.waitChan
 }
 
 func (c *Cmd) shutdown(sig os.Signal) error {
-	if !c.calledStart() {
+	if !c.started {
 		return errDidNotCallStart
+	}
+	// TODO(sadovsky): There's a race condition here and in
+	// Shell.terminateRunningCmds. If our Process.Wait returns immediately before
+	// we call Process.Signal, Process.Signal will return an error, "os: process
+	// already finished". Should we add Cmd.Signal and Cmd.Kill methods that
+	// special-case for this error message?
+	if !c.isRunning() {
+		return nil
 	}
 	if err := c.c.Process.Signal(sig); err != nil {
 		return err
@@ -425,41 +552,29 @@ func (c *Cmd) run() error {
 	return c.wait()
 }
 
-func (c *Cmd) output() (string, string, error) {
+func (c *Cmd) stdout() (string, error) {
+	if c.calledStart {
+		return "", errAlreadyCalledStart
+	}
+	var stdout bytes.Buffer
+	c.addWriter(&c.stdoutWriters, &stdout)
+	err := c.run()
+	return stdout.String(), err
+}
+
+func (c *Cmd) stdoutStderr() (string, string, error) {
+	if c.calledStart {
+		return "", "", errAlreadyCalledStart
+	}
 	var stdout, stderr bytes.Buffer
-	addWriter(&c.stdoutWriters, &stdout)
-	addWriter(&c.stderrWriters, &stderr)
+	c.addWriter(&c.stdoutWriters, &stdout)
+	c.addWriter(&c.stderrWriters, &stderr)
 	err := c.run()
 	return stdout.String(), stderr.String(), err
 }
 
-type threadSafeBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
-}
-
-func (b *threadSafeBuffer) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.Write(p)
-}
-
-func (b *threadSafeBuffer) String() string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.String()
-}
-
-func (c *Cmd) combinedOutput() (string, error) {
-	buf := &threadSafeBuffer{}
-	addWriter(&c.stdoutWriters, buf)
-	addWriter(&c.stderrWriters, buf)
-	err := c.run()
-	return buf.String(), err
-}
-
 func (c *Cmd) process() (*os.Process, error) {
-	if !c.calledStart() {
+	if !c.started {
 		return nil, errDidNotCallStart
 	}
 	return c.c.Process, nil
