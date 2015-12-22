@@ -339,7 +339,7 @@ func (sh *Shell) wait() error {
 			continue
 		}
 		if err := c.wait(); !c.errorIsOk(err) {
-			sh.logf("%s (PID %d) failed: %v\n", c.Path, c.c.Process.Pid, err)
+			sh.logf("%s (PID %d) failed: %v\n", c.Path, c.Pid(), err)
 			res = err
 		}
 	}
@@ -468,33 +468,32 @@ func (sh *Shell) forEachRunningCmd(fn func(*Cmd)) bool {
 
 // Note: It is safe to run Shell.terminateRunningCmds concurrently with the
 // waiter goroutine and with Cmd.wait. In particular, Shell.terminateRunningCmds
-// only reads c.c.Process.Pid and calls c.c.Process.{Signal,Kill}, all of which
-// are thread-safe with the waiter goroutine and with Cmd.wait.
-// TODO(sadovsky): Not quite true. See TODO in Cmd.shutdown.
+// only calls c.{isRunning,Pid,Signal,Kill}, all of which are thread-safe with
+// the waiter goroutine and with Cmd.wait.
 func (sh *Shell) terminateRunningCmds() {
-	// Try SIGINT first; if that doesn't work, use SIGKILL.
+	// Try Cmd.signal first; if that doesn't work, use Cmd.kill.
 	anyRunning := sh.forEachRunningCmd(func(c *Cmd) {
-		if err := c.c.Process.Signal(os.Interrupt); err != nil {
-			sh.logf("%d.Signal(os.Interrupt) failed: %v\n", c.c.Process.Pid, err)
+		if err := c.signal(os.Interrupt); err != nil {
+			sh.logf("%d.Signal(os.Interrupt) failed: %v\n", c.Pid(), err)
 		}
 	})
 	// If any child is still running, wait for 100ms.
 	if anyRunning {
 		time.Sleep(100 * time.Millisecond)
 		anyRunning = sh.forEachRunningCmd(func(c *Cmd) {
-			sh.logf("%s (PID %d) did not die\n", c.Path, c.c.Process.Pid)
+			sh.logf("%s (PID %d) did not die\n", c.Path, c.Pid())
 		})
 	}
-	// If any child is still running, wait for another second, then send SIGKILL
-	// to all running children.
+	// If any child is still running, wait for another second, then call Cmd.kill
+	// for all running children.
 	if anyRunning {
 		time.Sleep(time.Second)
 		sh.forEachRunningCmd(func(c *Cmd) {
-			if err := c.c.Process.Kill(); err != nil {
-				sh.logf("%d.Kill() failed: %v\n", c.c.Process.Pid, err)
+			if err := c.kill(); err != nil {
+				sh.logf("%d.Kill() failed: %v\n", c.Pid(), err)
 			}
 		})
-		sh.logf("Sent SIGKILL to all remaining child processes\n")
+		sh.logf("Killed all remaining child processes\n")
 	}
 }
 

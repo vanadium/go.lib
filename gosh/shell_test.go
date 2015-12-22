@@ -463,9 +463,8 @@ func TestShutdown(t *testing.T) {
 			c := sh.Fn(sleepFn, d, 0)
 			c.Start()
 			// Wait for a bit to allow the zero-sleep commands to exit, to test that
-			// Shutdown succeeds for an exited process and to avoid the race condition
-			// in Cmd.Shutdown.
-			time.Sleep(10 * time.Millisecond)
+			// Shutdown succeeds for an exited process.
+			time.Sleep(100 * time.Millisecond)
 			c.Shutdown(s)
 		}
 	}
@@ -500,10 +499,12 @@ func TestShellWait(t *testing.T) {
 	sh.Err = nil
 	sh.Opts.Fatalf = makeFatalf(t)
 
-	// Start commands, call wait.
+	// Start commands, then wait for them to exit.
 	for _, c := range []*gosh.Cmd{c2, c3, c4, c5, c6, c7} {
 		c.Start()
 	}
+	// Wait for a bit to allow the zero-sleep commands to exit.
+	time.Sleep(100 * time.Millisecond)
 	c5.Wait()
 	c7.Wait()
 	sh.Wait()

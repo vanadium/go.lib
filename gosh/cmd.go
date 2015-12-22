@@ -146,10 +146,19 @@ func (c *Cmd) Wait() {
 	c.handleError(c.wait())
 }
 
-// TODO(sadovsky): Maybe add a method to send SIGINT, wait for a bit, then send
-// SIGKILL if the process hasn't exited.
+// Kill causes the process to exit immediately.
+func (c *Cmd) Kill() {
+	c.sh.Ok()
+	c.handleError(c.kill())
+}
 
-// Shutdown sends the given signal to the command, then waits for it to exit.
+// Signal sends a signal to the process.
+func (c *Cmd) Signal(sig os.Signal) {
+	c.sh.Ok()
+	c.handleError(c.signal(sig))
+}
+
+// Shutdown sends a signal to the process, then waits for it to exit.
 func (c *Cmd) Shutdown(sig os.Signal) {
 	c.sh.Ok()
 	c.handleError(c.shutdown(sig))
@@ -178,12 +187,12 @@ func (c *Cmd) StdoutStderr() (string, string) {
 	return stdout, stderr
 }
 
-// Process returns the underlying process handle for the command.
-func (c *Cmd) Process() *os.Process {
-	c.sh.Ok()
-	res, err := c.process()
-	c.handleError(err)
-	return res
+// Pid returns the command's PID, or -1 if the command has not been started.
+func (c *Cmd) Pid() int {
+	if !c.started {
+		return -1
+	}
+	return c.c.Process.Pid
 }
 
 ////////////////////////////////////////
@@ -522,19 +531,40 @@ func (c *Cmd) wait() error {
 	return <-c.waitChan
 }
 
-func (c *Cmd) shutdown(sig os.Signal) error {
+// Note: We check for this particular error message to handle the unavoidable
+// race between sending a signal to a process and the process exiting.
+// https://golang.org/src/os/exec_unix.go
+// https://golang.org/src/os/exec_windows.go
+const errFinished = "os: process already finished"
+
+func (c *Cmd) kill() error {
 	if !c.started {
 		return errDidNotCallStart
 	}
-	// TODO(sadovsky): There's a race condition here and in
-	// Shell.terminateRunningCmds. If our Process.Wait returns immediately before
-	// we call Process.Signal, Process.Signal will return an error, "os: process
-	// already finished". Should we add Cmd.Signal and Cmd.Kill methods that
-	// special-case for this error message?
 	if !c.isRunning() {
 		return nil
 	}
-	if err := c.c.Process.Signal(sig); err != nil {
+	if err := c.c.Process.Kill(); err != nil && err.Error() != errFinished {
+		return err
+	}
+	return nil
+}
+
+func (c *Cmd) signal(sig os.Signal) error {
+	if !c.started {
+		return errDidNotCallStart
+	}
+	if !c.isRunning() {
+		return nil
+	}
+	if err := c.c.Process.Signal(sig); err != nil && err.Error() != errFinished {
+		return err
+	}
+	return nil
+}
+
+func (c *Cmd) shutdown(sig os.Signal) error {
+	if err := c.signal(sig); err != nil {
 		return err
 	}
 	if err := c.wait(); err != nil {
@@ -571,11 +601,4 @@ func (c *Cmd) stdoutStderr() (string, string, error) {
 	c.addWriter(&c.stderrWriters, &stderr)
 	err := c.run()
 	return stdout.String(), stderr.String(), err
-}
-
-func (c *Cmd) process() (*os.Process, error) {
-	if !c.started {
-		return nil, errDidNotCallStart
-	}
-	return c.c.Process, nil
 }
