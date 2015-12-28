@@ -22,6 +22,7 @@ var (
 	errAlreadyCalledStart = errors.New("gosh: already called Cmd.Start")
 	errAlreadyCalledWait  = errors.New("gosh: already called Cmd.Wait")
 	errDidNotCallStart    = errors.New("gosh: did not call Cmd.Start")
+	errProcessExited      = errors.New("gosh: process exited")
 )
 
 // Cmd represents a command. Not thread-safe.
@@ -50,17 +51,15 @@ type Cmd struct {
 	stdinWriteCloser io.WriteCloser // from exec.Cmd.StdinPipe
 	calledStart      bool
 	calledWait       bool
+	cond             *sync.Cond
 	waitChan         chan error
 	started          bool // protected by sh.cleanupMu
-	exitedMu         sync.Mutex
-	exited           bool // protected by exitedMu
+	exited           bool // protected by cond.L
 	stdoutWriters    []io.Writer
 	stderrWriters    []io.Writer
 	closers          []io.Closer
-	condReady        *sync.Cond
-	recvReady        bool // protected by condReady.L
-	condVars         *sync.Cond
-	recvVars         map[string]string // protected by condVars.L
+	recvReady        bool              // protected by cond.L
+	recvVars         map[string]string // protected by cond.L
 }
 
 // Clone returns a new Cmd with a copy of this Cmd's configuration.
@@ -72,9 +71,11 @@ func (c *Cmd) Clone() *Cmd {
 }
 
 // StdinPipe returns a thread-safe WriteCloser backed by a buffered pipe for the
-// command's stdin. The returned WriteCloser will be closed when the process
-// exits. Must be called before Start. It is safe to call StdinPipe multiple
-// times; calls after the first return the pipe created by the first call.
+// command's stdin. The returned pipe will be closed when the process exits, but
+// may also be closed earlier by the caller, e.g. if the command does not exit
+// until its stdin is closed. Must be called before Start. It is safe to call
+// StdinPipe multiple times; calls after the first return the pipe created by
+// the first call.
 func (c *Cmd) StdinPipe() io.WriteCloser {
 	c.sh.Ok()
 	res, err := c.stdinPipe()
@@ -200,15 +201,14 @@ func (c *Cmd) Pid() int {
 
 func newCmdInternal(sh *Shell, vars map[string]string, path string, args []string) (*Cmd, error) {
 	c := &Cmd{
-		Path:      path,
-		Vars:      vars,
-		Args:      args,
-		sh:        sh,
-		c:         &exec.Cmd{},
-		waitChan:  make(chan error, 1),
-		condReady: sync.NewCond(&sync.Mutex{}),
-		condVars:  sync.NewCond(&sync.Mutex{}),
-		recvVars:  map[string]string{},
+		Path:     path,
+		Vars:     vars,
+		Args:     args,
+		sh:       sh,
+		c:        &exec.Cmd{},
+		cond:     sync.NewCond(&sync.Mutex{}),
+		waitChan: make(chan error, 1),
+		recvVars: map[string]string{},
 	}
 	// Protect against concurrent signal-triggered Shell.cleanup().
 	sh.cleanupMu.Lock()
@@ -271,8 +271,8 @@ func (c *Cmd) isRunning() bool {
 	if !c.started {
 		return false
 	}
-	c.exitedMu.Lock()
-	defer c.exitedMu.Unlock()
+	c.cond.L.Lock()
+	defer c.cond.L.Unlock()
 	return !c.exited
 }
 
@@ -294,15 +294,15 @@ func (w *recvWriter) Write(p []byte) (n int, err error) {
 				}
 				switch m.Type {
 				case typeReady:
-					w.c.condReady.L.Lock()
+					w.c.cond.L.Lock()
 					w.c.recvReady = true
-					w.c.condReady.Signal()
-					w.c.condReady.L.Unlock()
+					w.c.cond.Signal()
+					w.c.cond.L.Unlock()
 				case typeVars:
-					w.c.condVars.L.Lock()
+					w.c.cond.L.Lock()
 					w.c.recvVars = mergeMaps(w.c.recvVars, m.Vars)
-					w.c.condVars.Signal()
-					w.c.condVars.L.Unlock()
+					w.c.cond.Signal()
+					w.c.cond.L.Unlock()
 				default:
 					return 0, fmt.Errorf("unknown message type: %q", m.Type)
 				}
@@ -448,13 +448,16 @@ func (c *Cmd) start() error {
 		return err
 	}
 	// Start the command.
-	err = c.c.Start()
-	if err != nil {
-		c.exitedMu.Lock()
+	onExit := func(err error) {
+		c.cond.L.Lock()
 		c.exited = true
-		c.exitedMu.Unlock()
+		c.cond.Signal()
+		c.cond.L.Unlock()
 		c.closeClosers()
-		c.waitChan <- errors.New("gosh: start failed")
+		c.waitChan <- err
+	}
+	if err = c.c.Start(); err != nil {
+		onExit(errors.New("gosh: start failed"))
 		return err
 	}
 	c.started = true
@@ -463,18 +466,12 @@ func (c *Cmd) start() error {
 	// ensures that the child process is reaped once it exits. Note, gosh.Cmd.wait
 	// blocks on waitChan.
 	go func() {
-		err := c.c.Wait()
-		c.exitedMu.Lock()
-		c.exited = true
-		c.exitedMu.Unlock()
-		c.closeClosers()
-		c.waitChan <- err
+		onExit(c.c.Wait())
 	}()
 	return nil
 }
 
-// TODO(sadovsky): Make it so Cmd.{awaitReady,awaitVars} return an error if/when
-// we detect that the process has exited. Also, maybe add optional timeouts for
+// TODO(sadovsky): Maybe add optional timeouts for
 // Cmd.{awaitReady,awaitVars,wait}.
 
 func (c *Cmd) awaitReady() error {
@@ -483,12 +480,15 @@ func (c *Cmd) awaitReady() error {
 	} else if c.calledWait {
 		return errAlreadyCalledWait
 	}
-	// http://golang.org/pkg/sync/#Cond.Wait
-	c.condReady.L.Lock()
-	for !c.recvReady {
-		c.condReady.Wait()
+	c.cond.L.Lock()
+	defer c.cond.L.Unlock()
+	for !c.exited && !c.recvReady {
+		c.cond.Wait()
 	}
-	c.condReady.L.Unlock()
+	// Return nil error if both conditions triggered simultaneously.
+	if !c.recvReady {
+		return errProcessExited
+	}
 	return nil
 }
 
@@ -510,14 +510,17 @@ func (c *Cmd) awaitVars(keys ...string) (map[string]string, error) {
 			}
 		}
 	}
-	// http://golang.org/pkg/sync/#Cond.Wait
-	c.condVars.L.Lock()
+	c.cond.L.Lock()
+	defer c.cond.L.Unlock()
 	updateRes()
-	for len(res) < len(wantKeys) {
-		c.condVars.Wait()
+	for !c.exited && len(res) < len(wantKeys) {
+		c.cond.Wait()
 		updateRes()
 	}
-	c.condVars.L.Unlock()
+	// Return nil error if both conditions triggered simultaneously.
+	if len(res) < len(wantKeys) {
+		return nil, errProcessExited
+	}
 	return res, nil
 }
 

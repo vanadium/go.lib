@@ -30,8 +30,8 @@ func ExampleCmds() {
 }
 
 var (
-	getFn   = gosh.Register("get", lib.Get)
-	serveFn = gosh.Register("serve", lib.Serve)
+	getFn   = gosh.Register("getFn", lib.Get)
+	serveFn = gosh.Register("serveFn", lib.Serve)
 )
 
 func ExampleFns() {

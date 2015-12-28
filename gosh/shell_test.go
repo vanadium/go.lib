@@ -82,30 +82,30 @@ func makeFatalf(t *testing.T) func(string, ...interface{}) {
 
 // Simplified versions of various Unix commands.
 var (
-	catFn = gosh.Register("cat", func() {
+	catFn = gosh.Register("catFn", func() {
 		io.Copy(os.Stdout, os.Stdin)
 	})
-	echoFn = gosh.Register("echo", func() {
+	echoFn = gosh.Register("echoFn", func() {
 		fmt.Println(os.Args[1])
 	})
-	readFn = gosh.Register("read", func() {
+	readFn = gosh.Register("readFn", func() {
 		bufio.NewReader(os.Stdin).ReadString('\n')
 	})
 )
 
 // Functions with parameters.
 var (
-	exitFn = gosh.Register("exit", func(code int) {
+	exitFn = gosh.Register("exitFn", func(code int) {
 		os.Exit(code)
 	})
-	sleepFn = gosh.Register("sleep", func(d time.Duration, code int) {
+	sleepFn = gosh.Register("sleepFn", func(d time.Duration, code int) {
 		time.Sleep(d)
 		os.Exit(code)
 	})
-	printFn = gosh.Register("print", func(v ...interface{}) {
+	printFn = gosh.Register("printFn", func(v ...interface{}) {
 		fmt.Print(v...)
 	})
-	printfFn = gosh.Register("printf", func(format string, v ...interface{}) {
+	printfFn = gosh.Register("printfFn", func(format string, v ...interface{}) {
 		fmt.Printf(format, v...)
 	})
 )
@@ -200,8 +200,8 @@ func TestCmds(t *testing.T) {
 }
 
 var (
-	getFn   = gosh.Register("get", lib.Get)
-	serveFn = gosh.Register("serve", lib.Serve)
+	getFn   = gosh.Register("getFn", lib.Get)
+	serveFn = gosh.Register("serveFn", lib.Serve)
 )
 
 func TestFns(t *testing.T) {
@@ -230,14 +230,14 @@ func TestShellMain(t *testing.T) {
 
 // Functions designed for TestRegistry.
 var (
-	printIntsFn = gosh.Register("printInts", func(v ...int) {
+	printIntsFn = gosh.Register("printIntsFn", func(v ...int) {
 		var vi []interface{}
 		for _, x := range v {
 			vi = append(vi, x)
 		}
 		fmt.Print(vi...)
 	})
-	printfIntsFn = gosh.Register("printfInts", func(format string, v ...int) {
+	printfIntsFn = gosh.Register("printfIntsFn", func(format string, v ...int) {
 		var vi []interface{}
 		for _, x := range v {
 			vi = append(vi, x)
@@ -245,6 +245,28 @@ var (
 		fmt.Printf(format, vi...)
 	})
 )
+
+// Tests that Await{Ready,Vars} return immediately when the process exits.
+func TestAwaitProcessExit(t *testing.T) {
+	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	defer sh.Cleanup()
+
+	c := sh.Fn(exitFn, 0)
+	c.Start()
+	sh.Opts.Fatalf = nil
+	c.AwaitReady()
+	nok(t, sh.Err)
+	sh.Err = nil
+	sh.Opts.Fatalf = makeFatalf(t)
+
+	c = sh.Fn(exitFn, 0)
+	c.Start()
+	sh.Opts.Fatalf = nil
+	c.AwaitVars("foo")
+	nok(t, sh.Err)
+	sh.Err = nil
+	sh.Opts.Fatalf = makeFatalf(t)
+}
 
 // Tests function signature-checking and execution.
 func TestRegistry(t *testing.T) {
@@ -351,7 +373,7 @@ func TestStdin(t *testing.T) {
 	nok(t, sh.Err)
 }
 
-var writeFn = gosh.Register("write", func(stdout, stderr bool) error {
+var writeFn = gosh.Register("writeFn", func(stdout, stderr bool) error {
 	if stdout {
 		if _, err := os.Stdout.Write([]byte("A")); err != nil {
 			return err
@@ -407,7 +429,7 @@ func TestStdoutStderr(t *testing.T) {
 	eq(t, toString(t, stderrPipe), "BB")
 }
 
-var writeMoreFn = gosh.Register("writeMore", func() {
+var writeMoreFn = gosh.Register("writeMoreFn", func() {
 	sh := gosh.NewShell(gosh.Opts{})
 	defer sh.Cleanup()
 
