@@ -434,15 +434,15 @@ var writeMoreFn = gosh.Register("writeMoreFn", func() {
 	defer sh.Cleanup()
 
 	c := sh.Fn(writeFn, true, true)
-	c.AddStdoutWriter(os.Stdout)
-	c.AddStderrWriter(os.Stderr)
+	c.AddStdoutWriter(gosh.NopWriteCloser(os.Stdout))
+	c.AddStderrWriter(gosh.NopWriteCloser(os.Stderr))
 	c.Run()
 
 	fmt.Fprint(os.Stdout, " stdout done")
 	fmt.Fprint(os.Stderr, " stderr done")
 })
 
-// Tests that it's safe to add os.Stdout and os.Stderr as writers.
+// Tests that it's safe to add wrapped os.Stdout and os.Stderr as writers.
 func TestAddWriters(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
@@ -450,6 +450,23 @@ func TestAddWriters(t *testing.T) {
 	stdout, stderr := sh.Fn(writeMoreFn).StdoutStderr()
 	eq(t, stdout, "AA stdout done")
 	eq(t, stderr, "BB stderr done")
+}
+
+// Tests that adding non-wrapped os.Stdout or os.Stderr fails.
+func TestAddWritersUnwrappedStdoutStderr(t *testing.T) {
+	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	defer sh.Cleanup()
+
+	for _, addFn := range []func(*gosh.Cmd, io.WriteCloser){(*gosh.Cmd).AddStdoutWriter, (*gosh.Cmd).AddStderrWriter} {
+		for _, std := range []io.WriteCloser{os.Stdout, os.Stderr} {
+			c := sh.Fn(writeMoreFn)
+			sh.Opts.Fatalf = nil
+			addFn(c, std)
+			nok(t, sh.Err)
+			sh.Err = nil
+			sh.Opts.Fatalf = makeFatalf(t)
+		}
+	}
 }
 
 // Tests piping from one Cmd's stdout/stderr to another's stdin. It should be

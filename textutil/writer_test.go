@@ -6,6 +6,7 @@ package textutil
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -141,20 +142,115 @@ func TestPrefixLineWriter(t *testing.T) {
 	}
 }
 
-type fakeWriteFlushCloser struct{ flushed, closed bool }
+var (
+	err1 = errors.New("error 1")
+	err2 = errors.New("error 2")
+)
 
-func (f *fakeWriteFlushCloser) Write(p []byte) (int, error) { return len(p), nil }
-func (f *fakeWriteFlushCloser) Flush() error                { f.flushed = true; return nil }
-func (f *fakeWriteFlushCloser) Close() error                { f.closed = true; return nil }
+type fakeWriteFlusher struct {
+	writeErr error
+	flushErr error
+	flushed  bool
+}
 
-func TestPrefixLineWriterCloseFlush(t *testing.T) {
-	var fake fakeWriteFlushCloser
-	w := PrefixLineWriter(&fake, "")
-	if w.Flush(); !fake.flushed {
+func (f *fakeWriteFlusher) Write(p []byte) (int, error) {
+	return len(p), f.writeErr
+}
+
+func (f *fakeWriteFlusher) Flush() error {
+	f.flushed = true
+	return f.flushErr
+}
+
+func TestPrefixLineWriter_Flush(t *testing.T) {
+	fake := &fakeWriteFlusher{}
+	w := PrefixLineWriter(fake, "prefix")
+	if err := w.Flush(); err != nil {
+		t.Errorf("Flush got error %v, want nil", err)
+	}
+	if !fake.flushed {
 		t.Errorf("Flush not propagated")
 	}
-	if w.Close(); !fake.closed {
-		t.Errorf("Close not propagated")
+}
+
+func TestPrefixLineWriter_FlushError(t *testing.T) {
+	fake := &fakeWriteFlusher{flushErr: err1}
+	w := PrefixLineWriter(fake, "prefix")
+	if err := w.Flush(); err != err1 {
+		t.Errorf("Flush got error %v, want %v", err, err1)
+	}
+	if !fake.flushed {
+		t.Errorf("Flush not propagated")
+	}
+}
+
+func TestPrefixLineWriter_WriteFlush(t *testing.T) {
+	fake := &fakeWriteFlusher{}
+	w := PrefixLineWriter(fake, "prefix")
+	if n, err := w.Write([]byte("abc")); n != 3 || err != nil {
+		t.Errorf("Write got (%v,%v), want (3,nil)", n, err)
+	}
+	if err := w.Flush(); err != nil {
+		t.Errorf("Flush got error %v, want nil", err)
+	}
+	if !fake.flushed {
+		t.Errorf("Flush not propagated")
+	}
+}
+
+func TestPrefixLineWriter_WriteFlushError(t *testing.T) {
+	fake := &fakeWriteFlusher{flushErr: err1}
+	w := PrefixLineWriter(fake, "prefix")
+	if n, err := w.Write([]byte("abc")); n != 3 || err != nil {
+		t.Errorf("Write got (%v,%v), want (3,nil)", n, err)
+	}
+	if err := w.Flush(); err != err1 {
+		t.Errorf("Flush got error %v, want %v", err, err1)
+	}
+	if !fake.flushed {
+		t.Errorf("Flush not propagated")
+	}
+}
+
+func TestPrefixLineWriter_WriteErrorFlush(t *testing.T) {
+	fake := &fakeWriteFlusher{writeErr: err1}
+	w := PrefixLineWriter(fake, "prefix")
+	if n, err := w.Write([]byte("abc")); n != 3 || err != nil {
+		t.Errorf("Write got (%v,%v), want (3,nil)", n, err)
+	}
+	if err := w.Flush(); err != err1 {
+		t.Errorf("Flush got error %v, want %v", err, err1)
+	}
+	if !fake.flushed {
+		t.Errorf("Flush not propagated")
+	}
+}
+
+func TestPrefixLineWriter_WriteErrorFlushError(t *testing.T) {
+	fake := &fakeWriteFlusher{writeErr: err1, flushErr: err2}
+	w := PrefixLineWriter(fake, "prefix")
+	if n, err := w.Write([]byte("abc")); n != 3 || err != nil {
+		t.Errorf("Write got (%v,%v), want (3,nil)", n, err)
+	}
+	if err := w.Flush(); err != err1 {
+		t.Errorf("Flush got error %v, want %v", err, err1)
+	}
+	if !fake.flushed {
+		t.Errorf("Flush not propagated")
+	}
+}
+
+func TestPrefixLineWriter_EOLWriteErrorFlushError(t *testing.T) {
+	fake := &fakeWriteFlusher{writeErr: err1, flushErr: err2}
+	w := PrefixLineWriter(fake, "prefix")
+	if n, err := w.Write([]byte("ab\n")); n != 0 || err != err1 {
+		t.Errorf("Write got (%v,%v), want (0,%v)", n, err, err1)
+	}
+	if err := w.Flush(); err != err2 {
+		t.Errorf("Flush got error %v, want %v", err, err2)
+	}
+	if !fake.flushed {
+		t.Errorf("Flush not propagated")
 	}
 }
 

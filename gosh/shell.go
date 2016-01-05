@@ -15,6 +15,7 @@ package gosh
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -565,3 +566,15 @@ func Run(run func() int) int {
 	MaybeRunFnAndExit()
 	return run()
 }
+
+// NopWriteCloser returns a WriteCloser with a no-op Close method wrapping the
+// provided Writer w.
+func NopWriteCloser(w io.Writer) io.WriteCloser {
+	return nopWriteCloser{w}
+}
+
+type nopWriteCloser struct {
+	io.Writer
+}
+
+func (nopWriteCloser) Close() error { return nil }

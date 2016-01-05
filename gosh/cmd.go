@@ -21,6 +21,8 @@ import (
 var (
 	errAlreadyCalledStart = errors.New("gosh: already called Cmd.Start")
 	errAlreadyCalledWait  = errors.New("gosh: already called Cmd.Wait")
+	errCloseStdout        = errors.New("gosh: use NopWriteCloser(os.Stdout) to prevent stdout from being closed")
+	errCloseStderr        = errors.New("gosh: use NopWriteCloser(os.Stderr) to prevent stderr from being closed")
 	errDidNotCallStart    = errors.New("gosh: did not call Cmd.Start")
 	errProcessExited      = errors.New("gosh: process exited")
 )
@@ -104,19 +106,25 @@ func (c *Cmd) StderrPipe() io.Reader {
 }
 
 // AddStdoutWriter configures this Cmd to tee the child's stdout to the given
-// Writer. If this Writer is a Closer and is not os.Stdout or os.Stderr, it will
-// be closed when the process exits.
-func (c *Cmd) AddStdoutWriter(w io.Writer) {
+// wc, which will be closed when the process exits.
+//
+// Use NopWriteCloser to extend an io.Writer to io.WriteCloser, or to prevent an
+// existing io.WriteCloser from being closed.  It is an error to pass in
+// os.Stdout or os.Stderr, since they shouldn't be closed.
+func (c *Cmd) AddStdoutWriter(wc io.WriteCloser) {
 	c.sh.Ok()
-	c.handleError(c.addStdoutWriter(w))
+	c.handleError(c.addStdoutWriter(wc))
 }
 
 // AddStderrWriter configures this Cmd to tee the child's stderr to the given
-// Writer. If this Writer is a Closer and is not os.Stdout or os.Stderr, it will
-// be closed when the process exits.
-func (c *Cmd) AddStderrWriter(w io.Writer) {
+// wc, which will be closed when the process exits.
+//
+// Use NopWriteCloser to extend an io.Writer to io.WriteCloser, or to prevent an
+// existing io.WriteCloser from being closed.  It is an error to pass in
+// os.Stdout or os.Stderr, since they shouldn't be closed.
+func (c *Cmd) AddStderrWriter(wc io.WriteCloser) {
 	c.sh.Ok()
-	c.handleError(c.addStderrWriter(w))
+	c.handleError(c.addStderrWriter(wc))
 }
 
 // Start starts the command.
@@ -250,15 +258,6 @@ func (c *Cmd) handleError(err error) {
 
 func (c *Cmd) addWriter(writers *[]io.Writer, w io.Writer) {
 	*writers = append(*writers, w)
-	// Check for os.Stdout and os.Stderr so that we don't close these when a
-	// single command exits. This technique isn't foolproof (since, for example,
-	// os.Stdout may be wrapped in another WriteCloser), but in practice it should
-	// be adequate.
-	if w != os.Stdout && w != os.Stderr {
-		if wc, ok := w.(io.Closer); ok {
-			c.closers = append(c.closers, wc)
-		}
-	}
 }
 
 func (c *Cmd) closeClosers() {
@@ -324,20 +323,20 @@ func (w *recvWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func (c *Cmd) initMultiWriter(f *os.File, t string) (io.Writer, error) {
-	var writers *[]io.Writer
-	if f == os.Stdout {
-		writers = &c.stdoutWriters
+func (c *Cmd) makeMultiWriter(stdout bool, t string) (io.Writer, error) {
+	std, writers := os.Stderr, &c.stderrWriters
+	if stdout {
+		std, writers = os.Stdout, &c.stdoutWriters
 		c.addWriter(writers, &recvWriter{c: c})
-	} else {
-		writers = &c.stderrWriters
 	}
 	if c.PropagateOutput {
-		c.addWriter(writers, f)
+		c.addWriter(writers, std)
+		// Don't add std to c.closers, since we don't want to close os.Stdout or
+		// os.Stderr for the entire address space when c finishes.
 	}
 	if c.OutputDir != "" {
 		suffix := "stderr"
-		if f == os.Stdout {
+		if stdout {
 			suffix = "stdout"
 		}
 		name := filepath.Join(c.OutputDir, filepath.Base(c.Path)+"."+t+"."+suffix)
@@ -346,6 +345,7 @@ func (c *Cmd) initMultiWriter(f *os.File, t string) (io.Writer, error) {
 			return nil, err
 		}
 		c.addWriter(writers, file)
+		c.closers = append(c.closers, file)
 	}
 	return io.MultiWriter(*writers...), nil
 }
@@ -386,6 +386,7 @@ func (c *Cmd) stdoutPipe() (io.Reader, error) {
 	}
 	p := NewBufferedPipe()
 	c.addWriter(&c.stdoutWriters, p)
+	c.closers = append(c.closers, p)
 	return p, nil
 }
 
@@ -395,22 +396,35 @@ func (c *Cmd) stderrPipe() (io.Reader, error) {
 	}
 	p := NewBufferedPipe()
 	c.addWriter(&c.stderrWriters, p)
+	c.closers = append(c.closers, p)
 	return p, nil
 }
 
-func (c *Cmd) addStdoutWriter(w io.Writer) error {
-	if c.calledStart {
+func (c *Cmd) addStdoutWriter(wc io.WriteCloser) error {
+	switch {
+	case c.calledStart:
 		return errAlreadyCalledStart
+	case wc == os.Stdout:
+		return errCloseStdout
+	case wc == os.Stderr:
+		return errCloseStderr
 	}
-	c.addWriter(&c.stdoutWriters, w)
+	c.addWriter(&c.stdoutWriters, wc)
+	c.closers = append(c.closers, wc)
 	return nil
 }
 
-func (c *Cmd) addStderrWriter(w io.Writer) error {
-	if c.calledStart {
+func (c *Cmd) addStderrWriter(wc io.WriteCloser) error {
+	switch {
+	case c.calledStart:
 		return errAlreadyCalledStart
+	case wc == os.Stdout:
+		return errCloseStdout
+	case wc == os.Stderr:
+		return errCloseStderr
 	}
-	c.addWriter(&c.stderrWriters, w)
+	c.addWriter(&c.stderrWriters, wc)
+	c.closers = append(c.closers, wc)
 	return nil
 }
 
@@ -441,10 +455,10 @@ func (c *Cmd) start() error {
 	}
 	t := time.Now().Format("20060102.150405.000000")
 	var err error
-	if c.c.Stdout, err = c.initMultiWriter(os.Stdout, t); err != nil {
+	if c.c.Stdout, err = c.makeMultiWriter(true, t); err != nil {
 		return err
 	}
-	if c.c.Stderr, err = c.initMultiWriter(os.Stderr, t); err != nil {
+	if c.c.Stderr, err = c.makeMultiWriter(false, t); err != nil {
 		return err
 	}
 	// Start the command.

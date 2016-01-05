@@ -16,18 +16,9 @@ import (
 // immediately outputs the buffered data.  Flush must be called after the last
 // call to Write, and may be called an arbitrary number of times before the last
 // Write.
-//
-// If the type is also a Closer, Close implies a Flush call.
 type WriteFlusher interface {
 	io.Writer
 	Flush() error
-}
-
-// WriteFlushCloser is the interface that groups the basic Write, Flush and
-// Close methods.
-type WriteFlushCloser interface {
-	WriteFlusher
-	io.Closer
 }
 
 // PrefixWriter returns an io.Writer that wraps w, where the prefix is written
@@ -49,12 +40,17 @@ func (w *prefixWriter) Write(data []byte) (int, error) {
 	return w.w.Write(data)
 }
 
-// PrefixLineWriter returns a WriteFlushCloser that wraps w.  Any occurrence of
-// EOL (\f, \n, \r, \v, LineSeparator or ParagraphSeparator) causes the
-// preceeding line to be written to w, with the given prefix.  Data without EOL
-// is buffered until the next EOL, or Flush or Close call.  A single Write call
-// may result in zero or more Write calls on the underlying writer.
-func PrefixLineWriter(w io.Writer, prefix string) WriteFlushCloser {
+// PrefixLineWriter returns a WriteFlusher that wraps w.  Any occurrence of EOL
+// (\f, \n, \r, \v, LineSeparator or ParagraphSeparator) causes the preceeding
+// line to be written to w, with the given prefix.  Data without EOL is buffered
+// until the next EOL or Flush call.
+//
+// A single Write call on the returned WriteFlusher may result in zero or more
+// Write calls on the underlying w.
+//
+// If w implements WriteFlusher, each Flush call on the returned WriteFlusher
+// results in exactly one Flush call on the underlying w.
+func PrefixLineWriter(w io.Writer, prefix string) WriteFlusher {
 	return &prefixLineWriter{w, []byte(prefix), nil}
 }
 
@@ -94,7 +90,14 @@ func (w *prefixLineWriter) Write(data []byte) (int, error) {
 	return totalLen, nil
 }
 
-func (w *prefixLineWriter) Flush() error {
+func (w *prefixLineWriter) Flush() (e error) {
+	defer func() {
+		if f, ok := w.w.(WriteFlusher); ok {
+			if err := f.Flush(); err != nil && e == nil {
+				e = err
+			}
+		}
+	}()
 	if len(w.buf) > 0 {
 		if _, err := w.w.Write(w.prefix); err != nil {
 			return err
@@ -104,20 +107,7 @@ func (w *prefixLineWriter) Flush() error {
 		}
 		w.buf = w.buf[:0]
 	}
-	if f, ok := w.w.(WriteFlusher); ok {
-		return f.Flush()
-	}
 	return nil
-}
-
-func (w *prefixLineWriter) Close() error {
-	firstErr := w.Flush()
-	if c, ok := w.w.(io.Closer); ok {
-		if err := c.Close(); firstErr == nil {
-			firstErr = err
-		}
-	}
-	return firstErr
 }
 
 // ByteReplaceWriter returns an io.Writer that wraps w, where all occurrences of

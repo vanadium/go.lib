@@ -5,7 +5,7 @@ pkg textutil, func ByteReplaceWriter(io.Writer, byte, string) io.Writer
 pkg textutil, func FlushRuneChunk(RuneChunkDecoder, func(rune) error) error
 pkg textutil, func NewLineWriter(io.Writer, int, RuneChunkDecoder, RuneEncoder) *LineWriter
 pkg textutil, func NewUTF8LineWriter(io.Writer, int) *LineWriter
-pkg textutil, func PrefixLineWriter(io.Writer, string) WriteFlushCloser
+pkg textutil, func PrefixLineWriter(io.Writer, string) WriteFlusher
 pkg textutil, func PrefixWriter(io.Writer, string) io.Writer
 pkg textutil, func TerminalSize() (int, int, error)
 pkg textutil, func WriteRuneChunk(RuneChunkDecoder, func(rune) error, []byte) (int, error)
@@ -27,10 +27,6 @@ pkg textutil, type RuneEncoder interface { Encode }
 pkg textutil, type RuneEncoder interface, Encode(rune, *bytes.Buffer)
 pkg textutil, type UTF8ChunkDecoder struct
 pkg textutil, type UTF8Encoder struct
-pkg textutil, type WriteFlushCloser interface { Close, Flush, Write }
-pkg textutil, type WriteFlushCloser interface, Close() error
-pkg textutil, type WriteFlushCloser interface, Flush() error
-pkg textutil, type WriteFlushCloser interface, Write([]byte) (int, error)
 pkg textutil, type WriteFlusher interface { Flush, Write }
 pkg textutil, type WriteFlusher interface, Flush() error
 pkg textutil, type WriteFlusher interface, Write([]byte) (int, error)
