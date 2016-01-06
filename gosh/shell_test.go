@@ -474,23 +474,45 @@ func TestAddWritersNonWrappedStdoutStderr(t *testing.T) {
 	sh.Err = nil
 }
 
-// Demonstrates how to capture combined stdout and stderr, a la
-// exec.Cmd.CombinedOutput.
-func TestCombinedStdoutStderr(t *testing.T) {
+func TestCombinedOutput(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 
 	c := sh.Fn(writeFn, true, true)
 	buf := &bytes.Buffer{}
-	// Note, we must share a single NopWriteCloser so that Cmd detects that we
-	// passed the same WriteCloser to both AddStdoutWriter and AddStderrWriter.
-	wc := gosh.NopWriteCloser(buf)
-	c.AddStdoutWriter(wc)
-	c.AddStderrWriter(wc)
-	c.Run()
+	c.AddStdoutWriter(gosh.NopWriteCloser(buf))
+	c.AddStderrWriter(gosh.NopWriteCloser(buf))
+	output := c.CombinedOutput()
 	// Note, we can't assume any particular ordering of stdout and stderr, so we
 	// simply check the length of the combined output.
-	eq(t, len(buf.String()), 4)
+	eq(t, len(output), 4)
+	// The ordering must be the same, regardless of how we captured the combined
+	// output.
+	eq(t, output, buf.String())
+}
+
+func TestOutputDir(t *testing.T) {
+	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	defer sh.Cleanup()
+
+	dir := sh.MakeTempDir()
+	c := sh.Fn(writeFn, true, true)
+	c.OutputDir = dir
+	c.Run()
+
+	matches, err := filepath.Glob(filepath.Join(dir, "*.stdout"))
+	ok(t, err)
+	eq(t, len(matches), 1)
+	stdout, err := ioutil.ReadFile(matches[0])
+	ok(t, err)
+	eq(t, string(stdout), "AA")
+
+	matches, err = filepath.Glob(filepath.Join(dir, "*.stderr"))
+	ok(t, err)
+	eq(t, len(matches), 1)
+	stderr, err := ioutil.ReadFile(matches[0])
+	ok(t, err)
+	eq(t, string(stderr), "BB")
 }
 
 type countingWriteCloser struct {

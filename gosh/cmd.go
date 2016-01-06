@@ -204,6 +204,15 @@ func (c *Cmd) StdoutStderr() (string, string) {
 	return stdout, stderr
 }
 
+// CombinedOutput calls Start followed by Wait, then returns the command's
+// combined stdout and stderr.
+func (c *Cmd) CombinedOutput() string {
+	c.sh.Ok()
+	res, err := c.combinedOutput()
+	c.handleError(err)
+	return res
+}
+
 // Pid returns the command's PID, or -1 if the command has not been started.
 func (c *Cmd) Pid() int {
 	if !c.started {
@@ -262,10 +271,6 @@ func (c *Cmd) handleError(err error) {
 	if !c.errorIsOk(err) {
 		c.sh.HandleError(err)
 	}
-}
-
-func (c *Cmd) addWriter(writers *[]io.Writer, w io.Writer) {
-	*writers = append(*writers, w)
 }
 
 func (c *Cmd) closeClosers() {
@@ -337,31 +342,58 @@ func (w *recvWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func (c *Cmd) makeMultiWriter(stdout bool, t string) (io.Writer, error) {
-	std, writers := os.Stderr, &c.stderrWriters
-	if stdout {
-		std, writers = os.Stdout, &c.stdoutWriters
-		c.addWriter(writers, &recvWriter{c: c})
-	}
+type lockedWriter struct {
+	mu *sync.Mutex
+	w  io.Writer
+}
+
+func (w lockedWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	n, err := w.w.Write(p)
+	w.mu.Unlock()
+	return n, err
+}
+
+func (c *Cmd) makeStdoutStderr() (io.Writer, io.Writer, error) {
+	c.stdoutWriters = append(c.stdoutWriters, &recvWriter{c: c})
 	if c.PropagateOutput {
-		c.addWriter(writers, std)
-		// Don't add std to c.closers, since we don't want to close os.Stdout or
-		// os.Stderr for the entire address space when c exits.
+		c.stdoutWriters = append(c.stdoutWriters, os.Stdout)
+		c.stderrWriters = append(c.stderrWriters, os.Stderr)
 	}
 	if c.OutputDir != "" {
-		suffix := "stderr"
-		if stdout {
-			suffix = "stdout"
+		t := time.Now().Format("20060102.150405.000000")
+		name := filepath.Join(c.OutputDir, filepath.Base(c.Path)+"."+t)
+		const flags = os.O_WRONLY | os.O_CREATE | os.O_EXCL
+		switch file, err := os.OpenFile(name+".stdout", flags, 0600); {
+		case err != nil:
+			return nil, nil, err
+		default:
+			c.stdoutWriters = append(c.stdoutWriters, file)
+			c.closers = append(c.closers, file)
 		}
-		name := filepath.Join(c.OutputDir, filepath.Base(c.Path)+"."+t+"."+suffix)
-		file, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
-		if err != nil {
-			return nil, err
+		switch file, err := os.OpenFile(name+".stderr", flags, 0600); {
+		case err != nil:
+			return nil, nil, err
+		default:
+			c.stderrWriters = append(c.stderrWriters, file)
+			c.closers = append(c.closers, file)
 		}
-		c.addWriter(writers, file)
-		c.closers = append(c.closers, file)
 	}
-	return io.MultiWriter(*writers...), nil
+	switch hasOut, hasErr := len(c.stdoutWriters) > 0, len(c.stderrWriters) > 0; {
+	case hasOut && hasErr:
+		// Make writes synchronous between stdout and stderr. This ensures all
+		// writers that capture both will see the same ordering, and don't need to
+		// worry about concurrent writes.
+		sharedMu := &sync.Mutex{}
+		stdout := lockedWriter{sharedMu, io.MultiWriter(c.stdoutWriters...)}
+		stderr := lockedWriter{sharedMu, io.MultiWriter(c.stderrWriters...)}
+		return stdout, stderr, nil
+	case hasOut:
+		return io.MultiWriter(c.stdoutWriters...), nil, nil
+	case hasErr:
+		return nil, io.MultiWriter(c.stderrWriters...), nil
+	}
+	return nil, nil, nil
 }
 
 func (c *Cmd) clone() (*Cmd, error) {
@@ -399,7 +431,7 @@ func (c *Cmd) stdoutPipe() (io.Reader, error) {
 		return nil, errAlreadyCalledStart
 	}
 	p := NewBufferedPipe()
-	c.addWriter(&c.stdoutWriters, p)
+	c.stdoutWriters = append(c.stdoutWriters, p)
 	c.closers = append(c.closers, p)
 	return p, nil
 }
@@ -409,7 +441,7 @@ func (c *Cmd) stderrPipe() (io.Reader, error) {
 		return nil, errAlreadyCalledStart
 	}
 	p := NewBufferedPipe()
-	c.addWriter(&c.stderrWriters, p)
+	c.stderrWriters = append(c.stderrWriters, p)
 	c.closers = append(c.closers, p)
 	return p, nil
 }
@@ -423,7 +455,7 @@ func (c *Cmd) addStdoutWriter(wc io.WriteCloser) error {
 	case wc == os.Stderr:
 		return errCloseStderr
 	}
-	c.addWriter(&c.stdoutWriters, wc)
+	c.stdoutWriters = append(c.stdoutWriters, wc)
 	c.closers = append(c.closers, wc)
 	return nil
 }
@@ -437,24 +469,13 @@ func (c *Cmd) addStderrWriter(wc io.WriteCloser) error {
 	case wc == os.Stderr:
 		return errCloseStderr
 	}
-	c.addWriter(&c.stderrWriters, wc)
+	c.stderrWriters = append(c.stderrWriters, wc)
 	c.closers = append(c.closers, wc)
 	return nil
 }
 
 // TODO(sadovsky): Maybe wrap every child process with a "supervisor" process
 // that calls WatchParent().
-
-type threadSafeWriter struct {
-	mu sync.Mutex
-	w  io.Writer
-}
-
-func (w *threadSafeWriter) Write(p []byte) (int, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.w.Write(p)
-}
 
 func (c *Cmd) start() error {
 	if c.calledStart {
@@ -468,29 +489,6 @@ func (c *Cmd) start() error {
 	if c.sh.calledCleanup {
 		return errAlreadyCalledCleanup
 	}
-	// Wrap Writers in threadSafeWriters as needed so that if the same WriteCloser
-	// was passed to both AddStdoutWriter and AddStderrWriter, the writes are
-	// serialized.
-	isStdoutWriter := map[io.Writer]bool{}
-	for _, w := range c.stdoutWriters {
-		isStdoutWriter[w] = true
-	}
-	safe := map[io.Writer]*threadSafeWriter{}
-	for i, w := range c.stderrWriters {
-		if isStdoutWriter[w] {
-			if safe[w] == nil {
-				safe[w] = &threadSafeWriter{w: w}
-			}
-			c.stderrWriters[i] = safe[w]
-		}
-	}
-	if len(safe) > 0 {
-		for i, w := range c.stdoutWriters {
-			if s := safe[w]; s != nil {
-				c.stdoutWriters[i] = s
-			}
-		}
-	}
 	// Configure the command.
 	c.c.Path = c.Path
 	c.c.Env = mapToSlice(c.Vars)
@@ -501,12 +499,8 @@ func (c *Cmd) start() error {
 		}
 		c.c.Stdin = strings.NewReader(c.Stdin)
 	}
-	t := time.Now().Format("20060102.150405.000000")
 	var err error
-	if c.c.Stdout, err = c.makeMultiWriter(true, t); err != nil {
-		return err
-	}
-	if c.c.Stderr, err = c.makeMultiWriter(false, t); err != nil {
+	if c.c.Stdout, c.c.Stderr, err = c.makeStdoutStderr(); err != nil {
 		return err
 	}
 	// Start the command.
@@ -652,7 +646,7 @@ func (c *Cmd) stdout() (string, error) {
 		return "", errAlreadyCalledStart
 	}
 	var stdout bytes.Buffer
-	c.addWriter(&c.stdoutWriters, &stdout)
+	c.stdoutWriters = append(c.stdoutWriters, &stdout)
 	err := c.run()
 	return stdout.String(), err
 }
@@ -662,8 +656,19 @@ func (c *Cmd) stdoutStderr() (string, string, error) {
 		return "", "", errAlreadyCalledStart
 	}
 	var stdout, stderr bytes.Buffer
-	c.addWriter(&c.stdoutWriters, &stdout)
-	c.addWriter(&c.stderrWriters, &stderr)
+	c.stdoutWriters = append(c.stdoutWriters, &stdout)
+	c.stderrWriters = append(c.stderrWriters, &stderr)
 	err := c.run()
 	return stdout.String(), stderr.String(), err
+}
+
+func (c *Cmd) combinedOutput() (string, error) {
+	if c.calledStart {
+		return "", errAlreadyCalledStart
+	}
+	var output bytes.Buffer
+	c.stdoutWriters = append(c.stdoutWriters, &output)
+	c.stderrWriters = append(c.stderrWriters, &output)
+	err := c.run()
+	return output.String(), err
 }
