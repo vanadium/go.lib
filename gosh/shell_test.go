@@ -13,6 +13,7 @@ package gosh_test
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -150,7 +151,7 @@ func TestPushdPopd(t *testing.T) {
 	ok(t, err)
 	eq(t, cwd, startDir)
 	// The next sh.Popd() will fail.
-	sh.Opts.Fatalf = func(string, ...interface{}) {}
+	sh.Opts.Fatalf = nil
 	sh.Popd()
 	nok(t, sh.Err)
 }
@@ -285,7 +286,7 @@ func TestRegistry(t *testing.T) {
 	eq(t, sh.Fn(printfIntsFn, "%v %v", 1, 2).Stdout(), "1 2")
 
 	// Error cases.
-	sh.Opts.Fatalf = func(string, ...interface{}) {}
+	sh.Opts.Fatalf = nil
 	reset := func() {
 		nok(t, sh.Err)
 		sh.Err = nil
@@ -368,7 +369,7 @@ func TestStdin(t *testing.T) {
 	c.Stdin = "foo"
 	c.StdinPipe().Write([]byte("bar"))
 	c.StdinPipe().Close()
-	sh.Opts.Fatalf = func(string, ...interface{}) {}
+	sh.Opts.Fatalf = nil
 	c.Start()
 	nok(t, sh.Err)
 }
@@ -443,7 +444,7 @@ var writeMoreFn = gosh.Register("writeMoreFn", func() {
 })
 
 // Tests that it's safe to add wrapped os.Stdout and os.Stderr as writers.
-func TestAddWriters(t *testing.T) {
+func TestAddWritersWrappedStdoutStderr(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 
@@ -453,20 +454,73 @@ func TestAddWriters(t *testing.T) {
 }
 
 // Tests that adding non-wrapped os.Stdout or os.Stderr fails.
-func TestAddWritersUnwrappedStdoutStderr(t *testing.T) {
+func TestAddWritersNonWrappedStdoutStderr(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 
-	for _, addFn := range []func(*gosh.Cmd, io.WriteCloser){(*gosh.Cmd).AddStdoutWriter, (*gosh.Cmd).AddStderrWriter} {
-		for _, std := range []io.WriteCloser{os.Stdout, os.Stderr} {
-			c := sh.Fn(writeMoreFn)
-			sh.Opts.Fatalf = nil
-			addFn(c, std)
-			nok(t, sh.Err)
-			sh.Err = nil
-			sh.Opts.Fatalf = makeFatalf(t)
-		}
-	}
+	c := sh.Fn(writeMoreFn)
+	sh.Opts.Fatalf = nil
+	c.AddStdoutWriter(os.Stdout)
+	nok(t, sh.Err)
+	sh.Err = nil
+	c.AddStdoutWriter(os.Stderr)
+	nok(t, sh.Err)
+	sh.Err = nil
+	c.AddStderrWriter(os.Stdout)
+	nok(t, sh.Err)
+	sh.Err = nil
+	c.AddStderrWriter(os.Stderr)
+	nok(t, sh.Err)
+	sh.Err = nil
+}
+
+// Demonstrates how to capture combined stdout and stderr, a la
+// exec.Cmd.CombinedOutput.
+func TestCombinedStdoutStderr(t *testing.T) {
+	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	defer sh.Cleanup()
+
+	c := sh.Fn(writeFn, true, true)
+	buf := &bytes.Buffer{}
+	// Note, we must share a single NopWriteCloser so that Cmd detects that we
+	// passed the same WriteCloser to both AddStdoutWriter and AddStderrWriter.
+	wc := gosh.NopWriteCloser(buf)
+	c.AddStdoutWriter(wc)
+	c.AddStderrWriter(wc)
+	c.Run()
+	// Note, we can't assume any particular ordering of stdout and stderr, so we
+	// simply check the length of the combined output.
+	eq(t, len(buf.String()), 4)
+}
+
+type countingWriteCloser struct {
+	io.Writer
+	count int
+}
+
+func (wc *countingWriteCloser) Close() error {
+	wc.count++
+	return nil
+}
+
+// Tests that Close is called exactly once on a given WriteCloser, even if that
+// WriteCloser is passed to Add{Stdout,Stderr}Writer multiple times.
+func TestAddWritersCloseOnce(t *testing.T) {
+	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	defer sh.Cleanup()
+
+	c := sh.Fn(writeFn, true, true)
+	buf := &bytes.Buffer{}
+	wc := &countingWriteCloser{Writer: buf}
+	c.AddStdoutWriter(wc)
+	c.AddStdoutWriter(wc)
+	c.AddStderrWriter(wc)
+	c.AddStderrWriter(wc)
+	c.Run()
+	// Note, we can't assume any particular ordering of stdout and stderr, so we
+	// simply check the length of the combined output.
+	eq(t, len(buf.String()), 8)
+	eq(t, wc.count, 1)
 }
 
 // Tests piping from one Cmd's stdout/stderr to another's stdin. It should be
@@ -532,7 +586,7 @@ func TestShellWait(t *testing.T) {
 	// Configure the "failed to start" command.
 	c1.StdinPipe()
 	c1.Stdin = "foo"
-	sh.Opts.Fatalf = func(string, ...interface{}) {}
+	sh.Opts.Fatalf = nil
 	c1.Start()
 	nok(t, sh.Err)
 	sh.Err = nil
@@ -577,7 +631,7 @@ func TestExitErrorIsOk(t *testing.T) {
 
 	// If ExitErrorIsOk is false, exit code 1 triggers sh.HandleError.
 	c = sh.Fn(exitFn, 1)
-	sh.Opts.Fatalf = func(string, ...interface{}) {}
+	sh.Opts.Fatalf = nil
 	c.Run()
 	nok(t, c.Err)
 	nok(t, sh.Err)

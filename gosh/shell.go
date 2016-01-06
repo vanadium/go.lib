@@ -568,7 +568,7 @@ func Run(run func() int) int {
 }
 
 // NopWriteCloser returns a WriteCloser with a no-op Close method wrapping the
-// provided Writer w.
+// provided Writer.
 func NopWriteCloser(w io.Writer) io.WriteCloser {
 	return nopWriteCloser{w}
 }

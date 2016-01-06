@@ -36,7 +36,7 @@ type Cmd struct {
 	Path string
 	// Vars is the map of env vars for this Cmd.
 	Vars map[string]string
-	// Args is the list of args for this Cmd.
+	// Args is the list of args for this Cmd, not including the path.
 	Args []string
 	// PropagateOutput is inherited from Shell.Opts.PropagateChildOutput.
 	PropagateOutput bool
@@ -106,22 +106,30 @@ func (c *Cmd) StderrPipe() io.Reader {
 }
 
 // AddStdoutWriter configures this Cmd to tee the child's stdout to the given
-// wc, which will be closed when the process exits.
+// WriteCloser, which will be closed when the process exits.
 //
-// Use NopWriteCloser to extend an io.Writer to io.WriteCloser, or to prevent an
-// existing io.WriteCloser from being closed.  It is an error to pass in
-// os.Stdout or os.Stderr, since they shouldn't be closed.
+// If the same WriteCloser is passed to both AddStdoutWriter and
+// AddStderrWriter, Cmd will ensure that its methods are never called
+// concurrently and that Close is only called once.
+//
+// Use NopWriteCloser to extend a Writer to a WriteCloser, or to prevent an
+// existing WriteCloser from being closed. It is an error to pass in os.Stdout
+// or os.Stderr, since they shouldn't be closed.
 func (c *Cmd) AddStdoutWriter(wc io.WriteCloser) {
 	c.sh.Ok()
 	c.handleError(c.addStdoutWriter(wc))
 }
 
 // AddStderrWriter configures this Cmd to tee the child's stderr to the given
-// wc, which will be closed when the process exits.
+// WriteCloser, which will be closed when the process exits.
 //
-// Use NopWriteCloser to extend an io.Writer to io.WriteCloser, or to prevent an
-// existing io.WriteCloser from being closed.  It is an error to pass in
-// os.Stdout or os.Stderr, since they shouldn't be closed.
+// If the same WriteCloser is passed to both AddStdoutWriter and
+// AddStderrWriter, Cmd will ensure that its methods are never called
+// concurrently and that Close is only called once.
+//
+// Use NopWriteCloser to extend a Writer to a WriteCloser, or to prevent an
+// existing WriteCloser from being closed. It is an error to pass in os.Stdout
+// or os.Stderr, since they shouldn't be closed.
 func (c *Cmd) AddStderrWriter(wc io.WriteCloser) {
 	c.sh.Ok()
 	c.handleError(c.addStderrWriter(wc))
@@ -261,8 +269,14 @@ func (c *Cmd) addWriter(writers *[]io.Writer, w io.Writer) {
 }
 
 func (c *Cmd) closeClosers() {
+	// If the same WriteCloser was passed to both AddStdoutWriter and
+	// AddStderrWriter, we should only close it once.
+	cm := map[io.Closer]bool{}
 	for _, c := range c.closers {
-		c.Close() // best-effort; ignore returned error
+		if !cm[c] {
+			cm[c] = true
+			c.Close() // best-effort; ignore returned error
+		}
 	}
 }
 
@@ -332,7 +346,7 @@ func (c *Cmd) makeMultiWriter(stdout bool, t string) (io.Writer, error) {
 	if c.PropagateOutput {
 		c.addWriter(writers, std)
 		// Don't add std to c.closers, since we don't want to close os.Stdout or
-		// os.Stderr for the entire address space when c finishes.
+		// os.Stderr for the entire address space when c exits.
 	}
 	if c.OutputDir != "" {
 		suffix := "stderr"
@@ -431,6 +445,17 @@ func (c *Cmd) addStderrWriter(wc io.WriteCloser) error {
 // TODO(sadovsky): Maybe wrap every child process with a "supervisor" process
 // that calls WatchParent().
 
+type threadSafeWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func (w *threadSafeWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.w.Write(p)
+}
+
 func (c *Cmd) start() error {
 	if c.calledStart {
 		return errAlreadyCalledStart
@@ -442,6 +467,29 @@ func (c *Cmd) start() error {
 	defer c.sh.cleanupMu.Unlock()
 	if c.sh.calledCleanup {
 		return errAlreadyCalledCleanup
+	}
+	// Wrap Writers in threadSafeWriters as needed so that if the same WriteCloser
+	// was passed to both AddStdoutWriter and AddStderrWriter, the writes are
+	// serialized.
+	isStdoutWriter := map[io.Writer]bool{}
+	for _, w := range c.stdoutWriters {
+		isStdoutWriter[w] = true
+	}
+	safe := map[io.Writer]*threadSafeWriter{}
+	for i, w := range c.stderrWriters {
+		if isStdoutWriter[w] {
+			if safe[w] == nil {
+				safe[w] = &threadSafeWriter{w: w}
+			}
+			c.stderrWriters[i] = safe[w]
+		}
+	}
+	if len(safe) > 0 {
+		for i, w := range c.stdoutWriters {
+			if s := safe[w]; s != nil {
+				c.stdoutWriters[i] = s
+			}
+		}
 	}
 	// Configure the command.
 	c.c.Path = c.Path
