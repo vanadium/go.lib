@@ -44,26 +44,38 @@ func SendVars(vars map[string]string) {
 	send(msg{Type: typeVars, Vars: vars})
 }
 
-// WatchParent starts a goroutine that periodically checks whether the parent
-// process has exited and, if so, kills the current process.
-func WatchParent() {
-	go func() {
-		for {
-			if os.Getppid() == 1 {
-				log.Fatal("parent process has exited")
-			}
-			time.Sleep(time.Second)
+// watchParent periodically checks whether the parent process has exited and, if
+// so, kills the current process. Meant to be run in a goroutine.
+func watchParent() {
+	for {
+		if os.Getppid() == 1 {
+			log.Fatal("gosh: parent process has exited")
 		}
-	}()
+		time.Sleep(time.Second)
+	}
 }
 
-// MaybeWatchParent calls WatchParent iff this process was spawned by a
-// gosh.Shell in the parent process.
-func MaybeWatchParent() {
-	if os.Getenv(envSpawnedByShell) != "" {
-		// Our child processes should see envSpawnedByShell iff they were spawned by
-		// a gosh.Shell in this process.
-		os.Unsetenv(envSpawnedByShell)
-		WatchParent()
+// exitAfter kills the current process once the given duration has elapsed.
+// Meant to be run in a goroutine.
+func exitAfter(d time.Duration) {
+	time.Sleep(d)
+	log.Fatalf("gosh: timed out after %v", d)
+}
+
+// InitChildMain must be called early on in main() of child processes. It spawns
+// goroutines to kill the current process when certain conditions are met, per
+// Cmd.IgnoreParentExit and Cmd.ExitAfter.
+func InitChildMain() {
+	if os.Getenv(envWatchParent) != "" {
+		os.Unsetenv(envWatchParent)
+		go watchParent()
+	}
+	if os.Getenv(envExitAfter) != "" {
+		d, err := time.ParseDuration(envExitAfter)
+		if err != nil {
+			panic(err)
+		}
+		os.Unsetenv(envExitAfter)
+		go exitAfter(d)
 	}
 }

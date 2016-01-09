@@ -14,7 +14,7 @@ import (
 var addr = flag.String("addr", "localhost:8080", "server addr")
 
 func main() {
-	gosh.MaybeWatchParent()
+	gosh.InitChildMain()
 	flag.Parse()
 	lib.Get(*addr)
 }

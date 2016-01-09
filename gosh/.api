@@ -1,6 +1,6 @@
 pkg gosh, func Call(string, ...interface{}) error
-pkg gosh, func MaybeRunFnAndExit()
-pkg gosh, func MaybeWatchParent()
+pkg gosh, func InitChildMain()
+pkg gosh, func InitMain()
 pkg gosh, func NewBufferedPipe() io.ReadWriteCloser
 pkg gosh, func NewShell(Opts) *Shell
 pkg gosh, func NopWriteCloser(io.Writer) io.WriteCloser
@@ -8,7 +8,6 @@ pkg gosh, func Register(string, interface{}) *Fn
 pkg gosh, func Run(func() int) int
 pkg gosh, func SendReady()
 pkg gosh, func SendVars(map[string]string)
-pkg gosh, func WatchParent()
 pkg gosh, method (*Cmd) AddStderrWriter(io.WriteCloser)
 pkg gosh, method (*Cmd) AddStdoutWriter(io.WriteCloser)
 pkg gosh, method (*Cmd) AwaitReady()
@@ -45,7 +44,9 @@ pkg gosh, method (*Shell) Wait()
 pkg gosh, type Cmd struct
 pkg gosh, type Cmd struct, Args []string
 pkg gosh, type Cmd struct, Err error
+pkg gosh, type Cmd struct, ExitAfter time.Duration
 pkg gosh, type Cmd struct, ExitErrorIsOk bool
+pkg gosh, type Cmd struct, IgnoreParentExit bool
 pkg gosh, type Cmd struct, OutputDir string
 pkg gosh, type Cmd struct, Path string
 pkg gosh, type Cmd struct, PropagateOutput bool

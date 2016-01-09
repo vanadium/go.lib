@@ -10,6 +10,6 @@ import (
 )
 
 func main() {
-	gosh.MaybeWatchParent()
+	gosh.InitChildMain()
 	lib.Serve()
 }

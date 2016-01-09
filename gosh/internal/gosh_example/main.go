@@ -59,7 +59,7 @@ func ExampleShellMain() {
 }
 
 func main() {
-	gosh.MaybeRunFnAndExit()
+	gosh.InitMain()
 	ExampleCmds()
 	ExampleFns()
 	ExampleShellMain()

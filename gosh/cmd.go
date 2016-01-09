@@ -36,8 +36,19 @@ type Cmd struct {
 	Path string
 	// Vars is the map of env vars for this Cmd.
 	Vars map[string]string
-	// Args is the list of args for this Cmd, not including the path.
+	// Args is the list of args for this Cmd, starting with the resolved path.
+	// Note, we set Args[0] to the resolved path (rather than the user-specified
+	// name) so that a command started by Shell can reliably determine the path to
+	// its executable.
 	Args []string
+	// IgnoreParentExit, if true, makes it so the child process does not exit when
+	// its parent exits. Only takes effect if the child process was spawned via
+	// Shell.Fn or Shell.Main, or explicitly calls InitChildMain.
+	IgnoreParentExit bool
+	// ExitAfter, if non-zero, specifies that the child process should exit after
+	// the given duration has elapsed. Only takes effect if the child process was
+	// spawned via Shell.Fn or Shell.Main, or explicitly calls InitChildMain.
+	ExitAfter time.Duration
 	// PropagateOutput is inherited from Shell.Opts.PropagateChildOutput.
 	PropagateOutput bool
 	// OutputDir is inherited from Shell.Opts.ChildOutputDir.
@@ -228,7 +239,7 @@ func newCmdInternal(sh *Shell, vars map[string]string, path string, args []strin
 	c := &Cmd{
 		Path:     path,
 		Vars:     vars,
-		Args:     args,
+		Args:     append([]string{path}, args...),
 		sh:       sh,
 		c:        &exec.Cmd{},
 		cond:     sync.NewCond(&sync.Mutex{}),
@@ -397,16 +408,15 @@ func (c *Cmd) makeStdoutStderr() (io.Writer, io.Writer, error) {
 }
 
 func (c *Cmd) clone() (*Cmd, error) {
-	vars := make(map[string]string, len(c.Vars))
-	for k, v := range c.Vars {
-		vars[k] = v
-	}
+	vars := copyMap(c.Vars)
 	args := make([]string, len(c.Args))
 	copy(args, c.Args)
-	res, err := newCmdInternal(c.sh, vars, c.Path, args)
+	res, err := newCmdInternal(c.sh, vars, c.Path, args[1:])
 	if err != nil {
 		return nil, err
 	}
+	res.IgnoreParentExit = c.IgnoreParentExit
+	res.ExitAfter = c.ExitAfter
 	res.PropagateOutput = c.PropagateOutput
 	res.OutputDir = c.OutputDir
 	res.ExitErrorIsOk = c.ExitErrorIsOk
@@ -475,7 +485,7 @@ func (c *Cmd) addStderrWriter(wc io.WriteCloser) error {
 }
 
 // TODO(sadovsky): Maybe wrap every child process with a "supervisor" process
-// that calls WatchParent().
+// that calls InitChildMain.
 
 func (c *Cmd) start() error {
 	if c.calledStart {
@@ -491,8 +501,19 @@ func (c *Cmd) start() error {
 	}
 	// Configure the command.
 	c.c.Path = c.Path
-	c.c.Env = mapToSlice(c.Vars)
-	c.c.Args = append([]string{c.Path}, c.Args...)
+	vars := copyMap(c.Vars)
+	if c.IgnoreParentExit {
+		delete(vars, envWatchParent)
+	} else {
+		vars[envWatchParent] = "1"
+	}
+	if c.ExitAfter == 0 {
+		delete(vars, envExitAfter)
+	} else {
+		vars[envExitAfter] = c.ExitAfter.String()
+	}
+	c.c.Env = mapToSlice(vars)
+	c.c.Args = c.Args
 	if c.Stdin != "" {
 		if c.stdinWriteCloser != nil {
 			return errors.New("gosh: cannot both set Stdin and call StdinPipe")

@@ -20,6 +20,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path"
 	"path/filepath"
@@ -31,15 +32,24 @@ import (
 const (
 	envBinDir         = "GOSH_BIN_DIR"
 	envChildOutputDir = "GOSH_CHILD_OUTPUT_DIR"
+	envExitAfter      = "GOSH_EXIT_AFTER"
 	envInvocation     = "GOSH_INVOCATION"
-	envSpawnedByShell = "GOSH_SPAWNED_BY_SHELL"
+	envWatchParent    = "GOSH_WATCH_PARENT"
 )
 
 var (
-	errAlreadyCalledCleanup        = errors.New("gosh: already called Shell.Cleanup")
-	errDidNotCallMaybeRunFnAndExit = errors.New("gosh: did not call Shell.MaybeRunFnAndExit")
-	errDidNotCallNewShell          = errors.New("gosh: did not call gosh.NewShell")
+	errAlreadyCalledCleanup = errors.New("gosh: already called Shell.Cleanup")
+	errDidNotCallInitMain   = errors.New("gosh: did not call gosh.InitMain")
+	errDidNotCallNewShell   = errors.New("gosh: did not call gosh.NewShell")
 )
+
+// TODO(sadovsky):
+// - Eliminate Shell.Main, since it's easy enough to use Shell.Fn and set the
+//   returned Cmd's Args.
+// - Rename Shell.Fn to Shell.FuncCmd, Fn to Func, Register to RegisterFunc, and
+//   Call to CallFunc.
+// - Eliminate gosh.Run.
+// - Revisit whether to have Cmd.Shutdown.
 
 // Shell represents a shell. Not thread-safe.
 type Shell struct {
@@ -288,7 +298,8 @@ func (sh *Shell) cmd(vars map[string]string, name string, args ...string) (*Cmd,
 	if vars == nil {
 		vars = make(map[string]string)
 	}
-	vars[envSpawnedByShell] = "1"
+	// TODO(sadovsky): Copy os.Environ() into sh.Vars in NewShell, and clear
+	// envWatchParent and envExitAfter if they're set.
 	c, err := newCmd(sh, mergeMaps(sliceToMap(os.Environ()), sh.Vars, vars), name, append(args, sh.Args...)...)
 	if err != nil {
 		return nil, err
@@ -298,25 +309,34 @@ func (sh *Shell) cmd(vars map[string]string, name string, args ...string) (*Cmd,
 	return c, nil
 }
 
+var executablePath = os.Args[0]
+
+func init() {
+	// If exec.LookPath fails, hope for the best.
+	if lp, err := exec.LookPath(executablePath); err != nil {
+		executablePath = lp
+	}
+}
+
 func (sh *Shell) fn(fn *Fn, args ...interface{}) (*Cmd, error) {
-	// Safeguard against the developer forgetting to call MaybeRunFnAndExit, which
-	// could lead to infinite recursion.
-	if !calledMaybeRunFnAndExit {
-		return nil, errDidNotCallMaybeRunFnAndExit
+	// Safeguard against the developer forgetting to call InitMain, which could
+	// lead to infinite recursion.
+	if !calledInitMain {
+		return nil, errDidNotCallInitMain
 	}
 	b, err := encInvocation(fn.name, args...)
 	if err != nil {
 		return nil, err
 	}
 	vars := map[string]string{envInvocation: string(b)}
-	return sh.cmd(vars, os.Args[0])
+	return sh.cmd(vars, executablePath)
 }
 
 func (sh *Shell) main(fn *Fn, args ...string) (*Cmd, error) {
-	// Safeguard against the developer forgetting to call MaybeRunFnAndExit, which
-	// could lead to infinite recursion.
-	if !calledMaybeRunFnAndExit {
-		return nil, errDidNotCallMaybeRunFnAndExit
+	// Safeguard against the developer forgetting to call InitMain, which could
+	// lead to infinite recursion.
+	if !calledInitMain {
+		return nil, errDidNotCallInitMain
 	}
 	// Check that fn has the required signature.
 	t := fn.value.Type()
@@ -328,7 +348,7 @@ func (sh *Shell) main(fn *Fn, args ...string) (*Cmd, error) {
 		return nil, err
 	}
 	vars := map[string]string{envInvocation: string(b)}
-	return sh.cmd(vars, os.Args[0], args...)
+	return sh.cmd(vars, executablePath, args...)
 }
 
 func (sh *Shell) wait() error {
@@ -534,22 +554,19 @@ func (sh *Shell) cleanup() {
 ////////////////////////////////////////
 // Public utilities
 
-var calledMaybeRunFnAndExit = false
+var calledInitMain = false
 
-// MaybeRunFnAndExit must be called first thing in main() or TestMain(), before
-// flags are parsed. In the parent process, it returns immediately with no
-// effect. In a child process for a Shell.Fn() or Shell.Main() command, it runs
-// the specified function, then exits.
-func MaybeRunFnAndExit() {
-	calledMaybeRunFnAndExit = true
+// InitMain must be called early on in main(), before flags are parsed. In the
+// parent process, it returns immediately with no effect. In a child process for
+// a Shell.Fn or Shell.Main command, it runs the specified function, then exits.
+func InitMain() {
+	calledInitMain = true
 	s := os.Getenv(envInvocation)
 	if s == "" {
 		return
 	}
 	os.Unsetenv(envInvocation)
-	// Call MaybeWatchParent rather than WatchParent so that envSpawnedByShell
-	// gets cleared.
-	MaybeWatchParent()
+	InitChildMain()
 	name, args, err := decInvocation(s)
 	if err != nil {
 		log.Fatal(err)
@@ -560,10 +577,10 @@ func MaybeRunFnAndExit() {
 	os.Exit(0)
 }
 
-// Run calls MaybeRunFnAndExit(), then returns run(). Exported so that TestMain
-// functions can simply call os.Exit(gosh.Run(m.Run)).
+// Run calls InitMain, then returns run(). Exported so that TestMain functions
+// can simply call os.Exit(gosh.Run(m.Run)).
 func Run(run func() int) int {
-	MaybeRunFnAndExit()
+	InitMain()
 	return run()
 }
 

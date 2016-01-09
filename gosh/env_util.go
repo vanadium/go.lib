@@ -67,3 +67,8 @@ func mergeMaps(maps ...map[string]string) map[string]string {
 	}
 	return res
 }
+
+// copyMap returns a copy of the given map.
+func copyMap(m map[string]string) map[string]string {
+	return mergeMaps(m)
+}
