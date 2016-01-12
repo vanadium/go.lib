@@ -6,9 +6,8 @@ pkg netstate, func ConvertToAddresses([]net.Addr) AddrList
 pkg netstate, func FindAdded(AddrList, AddrList) AddrList
 pkg netstate, func FindRemoved(AddrList, AddrList) AddrList
 pkg netstate, func GetAccessibleIPs() (AddrList, error)
-pkg netstate, func GetAllAddresses() (AddrList, error)
+pkg netstate, func GetAllAddresses() (AddrList, <-chan struct{}, error)
 pkg netstate, func GetAllInterfaces() (InterfaceList, error)
-pkg netstate, func GetNetState() ([]NetworkInterface, RouteTable, error)
 pkg netstate, func InvalidateCache()
 pkg netstate, func IsAccessibleIP(Address) bool
 pkg netstate, func IsDefaultRoute(*netconfig.IPRoute) bool

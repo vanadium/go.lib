@@ -264,12 +264,17 @@ type netstateCache struct {
 	current    bool
 	interfaces []NetworkInterface
 	routes     RouteTable
+	valid      chan struct{}
 }
 
 func (cache *netstateCache) invalidate() {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
+	if !cache.current {
+		return
+	}
 	cache.current = false
+	close(cache.valid)
 }
 
 func (cache *netstateCache) refresh() error {
@@ -308,12 +313,13 @@ func (cache *netstateCache) refresh() error {
 		cache.routes[r.IfcIndex] = append(cache.routes[r.IfcIndex], r)
 	}
 	cache.current = true
+	cache.valid = make(chan struct{})
 	return nil
 }
 
-func (cache *netstateCache) getNetState() ([]NetworkInterface, RouteTable, error) {
+func (cache *netstateCache) getNetState() ([]NetworkInterface, RouteTable, <-chan struct{}, error) {
 	if err := cache.refresh(); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	cache.mu.RLock()
 	defer cache.mu.RUnlock()
@@ -326,24 +332,19 @@ func (cache *netstateCache) getNetState() ([]NetworkInterface, RouteTable, error
 		rt[k] = make(IPRouteList, len(v))
 		copy(rt[k], v)
 	}
-	return ifcs, rt, nil
+	return ifcs, rt, cache.valid, nil
 }
 
 // Allow this to be overwritten by tests.
 var internalCache *netstateCache
 
 func init() {
-	internalCache = &netstateCache{}
+	internalCache = &netstateCache{valid: make(chan struct{})}
 }
 
 // InvalidateCache invalidates any cached network state.
 func InvalidateCache() {
 	internalCache.invalidate()
-}
-
-// GetNetState returns the current set of interfaces and their routes.
-func GetNetState() ([]NetworkInterface, RouteTable, error) {
-	return internalCache.getNetState()
 }
 
 // GetAllAddresses gets all of the available addresses on the device, including
@@ -353,10 +354,11 @@ func GetNetState() ([]NetworkInterface, RouteTable, error) {
 // expensive system calls (for routing information), the cache is invalidated
 // by the Invalidate function which should be called whenever the network state
 // may have changed (e.g. following a dhcp change).
-func GetAllAddresses() (AddrList, error) {
-	interfaces, routeTable, err := internalCache.getNetState()
+// The returned chan is closed when the returned AddrList has become stale.
+func GetAllAddresses() (AddrList, <-chan struct{}, error) {
+	interfaces, routeTable, valid, err := internalCache.getNetState()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var all AddrList
 	for _, ifc := range interfaces {
@@ -369,7 +371,7 @@ func GetAllAddresses() (AddrList, error) {
 		}
 
 	}
-	return all, nil
+	return all, valid, nil
 }
 
 // InterfaceList represents a list of network interfaces.
@@ -393,7 +395,7 @@ func fillInterfaceInfo(ifc NetworkInterface, rl IPRouteList) ipifc {
 // GetAllInterfaces returns a list of all of the network interfaces on this
 // device. It uses the same cache as GetAllAddresses.
 func GetAllInterfaces() (InterfaceList, error) {
-	interfaces, routeTable, err := internalCache.getNetState()
+	interfaces, routeTable, _, err := internalCache.getNetState()
 	r := []NetworkInterface{}
 	for _, ifc := range interfaces {
 		ipifc := fillInterfaceInfo(ifc, routeTable[ifc.Index()])
@@ -414,7 +416,7 @@ func (ifcl InterfaceList) String() string {
 // - i.e. excluding loopback and unspecified addresses.
 // The IP addresses returned will be host addresses.
 func GetAccessibleIPs() (AddrList, error) {
-	all, err := GetAllAddresses()
+	all, _, err := GetAllAddresses()
 	if err != nil {
 		return nil, err
 	}
@@ -556,7 +558,7 @@ func AddressFromIP(ip net.IP) (Address, error) {
 	if ip.IsUnspecified() {
 		return nil, ErrUnspecifiedIPAddr
 	}
-	ifcs, _, err := internalCache.getNetState()
+	ifcs, _, _, err := internalCache.getNetState()
 	if err != nil {
 		return nil, err
 	}
@@ -745,7 +747,7 @@ func FindRemoved(a, b AddrList) AddrList {
 // SameMachine returns true if the provided addr is on the host
 // executing this function.
 func SameMachine(addr net.Addr) (bool, error) {
-	addrs, err := GetAllAddresses()
+	addrs, _, err := GetAllAddresses()
 	if err != nil {
 		return false, err
 	}

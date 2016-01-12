@@ -56,6 +56,7 @@ func CreateAndUseMockCache(ifcs []NetworkInterface, routetable RouteTable) func(
 		current:    true,
 		interfaces: ifcs,
 		routes:     routetable,
+		valid:      make(chan struct{}),
 	}
 	return func() {
 		internalCache = prev

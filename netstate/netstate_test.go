@@ -16,7 +16,7 @@ import (
 func TestGet(t *testing.T) {
 	// We assume that this machine running this test has at least
 	// one non-loopback interface.
-	all, err := netstate.GetAllAddresses()
+	all, _, err := netstate.GetAllAddresses()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -89,7 +89,7 @@ func TestConversions(t *testing.T) {
 
 	// We should get the same instance, i.e. pointer, returned by
 	// ConvertToAddresses as we pass in.
-	all, _ := netstate.GetAllAddresses()
+	all, _, _ := netstate.GetAllAddresses()
 	lb := all.Filter(netstate.IsLoopbackIP).Filter(netstate.IsUnicastIPv4)
 	if got, want := len(lb), 1; got != want {
 		t.Fatalf("got %v, want %v, all: %v, lb: %v", got, want, all, lb)

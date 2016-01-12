@@ -65,7 +65,7 @@ func PossibleAddresses(protocol, addr string, chooser AddressChooser) ([]net.Add
 	var candidates []net.Addr
 	unspecified := ip.IsUnspecified()
 	if unspecified {
-		all, err := GetAllAddresses()
+		all, _, err := GetAllAddresses()
 		if err != nil {
 			return nil, unspecified, err
 		}
