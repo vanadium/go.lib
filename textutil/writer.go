@@ -40,10 +40,11 @@ func (w *prefixWriter) Write(data []byte) (int, error) {
 	return w.w.Write(data)
 }
 
-// PrefixLineWriter returns a WriteFlusher that wraps w.  Any occurrence of EOL
+// PrefixLineWriter returns a WriteFlusher that wraps w.  Each occurrence of EOL
 // (\f, \n, \r, \v, LineSeparator or ParagraphSeparator) causes the preceeding
-// line to be written to w, with the given prefix.  Data without EOL is buffered
-// until the next EOL or Flush call.
+// line to be written to w, with the given prefix, in a single Write call.  Data
+// without EOL is buffered until the next EOL or Flush call.  Flush appends \n to
+// buffered data that doesn't end in EOL.
 //
 // A single Write call on the returned WriteFlusher may result in zero or more
 // Write calls on the underlying w.
@@ -51,18 +52,20 @@ func (w *prefixWriter) Write(data []byte) (int, error) {
 // If w implements WriteFlusher, each Flush call on the returned WriteFlusher
 // results in exactly one Flush call on the underlying w.
 func PrefixLineWriter(w io.Writer, prefix string) WriteFlusher {
-	return &prefixLineWriter{w, []byte(prefix), nil}
+	return &prefixLineWriter{w, []byte(prefix), len(prefix)}
 }
 
 type prefixLineWriter struct {
-	w      io.Writer
-	prefix []byte
-	buf    []byte
+	w         io.Writer
+	buf       []byte
+	prefixLen int
 }
 
 const eolRunesAsString = "\f\n\r\v" + string(LineSeparator) + string(ParagraphSeparator)
 
 func (w *prefixLineWriter) Write(data []byte) (int, error) {
+	// Write requires that the return arg is in the range [0, len(data)], and we
+	// must return len(data) on success.
 	totalLen := len(data)
 	for len(data) > 0 {
 		index := bytes.IndexAny(data, eolRunesAsString)
@@ -72,17 +75,13 @@ func (w *prefixLineWriter) Write(data []byte) (int, error) {
 			w.buf = append(w.buf, data...)
 			return totalLen, nil
 		}
-		// Saw EOL: write prefix, buffer, and data including EOL.
-		if _, err := w.w.Write(w.prefix); err != nil {
-			return totalLen - len(data), err
-		}
-		if _, err := w.w.Write(w.buf); err != nil {
-			return totalLen - len(data), err
-		}
-		w.buf = w.buf[:0]
+		// Saw EOL: single Write of buffer + data including EOL.
 		_, eolSize := utf8.DecodeRune(data[index:])
-		n, err := w.w.Write(data[:index+eolSize])
-		data = data[n:]
+		dataEnd := index + eolSize
+		w.buf = append(w.buf, data[:dataEnd]...)
+		data = data[dataEnd:]
+		_, err := w.w.Write(w.buf)
+		w.buf = w.buf[:w.prefixLen] // reset buf to prepare for the next line.
 		if err != nil {
 			return totalLen - len(data), err
 		}
@@ -98,14 +97,13 @@ func (w *prefixLineWriter) Flush() (e error) {
 			}
 		}
 	}()
-	if len(w.buf) > 0 {
-		if _, err := w.w.Write(w.prefix); err != nil {
+	if len(w.buf) > w.prefixLen {
+		w.buf = append(w.buf, '\n') // add EOL to unterminated line.
+		_, err := w.w.Write(w.buf)
+		w.buf = w.buf[:w.prefixLen] // reset buf to prepare for the next line.
+		if err != nil {
 			return err
 		}
-		if _, err := w.w.Write(w.buf); err != nil {
-			return err
-		}
-		w.buf = w.buf[:0]
 	}
 	return nil
 }

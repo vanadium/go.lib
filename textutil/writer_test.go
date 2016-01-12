@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -75,53 +76,60 @@ func TestPrefixLineWriter(t *testing.T) {
 	tests := []struct {
 		Prefix string
 		Writes []string
-		Want   string
+		Wants  []string
 	}{
-		{"", nil, ""},
-		{"", []string{""}, ""},
-		{"", []string{"a"}, "a"},
-		{"", []string{"a", ""}, "a"},
-		{"", []string{"", "a"}, "a"},
-		{"", []string{"a", "b"}, "ab"},
-		{"", []string{"ab"}, "ab"},
-		{"", []string{"\n"}, "\n"},
-		{"", []string{"\n", ""}, "\n"},
-		{"", []string{"", "\n"}, "\n"},
-		{"", []string{"a", "\n"}, "a\n"},
-		{"", []string{"a\n"}, "a\n"},
-		{"", []string{"\n", "a"}, "\na"},
-		{"", []string{"\na"}, "\na"},
-		{"", []string{"a\nb\nc"}, "a\nb\nc"},
-		{"PRE", nil, ""},
-		{"PRE", []string{""}, ""},
-		{"PRE", []string{"a"}, "PREa"},
-		{"PRE", []string{"a", ""}, "PREa"},
-		{"PRE", []string{"", "a"}, "PREa"},
-		{"PRE", []string{"a", "b"}, "PREab"},
-		{"PRE", []string{"ab"}, "PREab"},
-		{"PRE", []string{"\n"}, "PRE\n"},
-		{"PRE", []string{"\n", ""}, "PRE\n"},
-		{"PRE", []string{"", "\n"}, "PRE\n"},
-		{"PRE", []string{"a", "\n"}, "PREa\n"},
-		{"PRE", []string{"a\n"}, "PREa\n"},
-		{"PRE", []string{"\n", "a"}, "PRE\nPREa"},
-		{"PRE", []string{"\na"}, "PRE\nPREa"},
-		{"PRE", []string{"a", "\n", "b", "\n", "c"}, "PREa\nPREb\nPREc"},
-		{"PRE", []string{"a\nb\nc"}, "PREa\nPREb\nPREc"},
-		{"PRE", []string{"a\nb\nc\n"}, "PREa\nPREb\nPREc\n"},
+		{"", nil, nil},
+		{"", []string{""}, nil},
+		{"", []string{"a"}, []string{"a."}},
+		{"", []string{"a", ""}, []string{"a."}},
+		{"", []string{"", "a"}, []string{"a."}},
+		{"", []string{"a", "b"}, []string{"ab."}},
+		{"", []string{"ab"}, []string{"ab."}},
+		{"", []string{"\n"}, []string{"\n"}},
+		{"", []string{"\n", ""}, []string{"\n"}},
+		{"", []string{"", "\n"}, []string{"\n"}},
+		{"", []string{"a", "\n"}, []string{"a\n"}},
+		{"", []string{"a\n"}, []string{"a\n"}},
+		{"", []string{"\n", "a"}, []string{"\n", "a."}},
+		{"", []string{"\na"}, []string{"\n", "a."}},
+		{"", []string{"a\nb\nc"}, []string{"a\n", "b\n", "c."}},
+		{"", []string{"a\nb\nc\n"}, []string{"a\n", "b\n", "c\n"}},
+		{"PRE", nil, nil},
+		{"PRE", []string{""}, nil},
+		{"PRE", []string{"a"}, []string{"PREa."}},
+		{"PRE", []string{"a", ""}, []string{"PREa."}},
+		{"PRE", []string{"", "a"}, []string{"PREa."}},
+		{"PRE", []string{"a", "b"}, []string{"PREab."}},
+		{"PRE", []string{"ab"}, []string{"PREab."}},
+		{"PRE", []string{"\n"}, []string{"PRE\n"}},
+		{"PRE", []string{"\n", ""}, []string{"PRE\n"}},
+		{"PRE", []string{"", "\n"}, []string{"PRE\n"}},
+		{"PRE", []string{"a", "\n"}, []string{"PREa\n"}},
+		{"PRE", []string{"a\n"}, []string{"PREa\n"}},
+		{"PRE", []string{"\n", "a"}, []string{"PRE\n", "PREa."}},
+		{"PRE", []string{"\na"}, []string{"PRE\n", "PREa."}},
+		{"PRE", []string{"a", "\n", "b", "\n", "c"}, []string{"PREa\n", "PREb\n", "PREc."}},
+		{"PRE", []string{"a\nb\nc"}, []string{"PREa\n", "PREb\n", "PREc."}},
+		{"PRE", []string{"a\nb\nc\n"}, []string{"PREa\n", "PREb\n", "PREc\n"}},
 	}
 	for _, test := range tests {
 		for _, eol := range eolRunesAsString {
-			// Replace \n in Want and Writes with the test eol rune.
-			want := strings.Replace(test.Want, "\n", string(eol), -1)
-			var writes []string
-			for _, write := range test.Writes {
-				writes = append(writes, strings.Replace(write, "\n", string(eol), -1))
+			// Replace '\n' in Writes and Wants with the test eol rune, and replace '.'
+			// in Wants with '\n'.
+			var writes, wants []string
+			for _, x := range test.Writes {
+				x = strings.Replace(x, "\n", string(eol), -1)
+				writes = append(writes, x)
+			}
+			for _, x := range test.Wants {
+				x = strings.Replace(x, "\n", string(eol), -1)
+				x = strings.Replace(x, ".", "\n", -1)
+				wants = append(wants, x)
 			}
 			// Run the actual tests.
-			var buf bytes.Buffer
-			w := PrefixLineWriter(&buf, test.Prefix)
-			name := fmt.Sprintf("(%q, %q)", want, writes)
+			capture := &captureWriter{}
+			w := PrefixLineWriter(capture, test.Prefix)
+			name := fmt.Sprintf("(%q, %q)", wants, writes)
 			for _, write := range writes {
 				name := name + fmt.Sprintf("(%q)", write)
 				n, err := w.Write([]byte(write))
@@ -135,11 +143,20 @@ func TestPrefixLineWriter(t *testing.T) {
 			if err := w.Flush(); err != nil {
 				t.Errorf("%s Flush got error: %v", name, err)
 			}
-			if got, want := buf.String(), want; got != want {
+			if got, want := capture.Writes, wants; !reflect.DeepEqual(got, want) {
 				t.Errorf("%s got %q, want %q", name, got, want)
 			}
 		}
 	}
+}
+
+type captureWriter struct {
+	Writes []string
+}
+
+func (w *captureWriter) Write(p []byte) (int, error) {
+	w.Writes = append(w.Writes, string(p))
+	return len(p), nil
 }
 
 var (
@@ -243,8 +260,8 @@ func TestPrefixLineWriter_WriteErrorFlushError(t *testing.T) {
 func TestPrefixLineWriter_EOLWriteErrorFlushError(t *testing.T) {
 	fake := &fakeWriteFlusher{writeErr: err1, flushErr: err2}
 	w := PrefixLineWriter(fake, "prefix")
-	if n, err := w.Write([]byte("ab\n")); n != 0 || err != err1 {
-		t.Errorf("Write got (%v,%v), want (0,%v)", n, err, err1)
+	if n, err := w.Write([]byte("ab\n")); n != 3 || err != err1 {
+		t.Errorf("Write got (%v,%v), want (3,%v)", n, err, err1)
 	}
 	if err := w.Flush(); err != err2 {
 		t.Errorf("Flush got error %v, want %v", err, err2)
