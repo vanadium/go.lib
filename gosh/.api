@@ -1,11 +1,9 @@
-pkg gosh, func Call(string, ...interface{}) error
 pkg gosh, func InitChildMain()
 pkg gosh, func InitMain()
 pkg gosh, func NewBufferedPipe() io.ReadWriteCloser
 pkg gosh, func NewShell(Opts) *Shell
 pkg gosh, func NopWriteCloser(io.Writer) io.WriteCloser
-pkg gosh, func Register(string, interface{}) *Fn
-pkg gosh, func Run(func() int) int
+pkg gosh, func RegisterFunc(string, interface{}) *Func
 pkg gosh, func SendReady()
 pkg gosh, func SendVars(map[string]string)
 pkg gosh, method (*Cmd) AddStderrWriter(io.WriteCloser)
@@ -14,10 +12,8 @@ pkg gosh, method (*Cmd) AwaitReady()
 pkg gosh, method (*Cmd) AwaitVars(...string) map[string]string
 pkg gosh, method (*Cmd) Clone() *Cmd
 pkg gosh, method (*Cmd) CombinedOutput() string
-pkg gosh, method (*Cmd) Kill()
 pkg gosh, method (*Cmd) Pid() int
 pkg gosh, method (*Cmd) Run()
-pkg gosh, method (*Cmd) Shutdown(os.Signal)
 pkg gosh, method (*Cmd) Signal(os.Signal)
 pkg gosh, method (*Cmd) Start()
 pkg gosh, method (*Cmd) StderrPipe() io.Reader
@@ -25,15 +21,14 @@ pkg gosh, method (*Cmd) StdinPipe() io.WriteCloser
 pkg gosh, method (*Cmd) Stdout() string
 pkg gosh, method (*Cmd) StdoutPipe() io.Reader
 pkg gosh, method (*Cmd) StdoutStderr() (string, string)
+pkg gosh, method (*Cmd) Terminate(os.Signal)
 pkg gosh, method (*Cmd) Wait()
-pkg gosh, method (*Fn) Call(...interface{}) error
 pkg gosh, method (*Shell) AddToCleanup(func())
 pkg gosh, method (*Shell) BuildGoPkg(string, ...string) string
 pkg gosh, method (*Shell) Cleanup()
 pkg gosh, method (*Shell) Cmd(string, ...string) *Cmd
-pkg gosh, method (*Shell) Fn(*Fn, ...interface{}) *Cmd
+pkg gosh, method (*Shell) FuncCmd(*Func, ...interface{}) *Cmd
 pkg gosh, method (*Shell) HandleError(error)
-pkg gosh, method (*Shell) Main(*Fn, ...string) *Cmd
 pkg gosh, method (*Shell) MakeTempDir() string
 pkg gosh, method (*Shell) MakeTempFile() *os.File
 pkg gosh, method (*Shell) Ok()
@@ -52,7 +47,7 @@ pkg gosh, type Cmd struct, Path string
 pkg gosh, type Cmd struct, PropagateOutput bool
 pkg gosh, type Cmd struct, Stdin string
 pkg gosh, type Cmd struct, Vars map[string]string
-pkg gosh, type Fn struct
+pkg gosh, type Func struct
 pkg gosh, type Opts struct
 pkg gosh, type Opts struct, BinDir string
 pkg gosh, type Opts struct, ChildOutputDir string

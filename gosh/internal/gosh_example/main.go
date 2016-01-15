@@ -11,7 +11,7 @@ import (
 	"v.io/x/lib/gosh/internal/gosh_example_lib"
 )
 
-func ExampleCmds() {
+func ExampleCmd() {
 	sh := gosh.NewShell(gosh.Opts{})
 	defer sh.Cleanup()
 
@@ -30,37 +30,28 @@ func ExampleCmds() {
 }
 
 var (
-	getFn   = gosh.Register("getFn", lib.Get)
-	serveFn = gosh.Register("serveFn", lib.Serve)
+	getFunc   = gosh.RegisterFunc("getFunc", lib.Get)
+	serveFunc = gosh.RegisterFunc("serveFunc", lib.Serve)
 )
 
-func ExampleFns() {
+func ExampleFuncCmd() {
 	sh := gosh.NewShell(gosh.Opts{})
 	defer sh.Cleanup()
 
 	// Start server.
-	c := sh.Fn(serveFn)
+	c := sh.FuncCmd(serveFunc)
 	c.Start()
 	c.AwaitReady()
 	addr := c.AwaitVars("Addr")["Addr"]
 	fmt.Println(addr)
 
 	// Run client.
-	c = sh.Fn(getFn, addr)
-	fmt.Print(c.Stdout())
-}
-
-func ExampleShellMain() {
-	sh := gosh.NewShell(gosh.Opts{})
-	defer sh.Cleanup()
-
-	c := sh.Main(lib.HelloWorldMain)
+	c = sh.FuncCmd(getFunc, addr)
 	fmt.Print(c.Stdout())
 }
 
 func main() {
 	gosh.InitMain()
-	ExampleCmds()
-	ExampleFns()
-	ExampleShellMain()
+	ExampleCmd()
+	ExampleFuncCmd()
 }

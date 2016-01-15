@@ -15,7 +15,7 @@ import (
 	"v.io/x/lib/vlog"
 )
 
-var child = gosh.Register("child", func() error {
+var child = gosh.RegisterFunc("child", func() error {
 	tmp := filepath.Join(os.TempDir(), "foo")
 	flag.Set("log_dir", tmp)
 	flag.Set("vmodule", "foo=2")
@@ -44,9 +44,10 @@ var child = gosh.Register("child", func() error {
 func TestFlags(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: t.Fatalf, Logf: t.Logf})
 	defer sh.Cleanup()
-	sh.Fn(child).Run()
+	sh.FuncCmd(child).Run()
 }
 
 func TestMain(m *testing.M) {
-	os.Exit(gosh.Run(m.Run))
+	gosh.InitMain()
+	os.Exit(m.Run())
 }

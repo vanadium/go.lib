@@ -6,10 +6,10 @@ package gosh_test
 
 // TODO(sadovsky): Add more tests:
 // - effects of Shell.Cleanup
-// - Cmd.Clone
 // - Shell.{Vars,Args,Rename,MakeTempFile,MakeTempDir}
-// - Opts (including defaulting behavior)
-// - {,Maybe}WatchParent
+// - Shell.Opts.{PropagateChildOutput,ChildOutputDir,BinDir}
+// - Cmd.Clone
+// - Cmd.Opts.{IgnoreParentExit,ExitAfter,PropagateOutput}
 
 import (
 	"bufio"
@@ -19,6 +19,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"reflect"
 	"runtime/debug"
@@ -78,35 +79,52 @@ func makeFatalf(t *testing.T) func(string, ...interface{}) {
 	}
 }
 
+func setsErr(t *testing.T, sh *gosh.Shell, f func()) {
+	calledFatalf := false
+	sh.Opts.Fatalf = func(string, ...interface{}) { calledFatalf = true }
+	f()
+	nok(t, sh.Err)
+	eq(t, calledFatalf, true)
+	sh.Err = nil
+	sh.Opts.Fatalf = makeFatalf(t)
+}
+
 ////////////////////////////////////////
 // Simple functions
 
 // Simplified versions of various Unix commands.
 var (
-	catFn = gosh.Register("catFn", func() {
+	catFunc = gosh.RegisterFunc("catFunc", func() {
 		io.Copy(os.Stdout, os.Stdin)
 	})
-	echoFn = gosh.Register("echoFn", func() {
+	echoFunc = gosh.RegisterFunc("echoFunc", func() {
 		fmt.Println(os.Args[1])
 	})
-	readFn = gosh.Register("readFn", func() {
+	readFunc = gosh.RegisterFunc("readFunc", func() {
 		bufio.NewReader(os.Stdin).ReadString('\n')
 	})
 )
 
 // Functions with parameters.
 var (
-	exitFn = gosh.Register("exitFn", func(code int) {
+	exitFunc = gosh.RegisterFunc("exitFunc", func(code int) {
 		os.Exit(code)
 	})
-	sleepFn = gosh.Register("sleepFn", func(d time.Duration, code int) {
+	sleepFunc = gosh.RegisterFunc("sleepFunc", func(d time.Duration, code int) {
+		// For TestSignal and TestTerminate.
+		ch := make(chan os.Signal, 1)
+		signal.Notify(ch, os.Interrupt)
+		go func() {
+			<-ch
+			os.Exit(0)
+		}()
 		time.Sleep(d)
 		os.Exit(code)
 	})
-	printFn = gosh.Register("printFn", func(v ...interface{}) {
+	printFunc = gosh.RegisterFunc("printFunc", func(v ...interface{}) {
 		fmt.Print(v...)
 	})
-	printfFn = gosh.Register("printfFn", func(format string, v ...interface{}) {
+	printfFunc = gosh.RegisterFunc("printfFunc", func(format string, v ...interface{}) {
 		fmt.Printf(format, v...)
 	})
 )
@@ -151,9 +169,7 @@ func TestPushdPopd(t *testing.T) {
 	ok(t, err)
 	eq(t, cwd, startDir)
 	// The next sh.Popd() will fail.
-	sh.Opts.Fatalf = nil
-	sh.Popd()
-	nok(t, sh.Err)
+	setsErr(t, sh, func() { sh.Popd() })
 }
 
 func evalSymlinks(t *testing.T, dir string) string {
@@ -182,7 +198,7 @@ func TestPushdNoPopdCleanup(t *testing.T) {
 	eq(t, getwdEvalSymlinks(t), startDir)
 }
 
-func TestCmds(t *testing.T) {
+func TestCmd(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 
@@ -201,44 +217,36 @@ func TestCmds(t *testing.T) {
 }
 
 var (
-	getFn   = gosh.Register("getFn", lib.Get)
-	serveFn = gosh.Register("serveFn", lib.Serve)
+	getFunc   = gosh.RegisterFunc("getFunc", lib.Get)
+	serveFunc = gosh.RegisterFunc("serveFunc", lib.Serve)
 )
 
-func TestFns(t *testing.T) {
+func TestFuncCmd(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 
 	// Start server.
-	c := sh.Fn(serveFn)
+	c := sh.FuncCmd(serveFunc)
 	c.Start()
 	c.AwaitReady()
 	addr := c.AwaitVars("Addr")["Addr"]
 	neq(t, addr, "")
 
 	// Run client.
-	c = sh.Fn(getFn, addr)
-	eq(t, c.Stdout(), "Hello, world!\n")
-}
-
-func TestShellMain(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
-	defer sh.Cleanup()
-
-	c := sh.Main(lib.HelloWorldMain)
+	c = sh.FuncCmd(getFunc, addr)
 	eq(t, c.Stdout(), "Hello, world!\n")
 }
 
 // Functions designed for TestRegistry.
 var (
-	printIntsFn = gosh.Register("printIntsFn", func(v ...int) {
+	printIntsFunc = gosh.RegisterFunc("printIntsFunc", func(v ...int) {
 		var vi []interface{}
 		for _, x := range v {
 			vi = append(vi, x)
 		}
 		fmt.Print(vi...)
 	})
-	printfIntsFn = gosh.Register("printfIntsFn", func(format string, v ...int) {
+	printfIntsFunc = gosh.RegisterFunc("printfIntsFunc", func(format string, v ...int) {
 		var vi []interface{}
 		for _, x := range v {
 			vi = append(vi, x)
@@ -252,21 +260,13 @@ func TestAwaitProcessExit(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 
-	c := sh.Fn(exitFn, 0)
+	c := sh.FuncCmd(exitFunc, 0)
 	c.Start()
-	sh.Opts.Fatalf = nil
-	c.AwaitReady()
-	nok(t, sh.Err)
-	sh.Err = nil
-	sh.Opts.Fatalf = makeFatalf(t)
+	setsErr(t, sh, func() { c.AwaitReady() })
 
-	c = sh.Fn(exitFn, 0)
+	c = sh.FuncCmd(exitFunc, 0)
 	c.Start()
-	sh.Opts.Fatalf = nil
-	c.AwaitVars("foo")
-	nok(t, sh.Err)
-	sh.Err = nil
-	sh.Opts.Fatalf = makeFatalf(t)
+	setsErr(t, sh, func() { c.AwaitVars("foo") })
 }
 
 // Tests function signature-checking and execution.
@@ -276,105 +276,81 @@ func TestRegistry(t *testing.T) {
 
 	// Variadic functions. Non-variadic functions are sufficiently covered in
 	// other tests.
-	eq(t, sh.Fn(printFn).Stdout(), "")
-	eq(t, sh.Fn(printFn, 0).Stdout(), "0")
-	eq(t, sh.Fn(printFn, 0, "foo").Stdout(), "0foo")
-	eq(t, sh.Fn(printfFn, "").Stdout(), "")
-	eq(t, sh.Fn(printfFn, "%v", 0).Stdout(), "0")
-	eq(t, sh.Fn(printfFn, "%v%v", 0, "foo").Stdout(), "0foo")
-	eq(t, sh.Fn(printIntsFn, 1, 2).Stdout(), "1 2")
-	eq(t, sh.Fn(printfIntsFn, "%v %v", 1, 2).Stdout(), "1 2")
-
-	// Error cases.
-	sh.Opts.Fatalf = nil
-	reset := func() {
-		nok(t, sh.Err)
-		sh.Err = nil
-	}
+	eq(t, sh.FuncCmd(printFunc).Stdout(), "")
+	eq(t, sh.FuncCmd(printFunc, 0).Stdout(), "0")
+	eq(t, sh.FuncCmd(printFunc, 0, "foo").Stdout(), "0foo")
+	eq(t, sh.FuncCmd(printfFunc, "").Stdout(), "")
+	eq(t, sh.FuncCmd(printfFunc, "%v", 0).Stdout(), "0")
+	eq(t, sh.FuncCmd(printfFunc, "%v%v", 0, "foo").Stdout(), "0foo")
+	eq(t, sh.FuncCmd(printIntsFunc, 1, 2).Stdout(), "1 2")
+	eq(t, sh.FuncCmd(printfIntsFunc, "%v %v", 1, 2).Stdout(), "1 2")
 
 	// Too few arguments.
-	sh.Fn(exitFn)
-	reset()
-	sh.Fn(sleepFn, time.Second)
-	reset()
-	sh.Fn(printfFn)
-	reset()
+	setsErr(t, sh, func() { sh.FuncCmd(exitFunc) })
+	setsErr(t, sh, func() { sh.FuncCmd(sleepFunc, time.Second) })
+	setsErr(t, sh, func() { sh.FuncCmd(printfFunc) })
 
 	// Too many arguments.
-	sh.Fn(exitFn, 0, 0)
-	reset()
-	sh.Fn(sleepFn, time.Second, 0, 0)
-	reset()
+	setsErr(t, sh, func() { sh.FuncCmd(exitFunc, 0, 0) })
+	setsErr(t, sh, func() { sh.FuncCmd(sleepFunc, time.Second, 0, 0) })
 
 	// Wrong argument types.
-	sh.Fn(exitFn, "foo")
-	reset()
-	sh.Fn(sleepFn, 0, 0)
-	reset()
-	sh.Fn(printfFn, 0)
-	reset()
-	sh.Fn(printfFn, 0, 0)
-	reset()
+	setsErr(t, sh, func() { sh.FuncCmd(exitFunc, "foo") })
+	setsErr(t, sh, func() { sh.FuncCmd(sleepFunc, 0, 0) })
+	setsErr(t, sh, func() { sh.FuncCmd(printfFunc, 0) })
+	setsErr(t, sh, func() { sh.FuncCmd(printfFunc, 0, 0) })
 
 	// Wrong variadic argument types.
-	sh.Fn(printIntsFn, 0.5)
-	reset()
-	sh.Fn(printIntsFn, 0, 0.5)
-	reset()
-	sh.Fn(printfIntsFn, "%v", 0.5)
-	reset()
-	sh.Fn(printfIntsFn, "%v", 0, 0.5)
-	reset()
+	setsErr(t, sh, func() { sh.FuncCmd(printIntsFunc, 0.5) })
+	setsErr(t, sh, func() { sh.FuncCmd(printIntsFunc, 0, 0.5) })
+	setsErr(t, sh, func() { sh.FuncCmd(printfIntsFunc, "%v", 0.5) })
+	setsErr(t, sh, func() { sh.FuncCmd(printfIntsFunc, "%v", 0, 0.5) })
 
 	// Unsupported argument types.
 	var p *int
-	sh.Fn(printFn, p)
-	reset()
-	sh.Fn(printfFn, "%v", p)
-	reset()
+	setsErr(t, sh, func() { sh.FuncCmd(printFunc, p) })
+	setsErr(t, sh, func() { sh.FuncCmd(printfFunc, "%v", p) })
 }
 
 func TestStdin(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 
-	c := sh.Main(catFn)
+	c := sh.FuncCmd(catFunc)
 	c.Stdin = "foo\n"
 	// We set c.Stdin and did not call c.StdinPipe(), so stdin should close and
 	// cat should exit immediately.
 	eq(t, c.Stdout(), "foo\n")
 
-	c = sh.Main(catFn)
+	c = sh.FuncCmd(catFunc)
 	c.StdinPipe().Write([]byte("foo\n"))
 	// The "cat" command only exits when stdin is closed, so we must explicitly
 	// close the stdin pipe. Note, it's safe to call c.StdinPipe multiple times.
 	c.StdinPipe().Close()
 	eq(t, c.Stdout(), "foo\n")
 
-	c = sh.Main(readFn)
+	c = sh.FuncCmd(readFunc)
 	c.StdinPipe().Write([]byte("foo\n"))
 	// The "read" command exits when it sees a newline, so Cmd.Wait (and thus
 	// Cmd.Run) should return immediately; it should not be necessary to close the
 	// stdin pipe.
 	c.Run()
 
-	c = sh.Main(catFn)
+	c = sh.FuncCmd(catFunc)
 	// No stdin, so cat should exit immediately.
 	eq(t, c.Stdout(), "")
 
 	// It's an error (detected at command start time) to both set c.Stdin and call
 	// c.StdinPipe. Note, this indirectly tests that Shell.Cleanup works even if
 	// some Cmd.Start failed.
-	c = sh.Main(catFn)
+	c = sh.FuncCmd(catFunc)
 	c.Stdin = "foo"
 	c.StdinPipe().Write([]byte("bar"))
 	c.StdinPipe().Close()
-	sh.Opts.Fatalf = nil
-	c.Start()
-	nok(t, sh.Err)
+	setsErr(t, sh, func() { c.Start() })
 }
 
-var writeFn = gosh.Register("writeFn", func(stdout, stderr bool) error {
+var writeFunc = gosh.RegisterFunc("writeFunc", func(stdout, stderr bool) error {
 	if stdout {
 		if _, err := os.Stdout.Write([]byte("A")); err != nil {
 			return err
@@ -403,7 +379,7 @@ func TestStdoutStderr(t *testing.T) {
 	defer sh.Cleanup()
 
 	// Write to stdout only.
-	c := sh.Fn(writeFn, true, false)
+	c := sh.FuncCmd(writeFunc, true, false)
 	stdoutPipe, stderrPipe := c.StdoutPipe(), c.StderrPipe()
 	stdout, stderr := c.StdoutStderr()
 	eq(t, stdout, "AA")
@@ -412,7 +388,7 @@ func TestStdoutStderr(t *testing.T) {
 	eq(t, toString(t, stderrPipe), "")
 
 	// Write to stderr only.
-	c = sh.Fn(writeFn, false, true)
+	c = sh.FuncCmd(writeFunc, false, true)
 	stdoutPipe, stderrPipe = c.StdoutPipe(), c.StderrPipe()
 	stdout, stderr = c.StdoutStderr()
 	eq(t, stdout, "")
@@ -421,7 +397,7 @@ func TestStdoutStderr(t *testing.T) {
 	eq(t, toString(t, stderrPipe), "BB")
 
 	// Write to both stdout and stderr.
-	c = sh.Fn(writeFn, true, true)
+	c = sh.FuncCmd(writeFunc, true, true)
 	stdoutPipe, stderrPipe = c.StdoutPipe(), c.StderrPipe()
 	stdout, stderr = c.StdoutStderr()
 	eq(t, stdout, "AA")
@@ -430,11 +406,11 @@ func TestStdoutStderr(t *testing.T) {
 	eq(t, toString(t, stderrPipe), "BB")
 }
 
-var writeMoreFn = gosh.Register("writeMoreFn", func() {
+var writeMoreFunc = gosh.RegisterFunc("writeMoreFunc", func() {
 	sh := gosh.NewShell(gosh.Opts{})
 	defer sh.Cleanup()
 
-	c := sh.Fn(writeFn, true, true)
+	c := sh.FuncCmd(writeFunc, true, true)
 	c.AddStdoutWriter(gosh.NopWriteCloser(os.Stdout))
 	c.AddStderrWriter(gosh.NopWriteCloser(os.Stderr))
 	c.Run()
@@ -448,7 +424,7 @@ func TestAddWritersWrappedStdoutStderr(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 
-	stdout, stderr := sh.Fn(writeMoreFn).StdoutStderr()
+	stdout, stderr := sh.FuncCmd(writeMoreFunc).StdoutStderr()
 	eq(t, stdout, "AA stdout done")
 	eq(t, stderr, "BB stderr done")
 }
@@ -458,27 +434,18 @@ func TestAddWritersNonWrappedStdoutStderr(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 
-	c := sh.Fn(writeMoreFn)
-	sh.Opts.Fatalf = nil
-	c.AddStdoutWriter(os.Stdout)
-	nok(t, sh.Err)
-	sh.Err = nil
-	c.AddStdoutWriter(os.Stderr)
-	nok(t, sh.Err)
-	sh.Err = nil
-	c.AddStderrWriter(os.Stdout)
-	nok(t, sh.Err)
-	sh.Err = nil
-	c.AddStderrWriter(os.Stderr)
-	nok(t, sh.Err)
-	sh.Err = nil
+	c := sh.FuncCmd(writeMoreFunc)
+	setsErr(t, sh, func() { c.AddStdoutWriter(os.Stdout) })
+	setsErr(t, sh, func() { c.AddStdoutWriter(os.Stderr) })
+	setsErr(t, sh, func() { c.AddStderrWriter(os.Stdout) })
+	setsErr(t, sh, func() { c.AddStderrWriter(os.Stderr) })
 }
 
 func TestCombinedOutput(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 
-	c := sh.Fn(writeFn, true, true)
+	c := sh.FuncCmd(writeFunc, true, true)
 	buf := &bytes.Buffer{}
 	c.AddStdoutWriter(gosh.NopWriteCloser(buf))
 	c.AddStderrWriter(gosh.NopWriteCloser(buf))
@@ -496,7 +463,7 @@ func TestOutputDir(t *testing.T) {
 	defer sh.Cleanup()
 
 	dir := sh.MakeTempDir()
-	c := sh.Fn(writeFn, true, true)
+	c := sh.FuncCmd(writeFunc, true, true)
 	c.OutputDir = dir
 	c.Run()
 
@@ -531,7 +498,7 @@ func TestAddWritersCloseOnce(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 
-	c := sh.Fn(writeFn, true, true)
+	c := sh.FuncCmd(writeFunc, true, true)
 	buf := &bytes.Buffer{}
 	wc := &countingWriteCloser{Writer: buf}
 	c.AddStdoutWriter(wc)
@@ -551,15 +518,16 @@ func TestPiping(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 
-	echo := sh.Main(echoFn, "foo")
-	cat := sh.Main(catFn)
+	echo := sh.FuncCmd(echoFunc)
+	echo.Args = append(echo.Args, "foo")
+	cat := sh.FuncCmd(catFunc)
 	echo.AddStdoutWriter(cat.StdinPipe())
 	echo.Start()
 	eq(t, cat.Stdout(), "foo\n")
 
 	// This time, pipe both stdout and stderr to cat's stdin.
-	c := sh.Fn(writeFn, true, true)
-	cat = sh.Main(catFn)
+	c := sh.FuncCmd(writeFunc, true, true)
+	cat = sh.FuncCmd(catFunc)
 	c.AddStdoutWriter(cat.StdinPipe())
 	c.AddStderrWriter(cat.StdinPipe())
 	c.Start()
@@ -568,21 +536,57 @@ func TestPiping(t *testing.T) {
 	eq(t, len(cat.Stdout()), 4)
 }
 
-func TestShutdown(t *testing.T) {
+func TestSignal(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 
 	for _, d := range []time.Duration{0, time.Second} {
 		for _, s := range []os.Signal{os.Interrupt, os.Kill} {
 			fmt.Println(d, s)
-			c := sh.Fn(sleepFn, d, 0)
+			c := sh.FuncCmd(sleepFunc, d, 0)
 			c.Start()
-			// Wait for a bit to allow the zero-sleep commands to exit, to test that
-			// Shutdown succeeds for an exited process.
+			// Wait for a bit to allow the zero-sleep commands to exit.
 			time.Sleep(100 * time.Millisecond)
-			c.Shutdown(s)
+			c.Signal(s)
+			// Wait should succeed as long as the exit code was 0, regardless of
+			// whether the signal arrived or the process had already exited.
+			if s == os.Interrupt {
+				// Note: We don't call Wait in the {d: 0, s: os.Kill} case because doing
+				// so makes the test flaky on slow systems.
+				c.Wait()
+			} else if d == time.Second {
+				setsErr(t, sh, func() { c.Wait() })
+			}
 		}
 	}
+
+	// Signal should fail if Wait has been called.
+	c := sh.FuncCmd(sleepFunc, time.Duration(0), 0)
+	c.Run()
+	setsErr(t, sh, func() { c.Signal(os.Interrupt) })
+}
+
+func TestTerminate(t *testing.T) {
+	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	defer sh.Cleanup()
+
+	for _, d := range []time.Duration{0, time.Second} {
+		for _, s := range []os.Signal{os.Interrupt, os.Kill} {
+			fmt.Println(d, s)
+			c := sh.FuncCmd(sleepFunc, d, 0)
+			c.Start()
+			// Wait for a bit to allow the zero-sleep commands to exit.
+			time.Sleep(100 * time.Millisecond)
+			// Terminate should succeed regardless of the exit code, and regardless of
+			// whether the signal arrived or the process had already exited.
+			c.Terminate(s)
+		}
+	}
+
+	// Terminate should fail if Wait has been called.
+	c := sh.FuncCmd(sleepFunc, time.Duration(0), 0)
+	c.Run()
+	setsErr(t, sh, func() { c.Terminate(os.Interrupt) })
 }
 
 func TestShellWait(t *testing.T) {
@@ -592,14 +596,14 @@ func TestShellWait(t *testing.T) {
 	d0 := time.Duration(0)
 	d200 := 200 * time.Millisecond
 
-	c0 := sh.Fn(sleepFn, d0, 0)   // not started
-	c1 := sh.Fn(sleepFn, d0, 0)   // failed to start
-	c2 := sh.Fn(sleepFn, d200, 0) // running and will succeed
-	c3 := sh.Fn(sleepFn, d200, 1) // running and will fail
-	c4 := sh.Fn(sleepFn, d0, 0)   // succeeded
-	c5 := sh.Fn(sleepFn, d0, 0)   // succeeded, called wait
-	c6 := sh.Fn(sleepFn, d0, 1)   // failed
-	c7 := sh.Fn(sleepFn, d0, 1)   // failed, called wait
+	c0 := sh.FuncCmd(sleepFunc, d0, 0)   // not started
+	c1 := sh.FuncCmd(sleepFunc, d0, 0)   // failed to start
+	c2 := sh.FuncCmd(sleepFunc, d200, 0) // running and will succeed
+	c3 := sh.FuncCmd(sleepFunc, d200, 1) // running and will fail
+	c4 := sh.FuncCmd(sleepFunc, d0, 0)   // succeeded
+	c5 := sh.FuncCmd(sleepFunc, d0, 0)   // succeeded, called wait
+	c6 := sh.FuncCmd(sleepFunc, d0, 1)   // failed
+	c7 := sh.FuncCmd(sleepFunc, d0, 1)   // failed, called wait
 
 	c3.ExitErrorIsOk = true
 	c6.ExitErrorIsOk = true
@@ -608,11 +612,7 @@ func TestShellWait(t *testing.T) {
 	// Configure the "failed to start" command.
 	c1.StdinPipe()
 	c1.Stdin = "foo"
-	sh.Opts.Fatalf = nil
-	c1.Start()
-	nok(t, sh.Err)
-	sh.Err = nil
-	sh.Opts.Fatalf = makeFatalf(t)
+	setsErr(t, sh, func() { c1.Start() })
 
 	// Start commands, then wait for them to exit.
 	for _, c := range []*gosh.Cmd{c2, c3, c4, c5, c6, c7} {
@@ -627,8 +627,8 @@ func TestShellWait(t *testing.T) {
 	// It should be possible to run existing unstarted commands, and to create and
 	// run new commands, after calling Shell.Wait.
 	c0.Run()
-	sh.Fn(sleepFn, d0, 0).Run()
-	sh.Fn(sleepFn, d0, 0).Start()
+	sh.FuncCmd(sleepFunc, d0, 0).Run()
+	sh.FuncCmd(sleepFunc, d0, 0).Start()
 
 	// Call Shell.Wait again.
 	sh.Wait()
@@ -639,24 +639,22 @@ func TestExitErrorIsOk(t *testing.T) {
 	defer sh.Cleanup()
 
 	// Exit code 0 is not an error.
-	c := sh.Fn(exitFn, 0)
+	c := sh.FuncCmd(exitFunc, 0)
 	c.Run()
 	ok(t, c.Err)
 	ok(t, sh.Err)
 
 	// Exit code 1 is an error.
-	c = sh.Fn(exitFn, 1)
+	c = sh.FuncCmd(exitFunc, 1)
 	c.ExitErrorIsOk = true
 	c.Run()
 	nok(t, c.Err)
 	ok(t, sh.Err)
 
 	// If ExitErrorIsOk is false, exit code 1 triggers sh.HandleError.
-	c = sh.Fn(exitFn, 1)
-	sh.Opts.Fatalf = nil
-	c.Run()
+	c = sh.FuncCmd(exitFunc, 1)
+	setsErr(t, sh, func() { c.Run() })
 	nok(t, c.Err)
-	nok(t, sh.Err)
 }
 
 // Tests that sh.Ok panics under various conditions.
@@ -727,5 +725,6 @@ func TestMultipleCleanup(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
-	os.Exit(gosh.Run(m.Run))
+	gosh.InitMain()
+	os.Exit(m.Run())
 }

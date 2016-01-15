@@ -43,11 +43,11 @@ type Cmd struct {
 	Args []string
 	// IgnoreParentExit, if true, makes it so the child process does not exit when
 	// its parent exits. Only takes effect if the child process was spawned via
-	// Shell.Fn or Shell.Main, or explicitly calls InitChildMain.
+	// Shell.FuncCmd or explicitly calls InitChildMain.
 	IgnoreParentExit bool
 	// ExitAfter, if non-zero, specifies that the child process should exit after
 	// the given duration has elapsed. Only takes effect if the child process was
-	// spawned via Shell.Fn or Shell.Main, or explicitly calls InitChildMain.
+	// spawned via Shell.FuncCmd or explicitly calls InitChildMain.
 	ExitAfter time.Duration
 	// PropagateOutput is inherited from Shell.Opts.PropagateChildOutput.
 	PropagateOutput bool
@@ -174,22 +174,18 @@ func (c *Cmd) Wait() {
 	c.handleError(c.wait())
 }
 
-// Kill causes the process to exit immediately.
-func (c *Cmd) Kill() {
-	c.sh.Ok()
-	c.handleError(c.kill())
-}
-
 // Signal sends a signal to the process.
 func (c *Cmd) Signal(sig os.Signal) {
 	c.sh.Ok()
 	c.handleError(c.signal(sig))
 }
 
-// Shutdown sends a signal to the process, then waits for it to exit.
-func (c *Cmd) Shutdown(sig os.Signal) {
+// Terminate sends a signal to the process, then waits for it to exit. Terminate
+// is different from Signal followed by Wait: Terminate succeeds as long as the
+// process exits, whereas Wait fails if the exit code isn't 0.
+func (c *Cmd) Terminate(sig os.Signal) {
 	c.sh.Ok()
-	c.handleError(c.shutdown(sig))
+	c.handleError(c.terminate(sig))
 }
 
 // Run calls Start followed by Wait.
@@ -408,10 +404,9 @@ func (c *Cmd) makeStdoutStderr() (io.Writer, io.Writer, error) {
 }
 
 func (c *Cmd) clone() (*Cmd, error) {
-	vars := copyMap(c.Vars)
 	args := make([]string, len(c.Args))
 	copy(args, c.Args)
-	res, err := newCmdInternal(c.sh, vars, c.Path, args[1:])
+	res, err := newCmdInternal(c.sh, copyMap(c.Vars), c.Path, args[1:])
 	if err != nil {
 		return nil, err
 	}
@@ -617,22 +612,16 @@ func (c *Cmd) wait() error {
 // https://golang.org/src/os/exec_windows.go
 const errFinished = "os: process already finished"
 
-func (c *Cmd) kill() error {
-	if !c.started {
-		return errDidNotCallStart
-	}
-	if !c.isRunning() {
-		return nil
-	}
-	if err := c.c.Process.Kill(); err != nil && err.Error() != errFinished {
-		return err
-	}
-	return nil
-}
-
+// NOTE(sadovsky): Technically speaking, Process.Signal(os.Kill) is different
+// from Process.Kill. Currently, gosh.Cmd does not provide a way to trigger
+// Process.Kill. If it proves necessary, we'll add a "gosh.Kill" implementation
+// of the os.Signal interface, and have the signal and terminate methods map
+// that to Process.Kill.
 func (c *Cmd) signal(sig os.Signal) error {
 	if !c.started {
 		return errDidNotCallStart
+	} else if c.calledWait {
+		return errAlreadyCalledWait
 	}
 	if !c.isRunning() {
 		return nil
@@ -643,11 +632,12 @@ func (c *Cmd) signal(sig os.Signal) error {
 	return nil
 }
 
-func (c *Cmd) shutdown(sig os.Signal) error {
+func (c *Cmd) terminate(sig os.Signal) error {
 	if err := c.signal(sig); err != nil {
 		return err
 	}
 	if err := c.wait(); err != nil {
+		// Succeed as long as the process exited, regardless of the exit code.
 		if _, ok := err.(*exec.ExitError); !ok {
 			return err
 		}

@@ -43,14 +43,6 @@ var (
 	errDidNotCallNewShell   = errors.New("gosh: did not call gosh.NewShell")
 )
 
-// TODO(sadovsky):
-// - Eliminate Shell.Main, since it's easy enough to use Shell.Fn and set the
-//   returned Cmd's Args.
-// - Rename Shell.Fn to Shell.FuncCmd, Fn to Func, Register to RegisterFunc, and
-//   Call to CallFunc.
-// - Eliminate gosh.Run.
-// - Revisit whether to have Cmd.Shutdown.
-
 // Shell represents a shell. Not thread-safe.
 type Shell struct {
 	// Err is the most recent error from this Shell or any of its Cmds (may be
@@ -70,7 +62,7 @@ type Shell struct {
 	cmds           []*Cmd
 	tempFiles      []*os.File
 	tempDirs       []string
-	cleanupFns     []func()
+	cleanupFuncs   []func()
 }
 
 // Opts configures Shell.
@@ -109,7 +101,8 @@ func (sh *Shell) HandleError(err error) {
 	}
 }
 
-// Cmd returns a Cmd for an invocation of the named program.
+// Cmd returns a Cmd for an invocation of the named program. The given arguments
+// are passed to the child as command-line arguments.
 func (sh *Shell) Cmd(name string, args ...string) *Cmd {
 	sh.Ok()
 	res, err := sh.cmd(nil, name, args...)
@@ -117,22 +110,13 @@ func (sh *Shell) Cmd(name string, args ...string) *Cmd {
 	return res
 }
 
-// Fn returns a Cmd for an invocation of the given registered Fn.
-func (sh *Shell) Fn(fn *Fn, args ...interface{}) *Cmd {
+// FuncCmd returns a Cmd for an invocation of the given registered Func. The
+// given arguments are gob-encoded in the parent process, then gob-decoded in
+// the child and passed to the Func as parameters. To specify command-line
+// arguments for the child invocation, append to the returned Cmd's Args.
+func (sh *Shell) FuncCmd(f *Func, args ...interface{}) *Cmd {
 	sh.Ok()
-	res, err := sh.fn(fn, args...)
-	sh.HandleError(err)
-	return res
-}
-
-// Main returns a Cmd for an invocation of the given registered main() function.
-// Intended usage: Have your program's main() call RealMain, then write a parent
-// program that uses Shell.Main to run RealMain in a child process. With this
-// approach, RealMain can be compiled into the parent program's binary. Caveat:
-// potential flag collisions.
-func (sh *Shell) Main(fn *Fn, args ...string) *Cmd {
-	sh.Ok()
-	res, err := sh.main(fn, args...)
+	res, err := sh.funcCmd(f, args...)
 	sh.HandleError(err)
 	return res
 }
@@ -192,15 +176,16 @@ func (sh *Shell) Popd() {
 }
 
 // AddToCleanup registers the given function to be called by Shell.Cleanup().
-func (sh *Shell) AddToCleanup(fn func()) {
+func (sh *Shell) AddToCleanup(f func()) {
 	sh.Ok()
-	sh.HandleError(sh.addToCleanup(fn))
+	sh.HandleError(sh.addToCleanup(f))
 }
 
 // Cleanup cleans up all resources (child processes, temporary files and
 // directories) associated with this Shell. It is safe (and recommended) to call
 // Cleanup after a Shell error. It is also safe to call Cleanup multiple times;
-// calls after the first return immediately with no effect.
+// calls after the first return immediately with no effect. Cleanup never calls
+// HandleError.
 func (sh *Shell) Cleanup() {
 	if !sh.calledNewShell {
 		panic(errDidNotCallNewShell)
@@ -234,17 +219,18 @@ func (sh *Shell) Ok() {
 
 // onTerminationSignal starts a goroutine that listens for various termination
 // signals and calls the given function when such a signal is received.
-func onTerminationSignal(fn func(os.Signal)) {
+func onTerminationSignal(f func(os.Signal)) {
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 	go func() {
-		fn(<-ch)
+		f(<-ch)
 	}()
 }
 
 // Note: On error, newShell returns a *Shell with Opts.Fatalf initialized to
 // simplify things for the caller.
 func newShell(opts Opts) (*Shell, error) {
+	osVars := sliceToMap(os.Environ())
 	if opts.Fatalf == nil {
 		opts.Fatalf = func(format string, v ...interface{}) {
 			panic(fmt.Sprintf(format, v...))
@@ -256,15 +242,20 @@ func newShell(opts Opts) (*Shell, error) {
 		}
 	}
 	if opts.ChildOutputDir == "" {
-		opts.ChildOutputDir = os.Getenv(envChildOutputDir)
+		opts.ChildOutputDir = osVars[envChildOutputDir]
+	}
+	// Filter out any gosh env vars coming from outside.
+	shVars := copyMap(osVars)
+	for _, key := range []string{envBinDir, envChildOutputDir, envExitAfter, envInvocation, envWatchParent} {
+		delete(shVars, key)
 	}
 	sh := &Shell{
 		Opts:           opts,
-		Vars:           map[string]string{},
+		Vars:           shVars,
 		calledNewShell: true,
 	}
 	if sh.Opts.BinDir == "" {
-		sh.Opts.BinDir = os.Getenv(envBinDir)
+		sh.Opts.BinDir = osVars[envBinDir]
 		if sh.Opts.BinDir == "" {
 			var err error
 			if sh.Opts.BinDir, err = sh.makeTempDir(); err != nil {
@@ -298,9 +289,7 @@ func (sh *Shell) cmd(vars map[string]string, name string, args ...string) (*Cmd,
 	if vars == nil {
 		vars = make(map[string]string)
 	}
-	// TODO(sadovsky): Copy os.Environ() into sh.Vars in NewShell, and clear
-	// envWatchParent and envExitAfter if they're set.
-	c, err := newCmd(sh, mergeMaps(sliceToMap(os.Environ()), sh.Vars, vars), name, append(args, sh.Args...)...)
+	c, err := newCmd(sh, mergeMaps(sh.Vars, vars), name, append(args, sh.Args...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -318,37 +307,18 @@ func init() {
 	}
 }
 
-func (sh *Shell) fn(fn *Fn, args ...interface{}) (*Cmd, error) {
+func (sh *Shell) funcCmd(f *Func, args ...interface{}) (*Cmd, error) {
 	// Safeguard against the developer forgetting to call InitMain, which could
 	// lead to infinite recursion.
 	if !calledInitMain {
 		return nil, errDidNotCallInitMain
 	}
-	b, err := encInvocation(fn.name, args...)
+	buf, err := encodeInvocation(f.handle, args...)
 	if err != nil {
 		return nil, err
 	}
-	vars := map[string]string{envInvocation: string(b)}
+	vars := map[string]string{envInvocation: string(buf)}
 	return sh.cmd(vars, executablePath)
-}
-
-func (sh *Shell) main(fn *Fn, args ...string) (*Cmd, error) {
-	// Safeguard against the developer forgetting to call InitMain, which could
-	// lead to infinite recursion.
-	if !calledInitMain {
-		return nil, errDidNotCallInitMain
-	}
-	// Check that fn has the required signature.
-	t := fn.value.Type()
-	if t.NumIn() != 0 || t.NumOut() != 0 {
-		return nil, errors.New("gosh: main function must have no input or output parameters")
-	}
-	b, err := encInvocation(fn.name)
-	if err != nil {
-		return nil, err
-	}
-	vars := map[string]string{envInvocation: string(b)}
-	return sh.cmd(vars, executablePath, args...)
 }
 
 func (sh *Shell) wait() error {
@@ -463,24 +433,24 @@ func (sh *Shell) popd() error {
 	return nil
 }
 
-func (sh *Shell) addToCleanup(fn func()) error {
+func (sh *Shell) addToCleanup(f func()) error {
 	sh.cleanupMu.Lock()
 	defer sh.cleanupMu.Unlock()
 	if sh.calledCleanup {
 		return errAlreadyCalledCleanup
 	}
-	sh.cleanupFns = append(sh.cleanupFns, fn)
+	sh.cleanupFuncs = append(sh.cleanupFuncs, f)
 	return nil
 }
 
-// forEachRunningCmd applies fn to each running child process.
-func (sh *Shell) forEachRunningCmd(fn func(*Cmd)) bool {
+// forEachRunningCmd applies f to each running child process.
+func (sh *Shell) forEachRunningCmd(f func(*Cmd)) bool {
 	anyRunning := false
 	for _, c := range sh.cmds {
 		if c.isRunning() {
 			anyRunning = true
-			if fn != nil {
-				fn(c)
+			if f != nil {
+				f(c)
 			}
 		}
 	}
@@ -489,10 +459,10 @@ func (sh *Shell) forEachRunningCmd(fn func(*Cmd)) bool {
 
 // Note: It is safe to run Shell.terminateRunningCmds concurrently with the
 // waiter goroutine and with Cmd.wait. In particular, Shell.terminateRunningCmds
-// only calls c.{isRunning,Pid,Signal,Kill}, all of which are thread-safe with
-// the waiter goroutine and with Cmd.wait.
+// only calls c.{isRunning,Pid,signal}, all of which are thread-safe with the
+// waiter goroutine and with Cmd.wait.
 func (sh *Shell) terminateRunningCmds() {
-	// Try Cmd.signal first; if that doesn't work, use Cmd.kill.
+	// Send os.Interrupt first; if that doesn't work, send os.Kill.
 	anyRunning := sh.forEachRunningCmd(func(c *Cmd) {
 		if err := c.signal(os.Interrupt); err != nil {
 			sh.logf("%d.Signal(os.Interrupt) failed: %v\n", c.Pid(), err)
@@ -505,13 +475,13 @@ func (sh *Shell) terminateRunningCmds() {
 			sh.logf("%s (PID %d) did not die\n", c.Path, c.Pid())
 		})
 	}
-	// If any child is still running, wait for another second, then call Cmd.kill
-	// for all running children.
+	// If any child is still running, wait for another second, then send os.Kill
+	// to all running children.
 	if anyRunning {
 		time.Sleep(time.Second)
 		sh.forEachRunningCmd(func(c *Cmd) {
-			if err := c.kill(); err != nil {
-				sh.logf("%d.Kill() failed: %v\n", c.Pid(), err)
+			if err := c.signal(os.Kill); err != nil {
+				sh.logf("%d.Signal(os.Kill) failed: %v\n", c.Pid(), err)
 			}
 		})
 		sh.logf("Killed all remaining child processes\n")
@@ -546,8 +516,8 @@ func (sh *Shell) cleanup() {
 		}
 	}
 	// Call any registered cleanup functions in LIFO order.
-	for i := len(sh.cleanupFns) - 1; i >= 0; i-- {
-		sh.cleanupFns[i]()
+	for i := len(sh.cleanupFuncs) - 1; i >= 0; i-- {
+		sh.cleanupFuncs[i]()
 	}
 }
 
@@ -558,7 +528,7 @@ var calledInitMain = false
 
 // InitMain must be called early on in main(), before flags are parsed. In the
 // parent process, it returns immediately with no effect. In a child process for
-// a Shell.Fn or Shell.Main command, it runs the specified function, then exits.
+// a Shell.FuncCmd command, it runs the specified function, then exits.
 func InitMain() {
 	calledInitMain = true
 	s := os.Getenv(envInvocation)
@@ -567,21 +537,14 @@ func InitMain() {
 	}
 	os.Unsetenv(envInvocation)
 	InitChildMain()
-	name, args, err := decInvocation(s)
+	name, args, err := decodeInvocation(s)
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := Call(name, args...); err != nil {
+	if err := callFunc(name, args...); err != nil {
 		log.Fatal(err)
 	}
 	os.Exit(0)
-}
-
-// Run calls InitMain, then returns run(). Exported so that TestMain functions
-// can simply call os.Exit(gosh.Run(m.Run)).
-func Run(run func() int) int {
-	InitMain()
-	return run()
 }
 
 // NopWriteCloser returns a WriteCloser with a no-op Close method wrapping the

@@ -13,29 +13,34 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"runtime"
+	"sync"
 )
 
-// Fn is a registered, callable function.
-type Fn struct {
-	name  string
-	value reflect.Value
+// Func is a registered, callable function.
+type Func struct {
+	handle string
+	value  reflect.Value
 }
 
 var (
-	fns       = map[string]*Fn{}
 	errorType = reflect.TypeOf((*error)(nil)).Elem()
+	funcsMu   = sync.RWMutex{} // protects funcs
+	funcs     = map[string]*Func{}
 )
 
-// Register registers the given function with the given name. 'name' must be
-// unique across the dependency graph; 'fni' must be a function that accepts
-// gob-encodable arguments and returns an error or nothing.
-func Register(name string, fni interface{}) *Fn {
-	// TODO(sadovsky): Include len(fns) in registered name if it turns out that
-	// initialization order is deterministic.
-	if _, ok := fns[name]; ok {
-		panic(fmt.Errorf("gosh: %q is already registered", name))
+// RegisterFunc registers the given function with the given name. 'fi' must be a
+// function that accepts gob-encodable arguments and returns an error or
+// nothing.
+func RegisterFunc(name string, fi interface{}) *Func {
+	funcsMu.Lock()
+	defer funcsMu.Unlock()
+	_, file, line, _ := runtime.Caller(1)
+	handle := fmt.Sprintf("%s:%d:%s", file, line, name)
+	if _, ok := funcs[handle]; ok {
+		panic(fmt.Errorf("gosh: %q is already registered", handle))
 	}
-	v := reflect.ValueOf(fni)
+	v := reflect.ValueOf(fi)
 	t := v.Type()
 	if t.Kind() != reflect.Func {
 		panic(fmt.Errorf("gosh: %q is not a function: %v", name, t.Kind()))
@@ -43,7 +48,7 @@ func Register(name string, fni interface{}) *Fn {
 	if t.NumOut() > 1 || t.NumOut() == 1 && t.Out(0) != errorType {
 		panic(fmt.Errorf("gosh: %q must return an error or nothing: %v", name, t))
 	}
-	// Register the function's args with gob. Needed because Shell.Fn takes
+	// Register the function's args with gob. Needed because Shell.Func takes
 	// interface{} arguments.
 	for i := 0; i < t.NumIn(); i++ {
 		// Note: Clients are responsible for registering any concrete types stored
@@ -53,23 +58,34 @@ func Register(name string, fni interface{}) *Fn {
 		}
 		gob.Register(reflect.Zero(t.In(i)).Interface())
 	}
-	fn := &Fn{name: name, value: v}
-	fns[name] = fn
-	return fn
+	f := &Func{handle: handle, value: v}
+	funcs[handle] = f
+	return f
 }
 
-// Call calls the named function, which must have been registered.
-func Call(name string, args ...interface{}) error {
-	fn, err := getFn(name)
+// getFunc returns the referenced function.
+func getFunc(handle string) (*Func, error) {
+	funcsMu.RLock()
+	f, ok := funcs[handle]
+	funcsMu.RUnlock()
+	if !ok {
+		return nil, fmt.Errorf("gosh: unknown function %q", handle)
+	}
+	return f, nil
+}
+
+// callFunc calls the referenced function, which must have been registered.
+func callFunc(handle string, args ...interface{}) error {
+	f, err := getFunc(handle)
 	if err != nil {
 		return err
 	}
-	return fn.Call(args...)
+	return f.call(args...)
 }
 
-// Call calls the function fn with the input arguments args.
-func (fn *Fn) Call(args ...interface{}) error {
-	t := fn.value.Type()
+// call calls this Func with the given input arguments.
+func (f *Func) call(args ...interface{}) error {
+	t := f.value.Type()
 	in := []reflect.Value{}
 	for i, arg := range args {
 		var av reflect.Value
@@ -82,20 +98,11 @@ func (fn *Fn) Call(args ...interface{}) error {
 		}
 		in = append(in, av)
 	}
-	out := fn.value.Call(in)
+	out := f.value.Call(in)
 	if t.NumOut() == 1 && !out[0].IsNil() {
 		return out[0].Interface().(error)
 	}
 	return nil
-}
-
-// getFn returns the named function.
-func getFn(name string) (*Fn, error) {
-	fn, ok := fns[name]
-	if !ok {
-		return nil, fmt.Errorf("gosh: unknown function %q", name)
-	}
-	return fn, nil
 }
 
 // argType returns the type of the nth argument to a function of type t.
@@ -106,14 +113,14 @@ func argType(t reflect.Type, n int) reflect.Type {
 	return t.In(t.NumIn() - 1).Elem()
 }
 
-// checkCall checks that the named function exists and can be called with the
-// given arguments. Modeled after the implementation of reflect.Value.call.
-func checkCall(name string, args ...interface{}) error {
-	fn, err := getFn(name)
+// checkCall checks that the referenced function exists and can be called with
+// the given arguments. Modeled after the implementation of reflect.Value.call.
+func checkCall(handle string, args ...interface{}) error {
+	f, err := getFunc(handle)
 	if err != nil {
 		return err
 	}
-	t := fn.value.Type()
+	t := f.value.Type()
 	n := t.NumIn()
 	if t.IsVariadic() {
 		n--
@@ -139,16 +146,16 @@ func checkCall(name string, args ...interface{}) error {
 // invocation
 
 type invocation struct {
-	Name string
-	Args []interface{}
+	Handle string
+	Args   []interface{}
 }
 
-// encInvocation encodes an invocation.
-func encInvocation(name string, args ...interface{}) (string, error) {
-	if err := checkCall(name, args...); err != nil {
+// encodeInvocation encodes an invocation.
+func encodeInvocation(handle string, args ...interface{}) (string, error) {
+	if err := checkCall(handle, args...); err != nil {
 		return "", err
 	}
-	inv := invocation{Name: name, Args: args}
+	inv := invocation{Handle: handle, Args: args}
 	buf := &bytes.Buffer{}
 	if err := gob.NewEncoder(buf).Encode(inv); err != nil {
 		return "", fmt.Errorf("gosh: failed to encode invocation: %v", err)
@@ -158,8 +165,8 @@ func encInvocation(name string, args ...interface{}) (string, error) {
 	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 }
 
-// decInvocation decodes an invocation.
-func decInvocation(s string) (name string, args []interface{}, err error) {
+// decodeInvocation decodes an invocation.
+func decodeInvocation(s string) (handle string, args []interface{}, err error) {
 	var inv invocation
 	b, err := base64.StdEncoding.DecodeString(s)
 	if err == nil {
@@ -168,5 +175,5 @@ func decInvocation(s string) (name string, args []interface{}, err error) {
 	if err != nil {
 		return "", nil, fmt.Errorf("gosh: failed to decode invocation: %v", err)
 	}
-	return inv.Name, inv.Args, nil
+	return inv.Handle, inv.Args, nil
 }
