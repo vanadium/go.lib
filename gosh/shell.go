@@ -56,12 +56,13 @@ type Shell struct {
 	Args []string
 	// Internal state.
 	calledNewShell bool
-	dirStack       []string   // for pushd/popd
+	cleanupDone    chan struct{}
 	cleanupMu      sync.Mutex // protects the fields below; held during cleanup
 	calledCleanup  bool
 	cmds           []*Cmd
 	tempFiles      []*os.File
 	tempDirs       []string
+	dirStack       []string // for pushd/popd
 	cleanupFuncs   []func()
 }
 
@@ -217,16 +218,6 @@ func (sh *Shell) Ok() {
 ////////////////////////////////////////
 // Internals
 
-// onTerminationSignal starts a goroutine that listens for various termination
-// signals and calls the given function when such a signal is received.
-func onTerminationSignal(f func(os.Signal)) {
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
-	go func() {
-		f(<-ch)
-	}()
-}
-
 // Note: On error, newShell returns a *Shell with Opts.Fatalf initialized to
 // simplify things for the caller.
 func newShell(opts Opts) (*Shell, error) {
@@ -253,6 +244,7 @@ func newShell(opts Opts) (*Shell, error) {
 		Opts:           opts,
 		Vars:           shVars,
 		calledNewShell: true,
+		cleanupDone:    make(chan struct{}),
 	}
 	if sh.Opts.BinDir == "" {
 		sh.Opts.BinDir = osVars[envBinDir]
@@ -264,19 +256,34 @@ func newShell(opts Opts) (*Shell, error) {
 			}
 		}
 	}
-	// Call sh.cleanup() if needed when a termination signal is received.
-	onTerminationSignal(func(sig os.Signal) {
-		sh.logf("Received signal: %v\n", sig)
-		sh.cleanupMu.Lock()
-		defer sh.cleanupMu.Unlock()
-		if !sh.calledCleanup {
-			sh.cleanup()
-		}
-		// Note: We hold cleanupMu during os.Exit(1) so that the main goroutine will
-		// not call Shell.Ok() and panic before we exit.
-		os.Exit(1)
-	})
+	sh.cleanupOnSignal()
 	return sh, nil
+}
+
+// cleanupOnSignal starts a goroutine that calls cleanup if a termination signal
+// is received.
+func (sh *Shell) cleanupOnSignal() {
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
+	go func() {
+		select {
+		case sig := <-ch:
+			// A termination signal was received, the process will exit.
+			sh.logf("Received signal: %v\n", sig)
+			sh.cleanupMu.Lock()
+			defer sh.cleanupMu.Unlock()
+			if !sh.calledCleanup {
+				sh.cleanup()
+			}
+			// Note: We hold cleanupMu during os.Exit(1) so that the main goroutine will
+			// not call Shell.Ok() and panic before we exit.
+			os.Exit(1)
+		case <-sh.cleanupDone:
+			// The user called sh.Cleanup; stop listening for signals and exit this
+			// goroutine.
+		}
+		signal.Stop(ch)
+	}()
 }
 
 func (sh *Shell) logf(format string, v ...interface{}) {
@@ -410,6 +417,11 @@ func (sh *Shell) makeTempDir() (string, error) {
 }
 
 func (sh *Shell) pushd(dir string) error {
+	sh.cleanupMu.Lock()
+	defer sh.cleanupMu.Unlock()
+	if sh.calledCleanup {
+		return errAlreadyCalledCleanup
+	}
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
@@ -422,6 +434,11 @@ func (sh *Shell) pushd(dir string) error {
 }
 
 func (sh *Shell) popd() error {
+	sh.cleanupMu.Lock()
+	defer sh.cleanupMu.Unlock()
+	if sh.calledCleanup {
+		return errAlreadyCalledCleanup
+	}
 	if len(sh.dirStack) == 0 {
 		return errors.New("gosh: dir stack is empty")
 	}
@@ -519,6 +536,7 @@ func (sh *Shell) cleanup() {
 	for i := len(sh.cleanupFuncs) - 1; i >= 0; i-- {
 		sh.cleanupFuncs[i]()
 	}
+	close(sh.cleanupDone)
 }
 
 ////////////////////////////////////////

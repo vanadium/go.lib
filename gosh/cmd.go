@@ -483,6 +483,11 @@ func (c *Cmd) addStderrWriter(wc io.WriteCloser) error {
 // that calls InitChildMain.
 
 func (c *Cmd) start() error {
+	defer func() {
+		if !c.started {
+			c.closeClosers()
+		}
+	}()
 	if c.calledStart {
 		return errAlreadyCalledStart
 	}
@@ -520,27 +525,28 @@ func (c *Cmd) start() error {
 		return err
 	}
 	// Start the command.
-	onExit := func(err error) {
+	if err = c.c.Start(); err != nil {
+		return err
+	}
+	c.started = true
+	c.startExitWaiter()
+	return nil
+}
+
+// startExitWaiter spawns a goroutine that calls exec.Cmd.Wait, waiting for the
+// process to exit. Calling exec.Cmd.Wait here rather than in gosh.Cmd.Wait
+// ensures that the child process is reaped once it exits. Note, gosh.Cmd.wait
+// blocks on waitChan.
+func (c *Cmd) startExitWaiter() {
+	go func() {
+		waitErr := c.c.Wait()
 		c.cond.L.Lock()
 		c.exited = true
 		c.cond.Signal()
 		c.cond.L.Unlock()
 		c.closeClosers()
-		c.waitChan <- err
-	}
-	if err = c.c.Start(); err != nil {
-		onExit(errors.New("gosh: start failed"))
-		return err
-	}
-	c.started = true
-	// Spawn a "waiter" goroutine that calls exec.Cmd.Wait and thus waits for the
-	// process to exit. Calling exec.Cmd.Wait here rather than in gosh.Cmd.Wait
-	// ensures that the child process is reaped once it exits. Note, gosh.Cmd.wait
-	// blocks on waitChan.
-	go func() {
-		onExit(c.c.Wait())
+		c.waitChan <- waitErr
 	}()
-	return nil
 }
 
 // TODO(sadovsky): Maybe add optional timeouts for

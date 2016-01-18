@@ -118,6 +118,9 @@ var (
 			<-ch
 			os.Exit(0)
 		}()
+		// The parent waits for this ready signal, to avoid the race where a signal
+		// is sent before the handler is installed.
+		gosh.SendReady()
 		time.Sleep(d)
 		os.Exit(code)
 	})
@@ -540,21 +543,23 @@ func TestSignal(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 
-	for _, d := range []time.Duration{0, time.Second} {
+	for _, d := range []time.Duration{0, time.Hour} {
 		for _, s := range []os.Signal{os.Interrupt, os.Kill} {
 			fmt.Println(d, s)
 			c := sh.FuncCmd(sleepFunc, d, 0)
 			c.Start()
+			c.AwaitReady()
 			// Wait for a bit to allow the zero-sleep commands to exit.
 			time.Sleep(100 * time.Millisecond)
 			c.Signal(s)
-			// Wait should succeed as long as the exit code was 0, regardless of
-			// whether the signal arrived or the process had already exited.
-			if s == os.Interrupt {
+			switch {
+			case s == os.Interrupt:
+				// Wait should succeed as long as the exit code was 0, regardless of
+				// whether the signal arrived or the process had already exited.
+				c.Wait()
+			case d != 0:
 				// Note: We don't call Wait in the {d: 0, s: os.Kill} case because doing
 				// so makes the test flaky on slow systems.
-				c.Wait()
-			} else if d == time.Second {
 				setsErr(t, sh, func() { c.Wait() })
 			}
 		}
@@ -570,11 +575,12 @@ func TestTerminate(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 
-	for _, d := range []time.Duration{0, time.Second} {
+	for _, d := range []time.Duration{0, time.Hour} {
 		for _, s := range []os.Signal{os.Interrupt, os.Kill} {
 			fmt.Println(d, s)
 			c := sh.FuncCmd(sleepFunc, d, 0)
 			c.Start()
+			c.AwaitReady()
 			// Wait for a bit to allow the zero-sleep commands to exit.
 			time.Sleep(100 * time.Millisecond)
 			// Terminate should succeed regardless of the exit code, and regardless of
