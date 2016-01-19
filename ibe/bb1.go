@@ -161,9 +161,9 @@ func newbb1params() *bb1params {
 
 // Helper method that checks that the ciphertext slice for a given message has
 // the correct size: len(C) = len(m) + CiphertextOverhead()
-func (e *bb1params) checkSizes(m, C []byte) error {
-	if msize, Csize := len(m), len(C); Csize != msize+e.CiphertextOverhead() {
-		return fmt.Errorf("provided plaintext and ciphertext are of sizes (%d, %d), ciphertext size should be %d", msize, Csize, e.CiphertextOverhead())
+func checkSizes(m, C []byte, params Params) error {
+	if msize, Csize := len(m), len(C); Csize != msize+params.CiphertextOverhead() {
+		return fmt.Errorf("provided plaintext and ciphertext are of sizes (%d, %d), ciphertext size should be %d", msize, Csize, params.CiphertextOverhead())
 	}
 	return nil
 }
@@ -215,7 +215,7 @@ func computeKemRandomness(sigma *[encKeySize]byte, m []byte) *big.Int {
 }
 
 func (e *bb1params) Encrypt(id string, m, C []byte) error {
-	if err := e.checkSizes(m, C); err != nil {
+	if err := checkSizes(m, C, e); err != nil {
 		return err
 	}
 
@@ -270,7 +270,7 @@ type bb1PrivateKey struct {
 }
 
 func (k *bb1PrivateKey) Decrypt(C, m []byte) error {
-	if err := k.params.checkSizes(m, C); err != nil {
+	if err := checkSizes(m, C, k.params); err != nil {
 		return err
 	}
 	var (

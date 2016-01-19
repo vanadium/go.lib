@@ -17,15 +17,29 @@ var magicNumber = []byte{0x1b, 0xe0} // prefix that appears in the marshaled for
 type marshaledType byte
 
 const (
+	// size of field element (256 bits = 32 bytes)
+	fieldElemSize = 32
+
 	// types of encoded bytes, 1 byte
 	typeBB1Params     marshaledType = 0
 	typeBB1PrivateKey               = 1
+	typeBB2Params                   = 2
+	typeBB2PrivateKey               = 3
 
 	// Sizes excluding the magic number and type header.
 	headerSize                 = 3
 	marshaledBB1ParamsSize     = 2*marshaledG1Size + 2*marshaledG2Size + marshaledGTSize
 	marshaledBB1PrivateKeySize = 2 * marshaledG2Size
+	marshaledBB2ParamsSize     = 2*marshaledG1Size + marshaledGTSize
+	marshaledBB2PrivateKeySize = fieldElemSize + marshaledG2Size
 )
+
+func writeFieldElement(elem *big.Int) []byte {
+	elemBytes := elem.Bytes()
+	ret := make([]byte, fieldElemSize)
+	copy(ret[fieldElemSize-len(elemBytes):], elemBytes)
+	return ret
+}
 
 func writeHeader(typ marshaledType) []byte {
 	ret := make([]byte, headerSize)
@@ -58,6 +72,17 @@ func MarshalParams(p Params) ([]byte, error) {
 			p.h.Marshal(),
 			p.g1Hat.Marshal(),
 			p.hHat.Marshal(),
+			p.v.Marshal(),
+		} {
+			ret = append(ret, field...)
+		}
+		return ret, nil
+	case *bb2params:
+		ret := make([]byte, 0, headerSize+marshaledBB2ParamsSize)
+		for _, field := range [][]byte{
+			writeHeader(typeBB2Params),
+			p.X.Marshal(),
+			p.Y.Marshal(),
 			p.v.Marshal(),
 		} {
 			ret = append(ret, field...)
@@ -105,6 +130,21 @@ func UnmarshalParams(data []byte) (Params, error) {
 			return nil, fmt.Errorf("failed to unmarshal v")
 		}
 		return p, nil
+	case typeBB2Params:
+		if len(data) != marshaledBB2ParamsSize {
+			return nil, fmt.Errorf("invalid size")
+		}
+		p := newbb2params()
+		if _, ok := p.X.Unmarshal(advance(marshaledG1Size)); !ok {
+			return nil, fmt.Errorf("failed to unmarshal X")
+		}
+		if _, ok := p.Y.Unmarshal(advance(marshaledG1Size)); !ok {
+			return nil, fmt.Errorf("failed to unmarshal Y")
+		}
+		if _, ok := p.v.Unmarshal(advance(marshaledGTSize)); !ok {
+			return nil, fmt.Errorf("failed to unmarshal v")
+		}
+		return p, nil
 	default:
 		return nil, fmt.Errorf("unrecognized Params type (%d)", typ)
 	}
@@ -119,6 +159,16 @@ func MarshalPrivateKey(k PrivateKey) ([]byte, error) {
 			writeHeader(typeBB1PrivateKey),
 			k.d0.Marshal(),
 			k.d1.Marshal(),
+		} {
+			ret = append(ret, field...)
+		}
+		return ret, nil
+	case *bb2PrivateKey:
+		ret := make([]byte, 0, headerSize+marshaledBB2PrivateKeySize)
+		for _, field := range [][]byte{
+			writeHeader(typeBB2PrivateKey),
+			writeFieldElement(k.r),
+			k.K.Marshal(),
 		} {
 			ret = append(ret, field...)
 		}
@@ -159,6 +209,25 @@ func UnmarshalPrivateKey(params Params, data []byte) (PrivateKey, error) {
 			return nil, fmt.Errorf("params type %T incompatible with %T", params, k)
 		} else {
 			k.params = new(bb1params)
+			*(k.params) = *p
+		}
+		return k, nil
+	case typeBB2PrivateKey:
+		if len(data) != marshaledBB2PrivateKeySize {
+			return nil, fmt.Errorf("invalid size")
+		}
+		k := &bb2PrivateKey{
+			r: new(big.Int),
+			K: new(bn256.G2),
+		}
+		k.r.SetBytes(advance(fieldElemSize))
+		if _, ok := k.K.Unmarshal(advance(marshaledG2Size)); !ok {
+			return nil, fmt.Errorf("failed to unmarshal K")
+		}
+		if p, ok := params.(*bb2params); !ok {
+			return nil, fmt.Errorf("params type %T incompatible with %T", params, k)
+		} else {
+			k.params = new(bb2params)
 			*(k.params) = *p
 		}
 		return k, nil
