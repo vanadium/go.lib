@@ -52,10 +52,9 @@ func Serve() {
 	if err != nil {
 		panic(err)
 	}
-	gosh.SendVars(map[string]string{"Addr": ln.Addr().String()})
 	go func() {
 		time.Sleep(100 * time.Millisecond)
-		gosh.SendReady()
+		gosh.SendVars(map[string]string{"addr": ln.Addr().String()})
 	}()
 	if err = srv.Serve(tcpKeepAliveListener{ln.(*net.TCPListener)}); err != nil {
 		panic(err)

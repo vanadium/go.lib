@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -71,7 +70,6 @@ type Cmd struct {
 	stdoutWriters    []io.Writer
 	stderrWriters    []io.Writer
 	closers          []io.Closer
-	recvReady        bool              // protected by cond.L
 	recvVars         map[string]string // protected by cond.L
 }
 
@@ -152,15 +150,8 @@ func (c *Cmd) Start() {
 	c.handleError(c.start())
 }
 
-// AwaitReady waits for the child process to call SendReady. Must not be called
-// before Start or after Wait.
-func (c *Cmd) AwaitReady() {
-	c.sh.Ok()
-	c.handleError(c.awaitReady())
-}
-
 // AwaitVars waits for the child process to send values for the given vars
-// (using SendVars). Must not be called before Start or after Wait.
+// (e.g. using SendVars). Must not be called before Start or after Wait.
 func (c *Cmd) AwaitVars(keys ...string) map[string]string {
 	c.sh.Ok()
 	res, err := c.awaitVars(keys...)
@@ -305,7 +296,7 @@ func (c *Cmd) isRunning() bool {
 type recvWriter struct {
 	c          *Cmd
 	buf        bytes.Buffer
-	readPrefix bool // if true, we've read len(msgPrefix) for the current line
+	readPrefix bool // if true, we've read len(varsPrefix) for the current line
 	skipLine   bool // if true, ignore bytes until next '\n'
 }
 
@@ -313,34 +304,24 @@ func (w *recvWriter) Write(p []byte) (n int, err error) {
 	for _, b := range p {
 		if b == '\n' {
 			if w.readPrefix && !w.skipLine {
-				m := msg{}
-				if err := json.Unmarshal(w.buf.Bytes(), &m); err != nil {
+				vars := make(map[string]string)
+				if err := json.Unmarshal(w.buf.Bytes(), &vars); err != nil {
 					return 0, err
 				}
-				switch m.Type {
-				case typeReady:
-					w.c.cond.L.Lock()
-					w.c.recvReady = true
-					w.c.cond.Signal()
-					w.c.cond.L.Unlock()
-				case typeVars:
-					w.c.cond.L.Lock()
-					w.c.recvVars = mergeMaps(w.c.recvVars, m.Vars)
-					w.c.cond.Signal()
-					w.c.cond.L.Unlock()
-				default:
-					return 0, fmt.Errorf("unknown message type: %q", m.Type)
-				}
+				w.c.cond.L.Lock()
+				w.c.recvVars = mergeMaps(w.c.recvVars, vars)
+				w.c.cond.Signal()
+				w.c.cond.L.Unlock()
 			}
 			// Reset state for next line.
 			w.readPrefix, w.skipLine = false, false
 			w.buf.Reset()
 		} else if !w.skipLine {
 			w.buf.WriteByte(b)
-			if !w.readPrefix && w.buf.Len() == len(msgPrefix) {
+			if !w.readPrefix && w.buf.Len() == len(varsPrefix) {
 				w.readPrefix = true
-				prefix := string(w.buf.Next(len(msgPrefix)))
-				if prefix != msgPrefix {
+				prefix := string(w.buf.Next(len(varsPrefix)))
+				if prefix != varsPrefix {
 					w.skipLine = true
 				}
 			}
@@ -362,7 +343,7 @@ func (w lockedWriter) Write(p []byte) (int, error) {
 }
 
 func (c *Cmd) makeStdoutStderr() (io.Writer, io.Writer, error) {
-	c.stdoutWriters = append(c.stdoutWriters, &recvWriter{c: c})
+	c.stderrWriters = append(c.stderrWriters, &recvWriter{c: c})
 	if c.PropagateOutput {
 		c.stdoutWriters = append(c.stdoutWriters, os.Stdout)
 		c.stderrWriters = append(c.stderrWriters, os.Stderr)
@@ -549,26 +530,7 @@ func (c *Cmd) startExitWaiter() {
 	}()
 }
 
-// TODO(sadovsky): Maybe add optional timeouts for
-// Cmd.{awaitReady,awaitVars,wait}.
-
-func (c *Cmd) awaitReady() error {
-	if !c.started {
-		return errDidNotCallStart
-	} else if c.calledWait {
-		return errAlreadyCalledWait
-	}
-	c.cond.L.Lock()
-	defer c.cond.L.Unlock()
-	for !c.exited && !c.recvReady {
-		c.cond.Wait()
-	}
-	// Return nil error if both conditions triggered simultaneously.
-	if !c.recvReady {
-		return errProcessExited
-	}
-	return nil
-}
+// TODO(sadovsky): Maybe add optional timeouts for Cmd.{awaitVars,wait}.
 
 func (c *Cmd) awaitVars(keys ...string) (map[string]string, error) {
 	if !c.started {

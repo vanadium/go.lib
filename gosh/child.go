@@ -14,34 +14,18 @@ import (
 	"time"
 )
 
-const (
-	msgPrefix = "#! "
-	typeReady = "ready"
-	typeVars  = "vars"
-)
+const varsPrefix = "# gosh "
 
-type msg struct {
-	Type string
-	Vars map[string]string // nil if Type is typeReady
-}
-
-func send(m msg) {
-	data, err := json.Marshal(m)
+// SendVars sends the given vars to the parent process. Writes a line of the
+// form "# gosh { ... JSON object ... }" to stderr.
+func SendVars(vars map[string]string) {
+	data, err := json.Marshal(vars)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("%s%s\n", msgPrefix, data)
-}
-
-// SendReady tells the parent process that this child process is "ready", e.g.
-// ready to serve requests.
-func SendReady() {
-	send(msg{Type: typeReady})
-}
-
-// SendVars sends the given vars to the parent process.
-func SendVars(vars map[string]string) {
-	send(msg{Type: typeVars, Vars: vars})
+	// TODO(sadovsky): Handle the case where the JSON object contains a newline
+	// character.
+	fmt.Fprintf(os.Stderr, "%s%s\n", varsPrefix, data)
 }
 
 // watchParent periodically checks whether the parent process has exited and, if

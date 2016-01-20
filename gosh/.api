@@ -4,11 +4,9 @@ pkg gosh, func NewBufferedPipe() io.ReadWriteCloser
 pkg gosh, func NewShell(Opts) *Shell
 pkg gosh, func NopWriteCloser(io.Writer) io.WriteCloser
 pkg gosh, func RegisterFunc(string, interface{}) *Func
-pkg gosh, func SendReady()
 pkg gosh, func SendVars(map[string]string)
 pkg gosh, method (*Cmd) AddStderrWriter(io.WriteCloser)
 pkg gosh, method (*Cmd) AddStdoutWriter(io.WriteCloser)
-pkg gosh, method (*Cmd) AwaitReady()
 pkg gosh, method (*Cmd) AwaitVars(...string) map[string]string
 pkg gosh, method (*Cmd) Clone() *Cmd
 pkg gosh, method (*Cmd) CombinedOutput() string

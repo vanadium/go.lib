@@ -19,8 +19,7 @@ func ExampleCmd() {
 	binPath := sh.BuildGoPkg("v.io/x/lib/gosh/internal/gosh_example_server")
 	c := sh.Cmd(binPath)
 	c.Start()
-	c.AwaitReady()
-	addr := c.AwaitVars("Addr")["Addr"]
+	addr := c.AwaitVars("addr")["addr"]
 	fmt.Println(addr)
 
 	// Run client.
@@ -41,8 +40,7 @@ func ExampleFuncCmd() {
 	// Start server.
 	c := sh.FuncCmd(serveFunc)
 	c.Start()
-	c.AwaitReady()
-	addr := c.AwaitVars("Addr")["Addr"]
+	addr := c.AwaitVars("addr")["addr"]
 	fmt.Println(addr)
 
 	// Run client.

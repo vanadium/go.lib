@@ -118,9 +118,9 @@ var (
 			<-ch
 			os.Exit(0)
 		}()
-		// The parent waits for this ready signal, to avoid the race where a signal
-		// is sent before the handler is installed.
-		gosh.SendReady()
+		// The parent waits for this "ready" notification to avoid the race where a
+		// signal is sent before the handler is installed.
+		gosh.SendVars(map[string]string{"ready": ""})
 		time.Sleep(d)
 		os.Exit(code)
 	})
@@ -209,8 +209,7 @@ func TestCmd(t *testing.T) {
 	binPath := sh.BuildGoPkg("v.io/x/lib/gosh/internal/gosh_example_server")
 	c := sh.Cmd(binPath)
 	c.Start()
-	c.AwaitReady()
-	addr := c.AwaitVars("Addr")["Addr"]
+	addr := c.AwaitVars("addr")["addr"]
 	neq(t, addr, "")
 
 	// Run client.
@@ -231,8 +230,7 @@ func TestFuncCmd(t *testing.T) {
 	// Start server.
 	c := sh.FuncCmd(serveFunc)
 	c.Start()
-	c.AwaitReady()
-	addr := c.AwaitVars("Addr")["Addr"]
+	addr := c.AwaitVars("addr")["addr"]
 	neq(t, addr, "")
 
 	// Run client.
@@ -258,16 +256,12 @@ var (
 	})
 )
 
-// Tests that Await{Ready,Vars} return immediately when the process exits.
+// Tests that AwaitVars returns immediately when the process exits.
 func TestAwaitProcessExit(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 
 	c := sh.FuncCmd(exitFunc, 0)
-	c.Start()
-	setsErr(t, sh, func() { c.AwaitReady() })
-
-	c = sh.FuncCmd(exitFunc, 0)
 	c.Start()
 	setsErr(t, sh, func() { c.AwaitVars("foo") })
 }
@@ -548,7 +542,7 @@ func TestSignal(t *testing.T) {
 			fmt.Println(d, s)
 			c := sh.FuncCmd(sleepFunc, d, 0)
 			c.Start()
-			c.AwaitReady()
+			c.AwaitVars("ready")
 			// Wait for a bit to allow the zero-sleep commands to exit.
 			time.Sleep(100 * time.Millisecond)
 			c.Signal(s)
@@ -580,7 +574,7 @@ func TestTerminate(t *testing.T) {
 			fmt.Println(d, s)
 			c := sh.FuncCmd(sleepFunc, d, 0)
 			c.Start()
-			c.AwaitReady()
+			c.AwaitVars("ready")
 			// Wait for a bit to allow the zero-sleep commands to exit.
 			time.Sleep(100 * time.Millisecond)
 			// Terminate should succeed regardless of the exit code, and regardless of

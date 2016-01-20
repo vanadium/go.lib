@@ -268,15 +268,15 @@ func (sh *Shell) cleanupOnSignal() {
 	go func() {
 		select {
 		case sig := <-ch:
-			// A termination signal was received, the process will exit.
+			// A termination signal was received; the process will exit.
 			sh.logf("Received signal: %v\n", sig)
 			sh.cleanupMu.Lock()
 			defer sh.cleanupMu.Unlock()
 			if !sh.calledCleanup {
 				sh.cleanup()
 			}
-			// Note: We hold cleanupMu during os.Exit(1) so that the main goroutine will
-			// not call Shell.Ok() and panic before we exit.
+			// Note: We hold cleanupMu during os.Exit(1) so that the main goroutine
+			// will not call Shell.Ok() and panic before we exit.
 			os.Exit(1)
 		case <-sh.cleanupDone:
 			// The user called sh.Cleanup; stop listening for signals and exit this
@@ -329,8 +329,8 @@ func (sh *Shell) funcCmd(f *Func, args ...interface{}) (*Cmd, error) {
 }
 
 func (sh *Shell) wait() error {
-	// Note: It is illegal to call newCmd() concurrently with Shell.wait(), so we
-	// need not hold cleanupMu when accessing sh.cmds below.
+	// Note: It is illegal to call newCmdInternal concurrently with Shell.wait, so
+	// we need not hold cleanupMu when accessing sh.cmds below.
 	var res error
 	for _, c := range sh.cmds {
 		if !c.started || c.calledWait {
