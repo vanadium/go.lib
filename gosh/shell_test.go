@@ -238,6 +238,72 @@ func TestFuncCmd(t *testing.T) {
 	eq(t, c.Stdout(), "Hello, world!\n")
 }
 
+var (
+	sendVarsFunc = gosh.RegisterFunc("sendVarsFunc", func(vars map[string]string) {
+		gosh.SendVars(vars)
+		time.Sleep(time.Hour)
+	})
+	stderrFunc = gosh.RegisterFunc("stderrFunc", func(s string) {
+		fmt.Fprintf(os.Stderr, s)
+		time.Sleep(time.Hour)
+	})
+)
+
+// Tests that AwaitVars works under various conditions.
+func TestAwaitVars(t *testing.T) {
+	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	defer sh.Cleanup()
+
+	c := sh.FuncCmd(sendVarsFunc, map[string]string{"a": "1"})
+	c.Start()
+	eq(t, c.AwaitVars("a")["a"], "1")
+
+	c = sh.FuncCmd(stderrFunc, `<goshVars{"a":"1","b":"2"}goshVars>`)
+	c.Start()
+	vars := c.AwaitVars("a", "b")
+	eq(t, vars["a"], "1")
+	eq(t, vars["b"], "2")
+
+	c = sh.FuncCmd(stderrFunc, `<goshVars{"a":"1"}goshVars><gosh`)
+	c.Start()
+	eq(t, c.AwaitVars("a")["a"], "1")
+
+	c = sh.FuncCmd(stderrFunc, `<goshVars{"a":"1"}goshVars><goshVars{"b":"2"}goshVars>`)
+	c.Start()
+	vars = c.AwaitVars("a", "b")
+	eq(t, vars["a"], "1")
+	eq(t, vars["b"], "2")
+
+	c = sh.FuncCmd(stderrFunc, `<goshVars{"a":"1","b":"2"}goshVars>`)
+	c.Start()
+	vars = c.AwaitVars("a")
+	eq(t, vars["a"], "1")
+	eq(t, vars["b"], "")
+	vars = c.AwaitVars("b")
+	eq(t, vars["a"], "")
+	eq(t, vars["b"], "2")
+
+	c = sh.FuncCmd(stderrFunc, `<g<goshVars{"a":"goshVars"}goshVars>s><goshVars`)
+	c.Start()
+	eq(t, c.AwaitVars("a")["a"], "goshVars")
+
+	c = sh.FuncCmd(stderrFunc, `<<goshVars{"a":"1"}goshVars>><<goshVars{"b":"<goshVars"}goshVars>>`)
+	c.Start()
+	vars = c.AwaitVars("a", "b")
+	eq(t, vars["a"], "1")
+	eq(t, vars["b"], "<goshVars")
+}
+
+// Tests that AwaitVars returns immediately when the process exits.
+func TestAwaitProcessExit(t *testing.T) {
+	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	defer sh.Cleanup()
+
+	c := sh.FuncCmd(exitFunc, 0)
+	c.Start()
+	setsErr(t, sh, func() { c.AwaitVars("foo") })
+}
+
 // Functions designed for TestRegistry.
 var (
 	printIntsFunc = gosh.RegisterFunc("printIntsFunc", func(v ...int) {
@@ -255,16 +321,6 @@ var (
 		fmt.Printf(format, vi...)
 	})
 )
-
-// Tests that AwaitVars returns immediately when the process exits.
-func TestAwaitProcessExit(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
-	defer sh.Cleanup()
-
-	c := sh.FuncCmd(exitFunc, 0)
-	c.Start()
-	setsErr(t, sh, func() { c.AwaitVars("foo") })
-}
 
 // Tests function signature-checking and execution.
 func TestRegistry(t *testing.T) {

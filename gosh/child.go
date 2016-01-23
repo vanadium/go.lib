@@ -14,18 +14,19 @@ import (
 	"time"
 )
 
-const varsPrefix = "# gosh "
+var (
+	varsPrefix = []byte("<goshVars")
+	varsSuffix = []byte("goshVars>")
+)
 
-// SendVars sends the given vars to the parent process. Writes a line of the
-// form "# gosh { ... JSON object ... }" to stderr.
+// SendVars sends the given vars to the parent process. Writes a string of the
+// form "<goshVars{ ... JSON-encoded vars ... }goshVars>\n" to stderr.
 func SendVars(vars map[string]string) {
 	data, err := json.Marshal(vars)
 	if err != nil {
 		panic(err)
 	}
-	// TODO(sadovsky): Handle the case where the JSON object contains a newline
-	// character.
-	fmt.Fprintf(os.Stderr, "%s%s\n", varsPrefix, data)
+	fmt.Fprintf(os.Stderr, "%s%s%s\n", varsPrefix, data, varsSuffix)
 }
 
 // watchParent periodically checks whether the parent process has exited and, if

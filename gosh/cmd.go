@@ -292,40 +292,49 @@ func (c *Cmd) isRunning() bool {
 	return !c.exited
 }
 
-// recvWriter listens for gosh messages from a child process.
+// recvWriter listens for gosh vars from a child process.
 type recvWriter struct {
-	c          *Cmd
-	buf        bytes.Buffer
-	readPrefix bool // if true, we've read len(varsPrefix) for the current line
-	skipLine   bool // if true, ignore bytes until next '\n'
+	c             *Cmd
+	buf           []byte
+	matchedPrefix int
+	matchedSuffix int
 }
 
 func (w *recvWriter) Write(p []byte) (n int, err error) {
-	for _, b := range p {
-		if b == '\n' {
-			if w.readPrefix && !w.skipLine {
-				vars := make(map[string]string)
-				if err := json.Unmarshal(w.buf.Bytes(), &vars); err != nil {
-					return 0, err
-				}
-				w.c.cond.L.Lock()
-				w.c.recvVars = mergeMaps(w.c.recvVars, vars)
-				w.c.cond.Signal()
-				w.c.cond.L.Unlock()
+	for i, b := range p {
+		if w.matchedPrefix < len(varsPrefix) {
+			// Look for matching prefix.
+			if b != varsPrefix[w.matchedPrefix] {
+				w.matchedPrefix = 0
 			}
-			// Reset state for next line.
-			w.readPrefix, w.skipLine = false, false
-			w.buf.Reset()
-		} else if !w.skipLine {
-			w.buf.WriteByte(b)
-			if !w.readPrefix && w.buf.Len() == len(varsPrefix) {
-				w.readPrefix = true
-				prefix := string(w.buf.Next(len(varsPrefix)))
-				if prefix != varsPrefix {
-					w.skipLine = true
-				}
+			if b == varsPrefix[w.matchedPrefix] {
+				w.matchedPrefix++
 			}
+			continue
 		}
+		w.buf = append(w.buf, b)
+		// Look for matching suffix.
+		if b != varsSuffix[w.matchedSuffix] {
+			w.matchedSuffix = 0
+		}
+		if b == varsSuffix[w.matchedSuffix] {
+			w.matchedSuffix++
+		}
+		if w.matchedSuffix != len(varsSuffix) {
+			continue
+		}
+		// Found matching suffix.
+		data := w.buf[:len(w.buf)-len(varsSuffix)]
+		w.buf = w.buf[:0]
+		w.matchedPrefix, w.matchedSuffix = 0, 0
+		vars := make(map[string]string)
+		if err := json.Unmarshal(data, &vars); err != nil {
+			return i, err
+		}
+		w.c.cond.L.Lock()
+		w.c.recvVars = mergeMaps(w.c.recvVars, vars)
+		w.c.cond.Signal()
+		w.c.cond.L.Unlock()
 	}
 	return len(p), nil
 }
