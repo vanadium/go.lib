@@ -16,10 +16,10 @@ type bufferedPipe struct {
 	closed bool
 }
 
-// NewBufferedPipe returns a new thread-safe pipe backed by an unbounded
+// newBufferedPipe returns a new thread-safe pipe backed by an unbounded
 // in-memory buffer. Writes on the pipe never block; reads on the pipe block
 // until data is available.
-func NewBufferedPipe() io.ReadWriteCloser {
+func newBufferedPipe() io.ReadWriteCloser {
 	return &bufferedPipe{cond: sync.NewCond(&sync.Mutex{})}
 }
 

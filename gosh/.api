@@ -1,6 +1,5 @@
 pkg gosh, func InitChildMain()
 pkg gosh, func InitMain()
-pkg gosh, func NewBufferedPipe() io.ReadWriteCloser
 pkg gosh, func NewShell(Opts) *Shell
 pkg gosh, func NopWriteCloser(io.Writer) io.WriteCloser
 pkg gosh, func RegisterFunc(string, interface{}) *Func
@@ -12,12 +11,13 @@ pkg gosh, method (*Cmd) Clone() *Cmd
 pkg gosh, method (*Cmd) CombinedOutput() string
 pkg gosh, method (*Cmd) Pid() int
 pkg gosh, method (*Cmd) Run()
+pkg gosh, method (*Cmd) SetStdinReader(io.Reader)
 pkg gosh, method (*Cmd) Signal(os.Signal)
 pkg gosh, method (*Cmd) Start()
-pkg gosh, method (*Cmd) StderrPipe() io.Reader
+pkg gosh, method (*Cmd) StderrPipe() io.ReadCloser
 pkg gosh, method (*Cmd) StdinPipe() io.WriteCloser
 pkg gosh, method (*Cmd) Stdout() string
-pkg gosh, method (*Cmd) StdoutPipe() io.Reader
+pkg gosh, method (*Cmd) StdoutPipe() io.ReadCloser
 pkg gosh, method (*Cmd) StdoutStderr() (string, string)
 pkg gosh, method (*Cmd) Terminate(os.Signal)
 pkg gosh, method (*Cmd) Wait()
@@ -43,7 +43,6 @@ pkg gosh, type Cmd struct, IgnoreParentExit bool
 pkg gosh, type Cmd struct, OutputDir string
 pkg gosh, type Cmd struct, Path string
 pkg gosh, type Cmd struct, PropagateOutput bool
-pkg gosh, type Cmd struct, Stdin string
 pkg gosh, type Cmd struct, Vars map[string]string
 pkg gosh, type Func struct
 pkg gosh, type Opts struct

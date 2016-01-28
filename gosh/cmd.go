@@ -12,14 +12,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
 var (
 	errAlreadyCalledStart = errors.New("gosh: already called Cmd.Start")
 	errAlreadyCalledWait  = errors.New("gosh: already called Cmd.Wait")
+	errAlreadySetStdin    = errors.New("gosh: already set stdin")
 	errCloseStdout        = errors.New("gosh: use NopWriteCloser(os.Stdout) to prevent stdout from being closed")
 	errCloseStderr        = errors.New("gosh: use NopWriteCloser(os.Stderr) to prevent stderr from being closed")
 	errDidNotCallStart    = errors.New("gosh: did not call Cmd.Start")
@@ -55,22 +56,21 @@ type Cmd struct {
 	// ExitErrorIsOk specifies whether an *exec.ExitError should be reported via
 	// Shell.HandleError.
 	ExitErrorIsOk bool
-	// Stdin is a string to write to the child's stdin.
-	Stdin string
 	// Internal state.
-	sh               *Shell
-	c                *exec.Cmd
-	stdinWriteCloser io.WriteCloser // from exec.Cmd.StdinPipe
-	calledStart      bool
-	calledWait       bool
-	cond             *sync.Cond
-	waitChan         chan error
-	started          bool // protected by sh.cleanupMu
-	exited           bool // protected by cond.L
-	stdoutWriters    []io.Writer
-	stderrWriters    []io.Writer
-	closers          []io.Closer
-	recvVars         map[string]string // protected by cond.L
+	sh                *Shell
+	c                 *exec.Cmd
+	calledStart       bool
+	calledWait        bool
+	cond              *sync.Cond
+	waitChan          chan error
+	stdinDoneChan     chan error
+	started           bool // protected by sh.cleanupMu
+	exited            bool // protected by cond.L
+	stdoutWriters     []io.Writer
+	stderrWriters     []io.Writer
+	afterStartClosers []io.Closer
+	afterWaitClosers  []io.Closer
+	recvVars          map[string]string // protected by cond.L
 }
 
 // Clone returns a new Cmd with a copy of this Cmd's configuration.
@@ -81,12 +81,11 @@ func (c *Cmd) Clone() *Cmd {
 	return res
 }
 
-// StdinPipe returns a thread-safe WriteCloser backed by a buffered pipe for the
-// command's stdin. The returned pipe will be closed when the process exits, but
-// may also be closed earlier by the caller, e.g. if the command does not exit
-// until its stdin is closed. Must be called before Start. It is safe to call
-// StdinPipe multiple times; calls after the first return the pipe created by
-// the first call.
+// StdinPipe returns a WriteCloser backed by an unlimited-size pipe for the
+// command's stdin. The pipe will be closed when the process exits, but may also
+// be closed earlier by the caller, e.g. if the command does not exit until its
+// stdin is closed. Must be called before Start. Only one call may be made to
+// StdinPipe or SetStdinReader; subsequent calls will fail.
 func (c *Cmd) StdinPipe() io.WriteCloser {
 	c.sh.Ok()
 	res, err := c.stdinPipe()
@@ -94,24 +93,32 @@ func (c *Cmd) StdinPipe() io.WriteCloser {
 	return res
 }
 
-// StdoutPipe returns a Reader backed by a buffered pipe for the command's
-// stdout. Must be called before Start. May be called more than once; each
-// invocation creates a new pipe.
-func (c *Cmd) StdoutPipe() io.Reader {
+// StdoutPipe returns a ReadCloser backed by an unlimited-size pipe for the
+// command's stdout. Must be called before Start. May be called more than once;
+// each invocation creates a new pipe.
+func (c *Cmd) StdoutPipe() io.ReadCloser {
 	c.sh.Ok()
 	res, err := c.stdoutPipe()
 	c.handleError(err)
 	return res
 }
 
-// StderrPipe returns a Reader backed by a buffered pipe for the command's
-// stderr. Must be called before Start. May be called more than once; each
-// invocation creates a new pipe.
-func (c *Cmd) StderrPipe() io.Reader {
+// StderrPipe returns a ReadCloser backed by an unlimited-size pipe for the
+// command's stderr. Must be called before Start. May be called more than once;
+// each invocation creates a new pipe.
+func (c *Cmd) StderrPipe() io.ReadCloser {
 	c.sh.Ok()
 	res, err := c.stderrPipe()
 	c.handleError(err)
 	return res
+}
+
+// SetStdinReader configures this Cmd to read the child's stdin from the given
+// Reader. Must be called before Start. Only one call may be made to StdinPipe
+// or SetStdinReader; subsequent calls will fail.
+func (c *Cmd) SetStdinReader(r io.Reader) {
+	c.sh.Ok()
+	c.handleError(c.setStdinReader(r))
 }
 
 // AddStdoutWriter configures this Cmd to tee the child's stdout to the given
@@ -271,18 +278,6 @@ func (c *Cmd) handleError(err error) {
 	}
 }
 
-func (c *Cmd) closeClosers() {
-	// If the same WriteCloser was passed to both AddStdoutWriter and
-	// AddStderrWriter, we should only close it once.
-	cm := map[io.Closer]bool{}
-	for _, c := range c.closers {
-		if !cm[c] {
-			cm[c] = true
-			c.Close() // best-effort; ignore returned error
-		}
-	}
-}
-
 func (c *Cmd) isRunning() bool {
 	if !c.started {
 		return false
@@ -339,18 +334,6 @@ func (w *recvWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-type lockedWriter struct {
-	mu *sync.Mutex
-	w  io.Writer
-}
-
-func (w lockedWriter) Write(p []byte) (int, error) {
-	w.mu.Lock()
-	n, err := w.w.Write(p)
-	w.mu.Unlock()
-	return n, err
-}
-
 func (c *Cmd) makeStdoutStderr() (io.Writer, io.Writer, error) {
 	c.stderrWriters = append(c.stderrWriters, &recvWriter{c: c})
 	if c.PropagateOutput {
@@ -366,14 +349,14 @@ func (c *Cmd) makeStdoutStderr() (io.Writer, io.Writer, error) {
 			return nil, nil, err
 		default:
 			c.stdoutWriters = append(c.stdoutWriters, file)
-			c.closers = append(c.closers, file)
+			c.afterWaitClosers = append(c.afterWaitClosers, file)
 		}
 		switch file, err := os.OpenFile(name+".stderr", flags, 0600); {
 		case err != nil:
 			return nil, nil, err
 		default:
 			c.stderrWriters = append(c.stderrWriters, file)
-			c.closers = append(c.closers, file)
+			c.afterWaitClosers = append(c.afterWaitClosers, file)
 		}
 	}
 	switch hasOut, hasErr := len(c.stdoutWriters) > 0, len(c.stderrWriters) > 0; {
@@ -382,8 +365,8 @@ func (c *Cmd) makeStdoutStderr() (io.Writer, io.Writer, error) {
 		// writers that capture both will see the same ordering, and don't need to
 		// worry about concurrent writes.
 		sharedMu := &sync.Mutex{}
-		stdout := lockedWriter{sharedMu, io.MultiWriter(c.stdoutWriters...)}
-		stderr := lockedWriter{sharedMu, io.MultiWriter(c.stderrWriters...)}
+		stdout := &sharedLockWriter{sharedMu, io.MultiWriter(c.stdoutWriters...)}
+		stderr := &sharedLockWriter{sharedMu, io.MultiWriter(c.stderrWriters...)}
 		return stdout, stderr, nil
 	case hasOut:
 		return io.MultiWriter(c.stdoutWriters...), nil, nil
@@ -391,6 +374,18 @@ func (c *Cmd) makeStdoutStderr() (io.Writer, io.Writer, error) {
 		return nil, io.MultiWriter(c.stderrWriters...), nil
 	}
 	return nil, nil, nil
+}
+
+type sharedLockWriter struct {
+	mu *sync.Mutex
+	w  io.Writer
+}
+
+func (w *sharedLockWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	n, err := w.w.Write(p)
+	w.mu.Unlock()
+	return n, err
 }
 
 func (c *Cmd) clone() (*Cmd, error) {
@@ -405,39 +400,83 @@ func (c *Cmd) clone() (*Cmd, error) {
 	res.PropagateOutput = c.PropagateOutput
 	res.OutputDir = c.OutputDir
 	res.ExitErrorIsOk = c.ExitErrorIsOk
-	res.Stdin = c.Stdin
 	return res, nil
 }
 
 func (c *Cmd) stdinPipe() (io.WriteCloser, error) {
-	if c.calledStart {
+	switch {
+	case c.calledStart:
 		return nil, errAlreadyCalledStart
+	case c.c.Stdin != nil:
+		return nil, errAlreadySetStdin
 	}
-	if c.stdinWriteCloser != nil {
-		return c.stdinWriteCloser, nil
+	// We want to provide an unlimited-size pipe to the user. If we set
+	// c.c.Stdin directly to the newBufferedPipe, the os/exec package will
+	// create an os.Pipe for us, along with a goroutine to copy data over. And
+	// exec.Cmd.Wait will wait for this goroutine to exit before returning, even
+	// if the process has already exited. That means the user will be forced to
+	// call Close on the returned WriteCloser, which is annoying.
+	//
+	// Instead, we set c.c.Stdin to our own os.Pipe, so that os/exec won't create
+	// the pipe nor the goroutine. We chain our newBufferedPipe in front of this,
+	// with our own copier goroutine. This gives the user a pipe that never blocks
+	// on Write, and which they don't need to Close if the process exits.
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		return nil, err
 	}
-	var err error
-	c.stdinWriteCloser, err = c.c.StdinPipe()
-	return c.stdinWriteCloser, err
+	c.c.Stdin = pr
+	c.afterStartClosers = append(c.afterStartClosers, pr)
+	bp := newBufferedPipe()
+	c.afterWaitClosers = append(c.afterWaitClosers, bp)
+	c.stdinDoneChan = make(chan error, 1)
+	go c.stdinPipeCopier(pw, bp) // pw is closed by stdinPipeCopier
+	return bp, nil
 }
 
-func (c *Cmd) stdoutPipe() (io.Reader, error) {
+func (c *Cmd) stdinPipeCopier(dst io.WriteCloser, src io.Reader) {
+	var firstErr error
+	_, err := io.Copy(dst, src)
+	// Ignore EPIPE errors copying to stdin, indicating the process exited. This
+	// mirrors logic in os/exec/exec_posix.go. Also see:
+	// https://github.com/golang/go/issues/9173
+	if pe, ok := err.(*os.PathError); !ok || pe.Op != "write" || pe.Path != "|1" || pe.Err != syscall.EPIPE {
+		firstErr = err
+	}
+	if err := dst.Close(); err != nil && firstErr == nil {
+		firstErr = err
+	}
+	c.stdinDoneChan <- firstErr
+}
+
+func (c *Cmd) setStdinReader(r io.Reader) error {
+	switch {
+	case c.calledStart:
+		return errAlreadyCalledStart
+	case c.c.Stdin != nil:
+		return errAlreadySetStdin
+	}
+	c.c.Stdin = r
+	return nil
+}
+
+func (c *Cmd) stdoutPipe() (io.ReadCloser, error) {
 	if c.calledStart {
 		return nil, errAlreadyCalledStart
 	}
-	p := NewBufferedPipe()
+	p := newBufferedPipe()
 	c.stdoutWriters = append(c.stdoutWriters, p)
-	c.closers = append(c.closers, p)
+	c.afterWaitClosers = append(c.afterWaitClosers, p)
 	return p, nil
 }
 
-func (c *Cmd) stderrPipe() (io.Reader, error) {
+func (c *Cmd) stderrPipe() (io.ReadCloser, error) {
 	if c.calledStart {
 		return nil, errAlreadyCalledStart
 	}
-	p := NewBufferedPipe()
+	p := newBufferedPipe()
 	c.stderrWriters = append(c.stderrWriters, p)
-	c.closers = append(c.closers, p)
+	c.afterWaitClosers = append(c.afterWaitClosers, p)
 	return p, nil
 }
 
@@ -451,7 +490,7 @@ func (c *Cmd) addStdoutWriter(wc io.WriteCloser) error {
 		return errCloseStderr
 	}
 	c.stdoutWriters = append(c.stdoutWriters, wc)
-	c.closers = append(c.closers, wc)
+	c.afterWaitClosers = append(c.afterWaitClosers, wc)
 	return nil
 }
 
@@ -465,7 +504,7 @@ func (c *Cmd) addStderrWriter(wc io.WriteCloser) error {
 		return errCloseStderr
 	}
 	c.stderrWriters = append(c.stderrWriters, wc)
-	c.closers = append(c.closers, wc)
+	c.afterWaitClosers = append(c.afterWaitClosers, wc)
 	return nil
 }
 
@@ -474,8 +513,9 @@ func (c *Cmd) addStderrWriter(wc io.WriteCloser) error {
 
 func (c *Cmd) start() error {
 	defer func() {
+		closeClosers(c.afterStartClosers)
 		if !c.started {
-			c.closeClosers()
+			closeClosers(c.afterWaitClosers)
 		}
 	}()
 	if c.calledStart {
@@ -504,12 +544,6 @@ func (c *Cmd) start() error {
 	}
 	c.c.Env = mapToSlice(vars)
 	c.c.Args = c.Args
-	if c.Stdin != "" {
-		if c.stdinWriteCloser != nil {
-			return errors.New("gosh: cannot both set Stdin and call StdinPipe")
-		}
-		c.c.Stdin = strings.NewReader(c.Stdin)
-	}
 	var err error
 	if c.c.Stdout, c.c.Stderr, err = c.makeStdoutStderr(); err != nil {
 		return err
@@ -534,9 +568,27 @@ func (c *Cmd) startExitWaiter() {
 		c.exited = true
 		c.cond.Signal()
 		c.cond.L.Unlock()
-		c.closeClosers()
+		closeClosers(c.afterWaitClosers)
+		if c.stdinDoneChan != nil {
+			// Wait for the stdinPipeCopier goroutine to finish.
+			if err := <-c.stdinDoneChan; waitErr == nil {
+				waitErr = err
+			}
+		}
 		c.waitChan <- waitErr
 	}()
+}
+
+func closeClosers(closers []io.Closer) {
+	// If the same WriteCloser was passed to both AddStdoutWriter and
+	// AddStderrWriter, we should only close it once.
+	cm := map[io.Closer]bool{}
+	for _, closer := range closers {
+		if !cm[closer] {
+			cm[closer] = true
+			closer.Close() // best-effort; ignore returned error
+		}
+	}
 }
 
 // TODO(sadovsky): Maybe add optional timeouts for Cmd.{awaitVars,wait}.

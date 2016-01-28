@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime/debug"
+	"strings"
 	"testing"
 	"time"
 
@@ -369,38 +370,67 @@ func TestStdin(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 
+	// The "cat" command exits after the reader returns EOF.
 	c := sh.FuncCmd(catFunc)
-	c.Stdin = "foo\n"
-	// We set c.Stdin and did not call c.StdinPipe(), so stdin should close and
-	// cat should exit immediately.
+	c.SetStdinReader(strings.NewReader("foo\n"))
 	eq(t, c.Stdout(), "foo\n")
 
+	// The "cat" command exits after the reader returns EOF, so we must explicitly
+	// close the stdin pipe.
 	c = sh.FuncCmd(catFunc)
-	c.StdinPipe().Write([]byte("foo\n"))
-	// The "cat" command only exits when stdin is closed, so we must explicitly
-	// close the stdin pipe. Note, it's safe to call c.StdinPipe multiple times.
-	c.StdinPipe().Close()
+	stdin := c.StdinPipe()
+	stdin.Write([]byte("foo\n"))
+	stdin.Close()
 	eq(t, c.Stdout(), "foo\n")
 
+	// The "read" command exits when it sees a newline, so it is not necessary to
+	// explicitly close the stdin pipe.
 	c = sh.FuncCmd(readFunc)
-	c.StdinPipe().Write([]byte("foo\n"))
-	// The "read" command exits when it sees a newline, so Cmd.Wait (and thus
-	// Cmd.Run) should return immediately; it should not be necessary to close the
-	// stdin pipe.
+	stdin = c.StdinPipe()
+	stdin.Write([]byte("foo\n"))
 	c.Run()
 
-	c = sh.FuncCmd(catFunc)
 	// No stdin, so cat should exit immediately.
+	c = sh.FuncCmd(catFunc)
 	eq(t, c.Stdout(), "")
 
-	// It's an error (detected at command start time) to both set c.Stdin and call
-	// c.StdinPipe. Note, this indirectly tests that Shell.Cleanup works even if
-	// some Cmd.Start failed.
+	// It's an error to call both StdinPipe and SetStdinReader.
 	c = sh.FuncCmd(catFunc)
-	c.Stdin = "foo"
-	c.StdinPipe().Write([]byte("bar"))
-	c.StdinPipe().Close()
-	setsErr(t, sh, func() { c.Start() })
+	c.StdinPipe()
+	setsErr(t, sh, func() { c.StdinPipe() })
+
+	c = sh.FuncCmd(catFunc)
+	c.StdinPipe()
+	setsErr(t, sh, func() { c.SetStdinReader(strings.NewReader("")) })
+
+	c = sh.FuncCmd(catFunc)
+	c.SetStdinReader(strings.NewReader(""))
+	setsErr(t, sh, func() { c.StdinPipe() })
+
+	c = sh.FuncCmd(catFunc)
+	c.SetStdinReader(strings.NewReader(""))
+	setsErr(t, sh, func() { c.SetStdinReader(strings.NewReader("")) })
+}
+
+func TestStdinPipeWriteUntilExit(t *testing.T) {
+	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	defer sh.Cleanup()
+
+	// Ensure that Write calls on stdin fail after the process exits. Note that we
+	// write to the command's stdin concurrently with the command's exit waiter
+	// goroutine closing stdin. Use "go test -race" catch races.
+	//
+	// Set a non-zero exit code, so that os.Exit exits immediately.  See the
+	// implementation of https://golang.org/pkg/os/#Exit for details.
+	c := sh.FuncCmd(exitFunc, 1)
+	c.ExitErrorIsOk = true
+	stdin := c.StdinPipe()
+	c.Start()
+	for {
+		if _, err := stdin.Write([]byte("a")); err != nil {
+			return
+		}
+	}
 }
 
 var writeFunc = gosh.RegisterFunc("writeFunc", func(stdout, stderr bool) error {
@@ -565,30 +595,6 @@ func TestAddWritersCloseOnce(t *testing.T) {
 	eq(t, wc.count, 1)
 }
 
-// Tests piping from one Cmd's stdout/stderr to another's stdin. It should be
-// possible to wait on just the last Cmd.
-func TestPiping(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
-	defer sh.Cleanup()
-
-	echo := sh.FuncCmd(echoFunc)
-	echo.Args = append(echo.Args, "foo")
-	cat := sh.FuncCmd(catFunc)
-	echo.AddStdoutWriter(cat.StdinPipe())
-	echo.Start()
-	eq(t, cat.Stdout(), "foo\n")
-
-	// This time, pipe both stdout and stderr to cat's stdin.
-	c := sh.FuncCmd(writeFunc, true, true)
-	cat = sh.FuncCmd(catFunc)
-	c.AddStdoutWriter(cat.StdinPipe())
-	c.AddStderrWriter(cat.StdinPipe())
-	c.Start()
-	// Note, we can't assume any particular ordering of stdout and stderr, so we
-	// simply check the length of the combined output.
-	eq(t, len(cat.Stdout()), 4)
-}
-
 func TestSignal(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
@@ -653,7 +659,7 @@ func TestShellWait(t *testing.T) {
 	d200 := 200 * time.Millisecond
 
 	c0 := sh.FuncCmd(sleepFunc, d0, 0)   // not started
-	c1 := sh.FuncCmd(sleepFunc, d0, 0)   // failed to start
+	c1 := sh.Cmd("/#invalid#/!binary!")  // failed to start
 	c2 := sh.FuncCmd(sleepFunc, d200, 0) // running and will succeed
 	c3 := sh.FuncCmd(sleepFunc, d200, 1) // running and will fail
 	c4 := sh.FuncCmd(sleepFunc, d0, 0)   // succeeded
@@ -665,10 +671,9 @@ func TestShellWait(t *testing.T) {
 	c6.ExitErrorIsOk = true
 	c7.ExitErrorIsOk = true
 
-	// Configure the "failed to start" command.
-	c1.StdinPipe()
-	c1.Stdin = "foo"
-	setsErr(t, sh, func() { c1.Start() })
+	// Make sure c1 fails to start. This indirectly tests that Shell.Cleanup works
+	// even if Cmd.Start failed.
+	setsErr(t, sh, c1.Start)
 
 	// Start commands, then wait for them to exit.
 	for _, c := range []*gosh.Cmd{c2, c3, c4, c5, c6, c7} {
