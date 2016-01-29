@@ -45,6 +45,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -372,8 +373,7 @@ func (cmd *Command) parse(path []*Command, env *Env, args []string, setFlags map
 	}
 	if cmd.LookPath {
 		// Look for a matching executable in PATH.
-		subCmd := cmd.Name + "-" + subName
-		if lookPath(env, subCmd) {
+		if subCmd := env.LookPath(cmd.Name + "-" + subName); subCmd != "" {
 			extArgs := append(flagsAsArgs(setFlags), subArgs...)
 			return binaryRunner{subCmd, cmdPath}, extArgs, nil
 		}
@@ -491,10 +491,10 @@ func flagsAsArgs(x map[string]string) []string {
 
 // subNames returns the sub names of c which should be ignored when using look
 // path to find external binaries.
-func (c *Command) subNames() map[string]bool {
-	m := map[string]bool{"help": true}
+func (c *Command) subNames(prefix string) map[string]bool {
+	m := map[string]bool{prefix + "help": true}
 	for _, child := range c.Children {
-		m[child.Name] = true
+		m[prefix+child.Name] = true
 	}
 	return m
 }
@@ -537,7 +537,7 @@ type binaryRunner struct {
 }
 
 func (b binaryRunner) Run(env *Env, args []string) error {
-	env.TimerPush("run " + b.subCmd)
+	env.TimerPush("run " + filepath.Base(b.subCmd))
 	defer env.TimerPop()
 	vars := envvar.CopyMap(env.Vars)
 	vars["CMDLINE_PREFIX"] = b.cmdPath
@@ -554,55 +554,4 @@ func (b binaryRunner) Run(env *Env, args []string) error {
 		}
 	}
 	return err
-}
-
-// lookPath returns true iff an executable with the given name can be found in
-// any of the PATH directories.
-func lookPath(env *Env, name string) bool {
-	env.TimerPush("lookpath " + name)
-	defer env.TimerPop()
-	for _, dir := range env.pathDirs() {
-		fileInfos, err := ioutil.ReadDir(dir)
-		if err != nil {
-			continue
-		}
-		for _, fileInfo := range fileInfos {
-			if m := fileInfo.Mode(); !m.IsRegular() || (m&os.FileMode(0111)) == 0 {
-				continue
-			}
-			if fileInfo.Name() == name {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// lookPathAll returns a deduped list of all executables found in the PATH
-// directories whose name starts with "name-", and where the name doesn't match
-// the given seen set.  The seen set may be mutated by this function.
-func lookPathAll(env *Env, name string, seen map[string]bool) (result []string) {
-	env.TimerPush("lookpathall " + name)
-	defer env.TimerPop()
-	for _, dir := range env.pathDirs() {
-		fileInfos, err := ioutil.ReadDir(dir)
-		if err != nil {
-			continue
-		}
-		for _, fileInfo := range fileInfos {
-			if m := fileInfo.Mode(); !m.IsRegular() || (m&os.FileMode(0111)) == 0 {
-				continue
-			}
-			if !strings.HasPrefix(fileInfo.Name(), name+"-") {
-				continue
-			}
-			subname := fileInfo.Name()[len(name+"-"):]
-			if seen[subname] {
-				continue
-			}
-			seen[subname] = true
-			result = append(result, fileInfo.Name())
-		}
-	}
-	return
 }

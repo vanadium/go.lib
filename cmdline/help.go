@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"go/doc"
 	"io"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"unicode"
@@ -126,9 +127,8 @@ func runHelp(w *textutil.LineWriter, env *Env, args []string, path []*Command, c
 	}
 	if cmd.LookPath {
 		// Look for a matching executable in PATH.
-		extName := cmd.Name + "-" + subName
-		if lookPath(env, extName) {
-			runner := binaryRunner{extName, cmdPath}
+		if subCmd := env.LookPath(cmd.Name + "-" + subName); subCmd != "" {
+			runner := binaryRunner{subCmd, cmdPath}
 			envCopy := env.clone()
 			envCopy.Vars["CMDLINE_STYLE"] = config.style.String()
 			if len(subArgs) == 0 {
@@ -226,9 +226,9 @@ func usageAll(w *textutil.LineWriter, env *Env, path []*Command, config *helpCon
 		usageAll(w, env, append(path, help), config, false)
 	}
 	if cmd.LookPath {
-		extNames := lookPathAll(env, cmd.Name, cmd.subNames())
-		for _, extName := range extNames {
-			runner := binaryRunner{extName, cmdPath}
+		cmdPrefix := cmd.Name + "-"
+		for _, subCmd := range env.LookPathAll(cmdPrefix, cmd.subNames(cmdPrefix)) {
+			runner := binaryRunner{subCmd, cmdPath}
 			var buffer bytes.Buffer
 			envCopy := env.clone()
 			envCopy.Stdout = &buffer
@@ -260,7 +260,8 @@ func usageAll(w *textutil.LineWriter, env *Env, path []*Command, config *helpCon
 			}
 			// The external child does not support "help" or "-help".
 			lineBreak(w, config.style)
-			fmt.Fprintln(w, godocHeader(cmdPath+" "+strings.TrimPrefix(extName, cmd.Name+"-"), missingDescription))
+			subName := strings.TrimPrefix(filepath.Base(subCmd), cmdPrefix)
+			fmt.Fprintln(w, godocHeader(cmdPath+" "+subName, missingDescription))
 		}
 	}
 	for _, topic := range cmd.Topics {
@@ -307,8 +308,9 @@ func usage(w *textutil.LineWriter, env *Env, path []*Command, config *helpConfig
 		}
 	}
 	var extChildren []string
+	cmdPrefix := cmd.Name + "-"
 	if cmd.LookPath {
-		extChildren = lookPathAll(env, cmd.Name, cmd.subNames())
+		extChildren = env.LookPathAll(cmdPrefix, cmd.subNames(cmdPrefix))
 	}
 	hasSubcommands := len(cmd.Children) > 0 || len(extChildren) > 0
 	if hasSubcommands {
@@ -326,8 +328,9 @@ func usage(w *textutil.LineWriter, env *Env, path []*Command, config *helpConfig
 			nameWidth = w
 		}
 	}
-	for _, ext := range extChildren {
-		if w := len(strings.TrimPrefix(ext, cmd.Name+"-")); w > nameWidth {
+	for _, extCmd := range extChildren {
+		extName := strings.TrimPrefix(filepath.Base(extCmd), cmdPrefix)
+		if w := len(extName); w > nameWidth {
 			nameWidth = w
 		}
 	}
@@ -351,8 +354,8 @@ func usage(w *textutil.LineWriter, env *Env, path []*Command, config *helpConfig
 		fmt.Fprintln(w, "The", cmdPath, "external commands are:")
 		// Print as a table with aligned columns Name and Short.
 		w.SetIndents(spaces(3), spaces(3+nameWidth+1))
-		for _, ext := range extChildren {
-			runner := binaryRunner{ext, cmdPath}
+		for _, extCmd := range extChildren {
+			runner := binaryRunner{extCmd, cmdPath}
 			var buffer bytes.Buffer
 			envCopy := env.clone()
 			envCopy.Stdout = &buffer
@@ -363,7 +366,8 @@ func usage(w *textutil.LineWriter, env *Env, path []*Command, config *helpConfig
 				// The external child supports "-help".
 				short = buffer.String()
 			}
-			printShort(nameWidth, strings.TrimPrefix(ext, cmd.Name+"-"), short)
+			extName := strings.TrimPrefix(filepath.Base(extCmd), cmdPrefix)
+			printShort(nameWidth, extName, short)
 		}
 	}
 	// Command footer.
