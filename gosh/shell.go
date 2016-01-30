@@ -372,14 +372,13 @@ func (sh *Shell) buildGoPkg(pkg string, flags ...string) (string, error) {
 	}
 	defer os.RemoveAll(tempDir)
 	tempBinPath := filepath.Join(tempDir, path.Base(pkg))
-	args := []string{"build", "-x", "-o", tempBinPath}
+	args := []string{"build", "-o", tempBinPath}
 	args = append(args, flags...)
 	args = append(args, pkg)
 	c, err := sh.cmd(nil, "go", args...)
 	if err != nil {
 		return "", err
 	}
-	c.PropagateOutput = false
 	if err := c.run(); err != nil {
 		return "", err
 	}
