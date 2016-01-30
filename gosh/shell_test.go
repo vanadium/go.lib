@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"v.io/x/lib/gosh"
-	lib "v.io/x/lib/gosh/internal/gosh_example_lib"
+	"v.io/x/lib/gosh/internal/gosh_example_lib"
 )
 
 var fakeError = errors.New("fake error")
@@ -714,6 +714,17 @@ func TestIgnoreClosedPipeError(t *testing.T) {
 	setsErr(t, sh, func() { c.Run() })
 	nok(t, c.Err)
 }
+
+var writeLoopFunc = gosh.RegisterFunc("writeLoopFunc", func() error {
+	for {
+		if _, err := os.Stdout.Write([]byte("a\n")); err != nil {
+			// Always return success; the purpose of this command is to ensure that
+			// when the next command in the pipeline fails, it causes a closed pipe
+			// write error here to exit the loop.
+			return nil
+		}
+	}
+})
 
 type errorWriter struct {
 	error

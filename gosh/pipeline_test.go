@@ -70,17 +70,6 @@ func TestPipelineDifferentShells(t *testing.T) {
 	setsErr(t, sh1, func() { p.PipeCombinedOutput(sh2.FuncCmd(catFunc)) })
 }
 
-var writeLoopFunc = gosh.RegisterFunc("writeLoopFunc", func() error {
-	for {
-		if _, err := os.Stdout.Write([]byte("a\n")); err != nil {
-			// Always return success; the purpose of this command is to ensure that
-			// when the next command in the pipeline fails, it causes a closed pipe
-			// write error here to exit the loop.
-			return nil
-		}
-	}
-})
-
 func TestPipelineClosedPipe(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
