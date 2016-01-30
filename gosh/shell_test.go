@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"v.io/x/lib/gosh"
-	"v.io/x/lib/gosh/internal/gosh_example_lib"
+	lib "v.io/x/lib/gosh/internal/gosh_example_lib"
 )
 
 var fakeError = errors.New("fake error")
@@ -95,11 +95,13 @@ func setsErr(t *testing.T, sh *gosh.Shell, f func()) {
 
 // Simplified versions of various Unix commands.
 var (
-	catFunc = gosh.RegisterFunc("catFunc", func() {
-		io.Copy(os.Stdout, os.Stdin)
+	catFunc = gosh.RegisterFunc("catFunc", func() error {
+		_, err := io.Copy(os.Stdout, os.Stdin)
+		return err
 	})
-	echoFunc = gosh.RegisterFunc("echoFunc", func() {
-		fmt.Println(os.Args[1])
+	echoFunc = gosh.RegisterFunc("echoFunc", func() error {
+		_, err := fmt.Println(os.Args[1])
+		return err
 	})
 	readFunc = gosh.RegisterFunc("readFunc", func() {
 		bufio.NewReader(os.Stdin).ReadString('\n')
@@ -494,16 +496,16 @@ var writeMoreFunc = gosh.RegisterFunc("writeMoreFunc", func() {
 	defer sh.Cleanup()
 
 	c := sh.FuncCmd(writeFunc, true, true)
-	c.AddStdoutWriter(gosh.NopWriteCloser(os.Stdout))
-	c.AddStderrWriter(gosh.NopWriteCloser(os.Stderr))
+	c.AddStdoutWriter(os.Stdout)
+	c.AddStderrWriter(os.Stderr)
 	c.Run()
 
 	fmt.Fprint(os.Stdout, " stdout done")
 	fmt.Fprint(os.Stderr, " stderr done")
 })
 
-// Tests that it's safe to add wrapped os.Stdout and os.Stderr as writers.
-func TestAddWritersWrappedStdoutStderr(t *testing.T) {
+// Tests that it's safe to add os.Stdout and os.Stderr as writers.
+func TestAddStdoutStderrWriter(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 
@@ -512,26 +514,14 @@ func TestAddWritersWrappedStdoutStderr(t *testing.T) {
 	eq(t, stderr, "BB stderr done")
 }
 
-// Tests that adding non-wrapped os.Stdout or os.Stderr fails.
-func TestAddWritersNonWrappedStdoutStderr(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
-	defer sh.Cleanup()
-
-	c := sh.FuncCmd(writeMoreFunc)
-	setsErr(t, sh, func() { c.AddStdoutWriter(os.Stdout) })
-	setsErr(t, sh, func() { c.AddStdoutWriter(os.Stderr) })
-	setsErr(t, sh, func() { c.AddStderrWriter(os.Stdout) })
-	setsErr(t, sh, func() { c.AddStderrWriter(os.Stderr) })
-}
-
 func TestCombinedOutput(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 
 	c := sh.FuncCmd(writeFunc, true, true)
 	buf := &bytes.Buffer{}
-	c.AddStdoutWriter(gosh.NopWriteCloser(buf))
-	c.AddStderrWriter(gosh.NopWriteCloser(buf))
+	c.AddStdoutWriter(buf)
+	c.AddStderrWriter(buf)
 	output := c.CombinedOutput()
 	// Note, we can't assume any particular ordering of stdout and stderr, so we
 	// simply check the length of the combined output.
@@ -565,35 +555,22 @@ func TestOutputDir(t *testing.T) {
 	eq(t, string(stderr), "BB")
 }
 
-type countingWriteCloser struct {
-	io.Writer
-	count int
-}
-
-func (wc *countingWriteCloser) Close() error {
-	wc.count++
-	return nil
-}
-
-// Tests that Close is called exactly once on a given WriteCloser, even if that
-// WriteCloser is passed to Add{Stdout,Stderr}Writer multiple times.
-func TestAddWritersCloseOnce(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
-	defer sh.Cleanup()
-
-	c := sh.FuncCmd(writeFunc, true, true)
-	buf := &bytes.Buffer{}
-	wc := &countingWriteCloser{Writer: buf}
-	c.AddStdoutWriter(wc)
-	c.AddStdoutWriter(wc)
-	c.AddStderrWriter(wc)
-	c.AddStderrWriter(wc)
-	c.Run()
-	// Note, we can't assume any particular ordering of stdout and stderr, so we
-	// simply check the length of the combined output.
-	eq(t, len(buf.String()), 8)
-	eq(t, wc.count, 1)
-}
+var replaceFunc = gosh.RegisterFunc("replaceFunc", func(old, new byte) error {
+	buf := make([]byte, 1024)
+	for {
+		n, err := os.Stdin.Read(buf)
+		switch {
+		case err == io.EOF:
+			return nil
+		case err != nil:
+			return err
+		}
+		rep := bytes.Replace(buf[:n], []byte{old}, []byte{new}, -1)
+		if _, err := os.Stdout.Write(rep); err != nil {
+			return err
+		}
+	}
+})
 
 func TestSignal(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
@@ -716,6 +693,34 @@ func TestExitErrorIsOk(t *testing.T) {
 	c = sh.FuncCmd(exitFunc, 1)
 	setsErr(t, sh, func() { c.Run() })
 	nok(t, c.Err)
+}
+
+func TestIgnoreClosedPipeError(t *testing.T) {
+	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	defer sh.Cleanup()
+
+	// Since writeLoopFunc will only finish if it receives a write error, it's
+	// depending on the closed pipe error from closedPipeErrorWriter.
+	c := sh.FuncCmd(writeLoopFunc)
+	c.AddStdoutWriter(errorWriter{io.ErrClosedPipe})
+	c.IgnoreClosedPipeError = true
+	c.Run()
+	ok(t, c.Err)
+	ok(t, sh.Err)
+
+	// Without IgnoreClosedPipeError, the command fails.
+	c = sh.FuncCmd(writeLoopFunc)
+	c.AddStdoutWriter(errorWriter{io.ErrClosedPipe})
+	setsErr(t, sh, func() { c.Run() })
+	nok(t, c.Err)
+}
+
+type errorWriter struct {
+	error
+}
+
+func (w errorWriter) Write(p []byte) (int, error) {
+	return 0, w.error
 }
 
 // Tests that sh.Ok panics under various conditions.

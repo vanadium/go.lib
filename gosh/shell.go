@@ -15,7 +15,6 @@ package gosh
 import (
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -55,15 +54,15 @@ type Shell struct {
 	// Args is the list of args to append to subsequent command invocations.
 	Args []string
 	// Internal state.
-	calledNewShell bool
-	cleanupDone    chan struct{}
-	cleanupMu      sync.Mutex // protects the fields below; held during cleanup
-	calledCleanup  bool
-	cmds           []*Cmd
-	tempFiles      []*os.File
-	tempDirs       []string
-	dirStack       []string // for pushd/popd
-	cleanupFuncs   []func()
+	calledNewShell  bool
+	cleanupDone     chan struct{}
+	cleanupMu       sync.Mutex // protects the fields below; held during cleanup
+	calledCleanup   bool
+	cmds            []*Cmd
+	tempFiles       []*os.File
+	tempDirs        []string
+	dirStack        []string // for pushd/popd
+	cleanupHandlers []func()
 }
 
 // Opts configures Shell.
@@ -176,10 +175,12 @@ func (sh *Shell) Popd() {
 	sh.HandleError(sh.popd())
 }
 
-// AddToCleanup registers the given function to be called by Shell.Cleanup().
-func (sh *Shell) AddToCleanup(f func()) {
+// AddCleanupHandler registers the given function to be called during cleanup.
+// Cleanup handlers are called in LIFO order, possibly in a separate goroutine
+// spawned by gosh.
+func (sh *Shell) AddCleanupHandler(f func()) {
 	sh.Ok()
-	sh.HandleError(sh.addToCleanup(f))
+	sh.HandleError(sh.addCleanupHandler(f))
 }
 
 // Cleanup cleans up all resources (child processes, temporary files and
@@ -450,13 +451,13 @@ func (sh *Shell) popd() error {
 	return nil
 }
 
-func (sh *Shell) addToCleanup(f func()) error {
+func (sh *Shell) addCleanupHandler(f func()) error {
 	sh.cleanupMu.Lock()
 	defer sh.cleanupMu.Unlock()
 	if sh.calledCleanup {
 		return errAlreadyCalledCleanup
 	}
-	sh.cleanupFuncs = append(sh.cleanupFuncs, f)
+	sh.cleanupHandlers = append(sh.cleanupHandlers, f)
 	return nil
 }
 
@@ -532,9 +533,9 @@ func (sh *Shell) cleanup() {
 			sh.logf("os.Chdir(%q) failed: %v\n", dir, err)
 		}
 	}
-	// Call any registered cleanup functions in LIFO order.
-	for i := len(sh.cleanupFuncs) - 1; i >= 0; i-- {
-		sh.cleanupFuncs[i]()
+	// Call cleanup handlers in LIFO order.
+	for i := len(sh.cleanupHandlers) - 1; i >= 0; i-- {
+		sh.cleanupHandlers[i]()
 	}
 	close(sh.cleanupDone)
 }
@@ -564,15 +565,3 @@ func InitMain() {
 	}
 	os.Exit(0)
 }
-
-// NopWriteCloser returns a WriteCloser with a no-op Close method wrapping the
-// provided Writer.
-func NopWriteCloser(w io.Writer) io.WriteCloser {
-	return nopWriteCloser{w}
-}
-
-type nopWriteCloser struct {
-	io.Writer
-}
-
-func (nopWriteCloser) Close() error { return nil }

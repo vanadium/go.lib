@@ -1,17 +1,18 @@
 pkg gosh, func InitChildMain()
 pkg gosh, func InitMain()
+pkg gosh, func NewPipeline(*Cmd, ...*Cmd) *Pipeline
 pkg gosh, func NewShell(Opts) *Shell
-pkg gosh, func NopWriteCloser(io.Writer) io.WriteCloser
 pkg gosh, func RegisterFunc(string, interface{}) *Func
 pkg gosh, func SendVars(map[string]string)
-pkg gosh, method (*Cmd) AddStderrWriter(io.WriteCloser)
-pkg gosh, method (*Cmd) AddStdoutWriter(io.WriteCloser)
+pkg gosh, method (*Cmd) AddStderrWriter(io.Writer)
+pkg gosh, method (*Cmd) AddStdoutWriter(io.Writer)
 pkg gosh, method (*Cmd) AwaitVars(...string) map[string]string
 pkg gosh, method (*Cmd) Clone() *Cmd
 pkg gosh, method (*Cmd) CombinedOutput() string
 pkg gosh, method (*Cmd) Pid() int
 pkg gosh, method (*Cmd) Run()
 pkg gosh, method (*Cmd) SetStdinReader(io.Reader)
+pkg gosh, method (*Cmd) Shell() *Shell
 pkg gosh, method (*Cmd) Signal(os.Signal)
 pkg gosh, method (*Cmd) Start()
 pkg gosh, method (*Cmd) StderrPipe() io.ReadCloser
@@ -21,7 +22,20 @@ pkg gosh, method (*Cmd) StdoutPipe() io.ReadCloser
 pkg gosh, method (*Cmd) StdoutStderr() (string, string)
 pkg gosh, method (*Cmd) Terminate(os.Signal)
 pkg gosh, method (*Cmd) Wait()
-pkg gosh, method (*Shell) AddToCleanup(func())
+pkg gosh, method (*Pipeline) Clone() *Pipeline
+pkg gosh, method (*Pipeline) Cmds() []*Cmd
+pkg gosh, method (*Pipeline) CombinedOutput() string
+pkg gosh, method (*Pipeline) PipeCombinedOutput(*Cmd)
+pkg gosh, method (*Pipeline) PipeStderr(*Cmd)
+pkg gosh, method (*Pipeline) PipeStdout(*Cmd)
+pkg gosh, method (*Pipeline) Run()
+pkg gosh, method (*Pipeline) Signal(os.Signal)
+pkg gosh, method (*Pipeline) Start()
+pkg gosh, method (*Pipeline) Stdout() string
+pkg gosh, method (*Pipeline) StdoutStderr() (string, string)
+pkg gosh, method (*Pipeline) Terminate(os.Signal)
+pkg gosh, method (*Pipeline) Wait()
+pkg gosh, method (*Shell) AddCleanupHandler(func())
 pkg gosh, method (*Shell) BuildGoPkg(string, ...string) string
 pkg gosh, method (*Shell) Cleanup()
 pkg gosh, method (*Shell) Cmd(string, ...string) *Cmd
@@ -39,6 +53,7 @@ pkg gosh, type Cmd struct, Args []string
 pkg gosh, type Cmd struct, Err error
 pkg gosh, type Cmd struct, ExitAfter time.Duration
 pkg gosh, type Cmd struct, ExitErrorIsOk bool
+pkg gosh, type Cmd struct, IgnoreClosedPipeError bool
 pkg gosh, type Cmd struct, IgnoreParentExit bool
 pkg gosh, type Cmd struct, OutputDir string
 pkg gosh, type Cmd struct, Path string
@@ -51,6 +66,7 @@ pkg gosh, type Opts struct, ChildOutputDir string
 pkg gosh, type Opts struct, Fatalf func(string, ...interface{})
 pkg gosh, type Opts struct, Logf func(string, ...interface{})
 pkg gosh, type Opts struct, PropagateChildOutput bool
+pkg gosh, type Pipeline struct
 pkg gosh, type Shell struct
 pkg gosh, type Shell struct, Args []string
 pkg gosh, type Shell struct, Err error
