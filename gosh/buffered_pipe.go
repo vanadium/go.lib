@@ -16,6 +16,12 @@ type bufferedPipe struct {
 	closed bool
 }
 
+var (
+	// Make sure the signatures are right, so that io.Copy can be faster.
+	_ io.WriterTo   = (*bufferedPipe)(nil)
+	_ io.ReaderFrom = (*bufferedPipe)(nil)
+)
+
 // newBufferedPipe returns a new thread-safe pipe backed by an unbounded
 // in-memory buffer. Writes on the pipe never block; reads on the pipe block
 // until data is available.
@@ -24,7 +30,7 @@ func newBufferedPipe() io.ReadWriteCloser {
 }
 
 // Read reads from the pipe.
-func (p *bufferedPipe) Read(d []byte) (n int, err error) {
+func (p *bufferedPipe) Read(d []byte) (int, error) {
 	p.cond.L.Lock()
 	defer p.cond.L.Unlock()
 	for {
@@ -39,8 +45,25 @@ func (p *bufferedPipe) Read(d []byte) (n int, err error) {
 	}
 }
 
+// WriteTo implements the io.WriterTo method; it is the fast version of Read
+// used by io.Copy.
+func (p *bufferedPipe) WriteTo(w io.Writer) (int64, error) {
+	p.cond.L.Lock()
+	defer p.cond.L.Unlock()
+	for {
+		// Read any remaining data before checking whether the pipe is closed.
+		if p.buf.Len() > 0 {
+			return p.buf.WriteTo(w)
+		}
+		if p.closed {
+			return 0, io.EOF
+		}
+		p.cond.Wait()
+	}
+}
+
 // Write writes to the pipe.
-func (p *bufferedPipe) Write(d []byte) (n int, err error) {
+func (p *bufferedPipe) Write(d []byte) (int, error) {
 	p.cond.L.Lock()
 	defer p.cond.L.Unlock()
 	if p.closed {
@@ -48,6 +71,18 @@ func (p *bufferedPipe) Write(d []byte) (n int, err error) {
 	}
 	defer p.cond.Signal()
 	return p.buf.Write(d)
+}
+
+// ReadFrom implements the io.ReaderFrom method; it is the fast version of Write
+// used by io.Copy.
+func (p *bufferedPipe) ReadFrom(r io.Reader) (int64, error) {
+	p.cond.L.Lock()
+	defer p.cond.L.Unlock()
+	if p.closed {
+		return 0, io.ErrClosedPipe
+	}
+	defer p.cond.Signal()
+	return p.buf.ReadFrom(r)
 }
 
 // Close closes the pipe.
