@@ -15,6 +15,7 @@ package gosh
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -135,7 +136,8 @@ func (sh *Shell) Rename(oldpath, newpath string) {
 }
 
 // BuildGoPkg compiles a Go package using the "go build" command and writes the
-// resulting binary to sh.Opts.BinDir. Returns the absolute path to the binary.
+// resulting binary to sh.Opts.BinDir unless the -o flag was specified.
+// Returns the absolute path to the binary.
 // Included in Shell for convenience, but could have just as easily been
 // provided as a utility function.
 func (sh *Shell) BuildGoPkg(pkg string, flags ...string) string {
@@ -357,8 +359,49 @@ func (sh *Shell) rename(oldpath, newpath string) error {
 	return nil
 }
 
+func copyfile(from, to string) error {
+	fi, err := os.Stat(from)
+	if err != nil {
+		return err
+	}
+	mode := fi.Mode()
+	in, err := os.Open(from)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(to, os.O_CREATE|os.O_RDWR|os.O_TRUNC, mode)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, in)
+	cerr := out.Close()
+	if err != nil {
+		return err
+	}
+	return cerr
+}
+
+func extractOutputFlag(flags ...string) (string, []string) {
+	for i, f := range flags {
+		if f == "-o" && len(flags) > i {
+			return flags[i+1], append(flags[:i], flags[i+2:]...)
+		}
+	}
+	return "", flags
+}
+
 func (sh *Shell) buildGoPkg(pkg string, flags ...string) (string, error) {
+	outputFlag, flags := extractOutputFlag(flags...)
 	binPath := filepath.Join(sh.Opts.BinDir, path.Base(pkg))
+	if outputFlag != "" {
+		if filepath.IsAbs(outputFlag) {
+			binPath = outputFlag
+		} else {
+			binPath = filepath.Join(sh.Opts.BinDir, outputFlag)
+		}
+	}
 	// If this binary has already been built, don't rebuild it.
 	if _, err := os.Stat(binPath); err == nil {
 		return binPath, nil
@@ -372,6 +415,9 @@ func (sh *Shell) buildGoPkg(pkg string, flags ...string) (string, error) {
 	}
 	defer os.RemoveAll(tempDir)
 	tempBinPath := filepath.Join(tempDir, path.Base(pkg))
+	if outputFlag != "" {
+		tempBinPath = filepath.Join(tempDir, filepath.Base(binPath))
+	}
 	args := []string{"build", "-o", tempBinPath}
 	args = append(args, flags...)
 	args = append(args, pkg)
@@ -383,6 +429,9 @@ func (sh *Shell) buildGoPkg(pkg string, flags ...string) (string, error) {
 		return "", err
 	}
 	if err := sh.rename(tempBinPath, binPath); err != nil {
+		if _, ok := err.(*os.LinkError); ok {
+			return "", copyfile(tempBinPath, binPath)
+		}
 		return "", err
 	}
 	return binPath, nil

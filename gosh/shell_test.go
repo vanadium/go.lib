@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"v.io/x/lib/gosh"
-	"v.io/x/lib/gosh/internal/gosh_example_lib"
+	lib "v.io/x/lib/gosh/internal/gosh_example_lib"
 )
 
 var fakeError = errors.New("fake error")
@@ -218,6 +218,23 @@ func TestCmd(t *testing.T) {
 	// Run client.
 	binPath = sh.BuildGoPkg("v.io/x/lib/gosh/internal/gosh_example_client")
 	c = sh.Cmd(binPath, "-addr="+addr)
+	eq(t, c.Stdout(), "Hello, world!\n")
+
+	// Run client built using -o with absolute and relative names
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	absName := filepath.Join(cwd, "x")
+	binPath = sh.BuildGoPkg("v.io/x/lib/gosh/internal/gosh_example_client", "-o", absName)
+	defer os.Remove(absName)
+	c = sh.Cmd(absName, "-addr="+addr)
+	eq(t, c.Stdout(), "Hello, world!\n")
+
+	binPath = sh.BuildGoPkg("v.io/x/lib/gosh/internal/gosh_example_client", "-o", "y")
+	relname := filepath.Join(sh.Opts.BinDir, "y")
+	defer os.Remove(relname)
+	c = sh.Cmd(relname, "-addr="+addr)
 	eq(t, c.Stdout(), "Hello, world!\n")
 }
 
