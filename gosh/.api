@@ -43,10 +43,10 @@ pkg gosh, method (*Shell) FuncCmd(*Func, ...interface{}) *Cmd
 pkg gosh, method (*Shell) HandleError(error)
 pkg gosh, method (*Shell) MakeTempDir() string
 pkg gosh, method (*Shell) MakeTempFile() *os.File
+pkg gosh, method (*Shell) Move(string, string)
 pkg gosh, method (*Shell) Ok()
 pkg gosh, method (*Shell) Popd()
 pkg gosh, method (*Shell) Pushd(string)
-pkg gosh, method (*Shell) Rename(string, string)
 pkg gosh, method (*Shell) Wait()
 pkg gosh, type Cmd struct
 pkg gosh, type Cmd struct, Args []string
