@@ -188,14 +188,14 @@ func registerSqlTLSConfig(cfg *SqlConfig, configId string) error {
 	rootCertPool := x509.NewCertPool()
 	pem, err := ioutil.ReadFile(cfg.RootCertPath)
 	if err != nil {
-		return fmt.Errorf("failed reading root certificate: %v", err)
+		return fmt.Errorf("failed reading root certificate in %v: %v", cfg.RootCertPath, err)
 	}
 	if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
-		return fmt.Errorf("failed to append PEM to cert pool")
+		return fmt.Errorf("failed to add root certificate in %v to cert pool", cfg.RootCertPath)
 	}
 	ckpair, err := tls.LoadX509KeyPair(cfg.ClientCertPath, cfg.ClientKeyPath)
 	if err != nil {
-		return fmt.Errorf("failed loading client key pair: %v", err)
+		return fmt.Errorf("failed loading client key pair (%v, %v): %v", cfg.ClientCertPath, cfg.ClientKeyPath, err)
 	}
 	clientCert := []tls.Certificate{ckpair}
 	return mysql.RegisterTLSConfig(configId, &tls.Config{
