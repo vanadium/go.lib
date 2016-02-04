@@ -128,19 +128,17 @@ func (sh *Shell) Wait() {
 	sh.HandleError(sh.wait())
 }
 
-// Rename renames (moves) a file. It's just like os.Rename, but retries once on
-// error.
-func (sh *Shell) Rename(oldpath, newpath string) {
+// Move moves a file.
+func (sh *Shell) Move(oldpath, newpath string) {
 	sh.Ok()
-	sh.HandleError(sh.rename(oldpath, newpath))
+	sh.HandleError(sh.move(oldpath, newpath))
 }
 
 // BuildGoPkg compiles a Go package using the "go build" command and writes the
-// resulting binary to sh.Opts.BinDir unless the -o flag was specified.
+// resulting binary to sh.Opts.BinDir, or to the -o flag location if specified.
 // Returns the absolute path to the binary.
-// Included in Shell for convenience, but could have just as easily been
-// provided as a utility function.
 func (sh *Shell) BuildGoPkg(pkg string, flags ...string) string {
+	// TODO(sadovsky): Convert BuildGoPkg into a utility function.
 	sh.Ok()
 	res, err := sh.buildGoPkg(pkg, flags...)
 	sh.HandleError(err)
@@ -347,40 +345,44 @@ func (sh *Shell) wait() error {
 	return res
 }
 
-func (sh *Shell) rename(oldpath, newpath string) error {
-	if err := os.Rename(oldpath, newpath); err != nil {
-		// Concurrent, same-directory rename operations sometimes fail on certain
-		// filesystems, so we retry once after a random backoff.
-		time.Sleep(time.Duration(rand.Int63n(1000)) * time.Millisecond)
-		if err := os.Rename(oldpath, newpath); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func copyfile(from, to string) error {
+func copyFile(from, to string) error {
 	fi, err := os.Stat(from)
 	if err != nil {
 		return err
 	}
-	mode := fi.Mode()
 	in, err := os.Open(from)
 	if err != nil {
 		return err
 	}
 	defer in.Close()
-	out, err := os.OpenFile(to, os.O_CREATE|os.O_RDWR|os.O_TRUNC, mode)
+	out, err := os.OpenFile(to, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, fi.Mode().Perm())
 	if err != nil {
 		return err
 	}
-	defer out.Close()
 	_, err = io.Copy(out, in)
 	cerr := out.Close()
 	if err != nil {
 		return err
 	}
 	return cerr
+}
+
+func (sh *Shell) move(oldpath, newpath string) error {
+	var err error
+	if err = os.Rename(oldpath, newpath); err != nil {
+		// Concurrent, same-directory rename operations sometimes fail on certain
+		// filesystems, so we retry once after a random backoff.
+		time.Sleep(time.Duration(rand.Int63n(1000)) * time.Millisecond)
+		err = os.Rename(oldpath, newpath)
+	}
+	// If the error was a LinkError, try copying the file over.
+	if _, ok := err.(*os.LinkError); !ok {
+		return err
+	}
+	if err := copyFile(oldpath, newpath); err != nil {
+		return err
+	}
+	return os.Remove(oldpath)
 }
 
 func extractOutputFlag(flags ...string) (string, []string) {
@@ -408,16 +410,14 @@ func (sh *Shell) buildGoPkg(pkg string, flags ...string) (string, error) {
 	} else if !os.IsNotExist(err) {
 		return "", err
 	}
-	// Build binary to tempBinPath, then move it to binPath.
+	// Build binary to tempBinPath (in a fresh temporary directory), then move it
+	// to binPath.
 	tempDir, err := ioutil.TempDir(sh.Opts.BinDir, "")
 	if err != nil {
 		return "", err
 	}
 	defer os.RemoveAll(tempDir)
 	tempBinPath := filepath.Join(tempDir, path.Base(pkg))
-	if outputFlag != "" {
-		tempBinPath = filepath.Join(tempDir, filepath.Base(binPath))
-	}
 	args := []string{"build", "-o", tempBinPath}
 	args = append(args, flags...)
 	args = append(args, pkg)
@@ -428,10 +428,7 @@ func (sh *Shell) buildGoPkg(pkg string, flags ...string) (string, error) {
 	if err := c.run(); err != nil {
 		return "", err
 	}
-	if err := sh.rename(tempBinPath, binPath); err != nil {
-		if _, ok := err.(*os.LinkError); ok {
-			return "", copyfile(tempBinPath, binPath)
-		}
+	if err := sh.move(tempBinPath, binPath); err != nil {
 		return "", err
 	}
 	return binPath, nil

@@ -11,6 +11,7 @@ import (
 	"v.io/x/lib/gosh/internal/gosh_example_lib"
 )
 
+// Mirrors TestCmd in shell_test.go.
 func ExampleCmd() {
 	sh := gosh.NewShell(gosh.Opts{})
 	defer sh.Cleanup()
@@ -33,6 +34,7 @@ var (
 	serveFunc = gosh.RegisterFunc("serveFunc", lib.Serve)
 )
 
+// Mirrors TestFuncCmd in shell_test.go.
 func ExampleFuncCmd() {
 	sh := gosh.NewShell(gosh.Opts{})
 	defer sh.Cleanup()

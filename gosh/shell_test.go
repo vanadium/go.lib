@@ -204,6 +204,7 @@ func TestPushdNoPopdCleanup(t *testing.T) {
 	eq(t, getwdEvalSymlinks(t), startDir)
 }
 
+// Mirrors ExampleCmd in internal/gosh_example/main.go.
 func TestCmd(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
@@ -219,23 +220,6 @@ func TestCmd(t *testing.T) {
 	binPath = sh.BuildGoPkg("v.io/x/lib/gosh/internal/gosh_example_client")
 	c = sh.Cmd(binPath, "-addr="+addr)
 	eq(t, c.Stdout(), "Hello, world!\n")
-
-	// Run client built using -o with absolute and relative names
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	absName := filepath.Join(cwd, "x")
-	binPath = sh.BuildGoPkg("v.io/x/lib/gosh/internal/gosh_example_client", "-o", absName)
-	defer os.Remove(absName)
-	c = sh.Cmd(absName, "-addr="+addr)
-	eq(t, c.Stdout(), "Hello, world!\n")
-
-	binPath = sh.BuildGoPkg("v.io/x/lib/gosh/internal/gosh_example_client", "-o", "y")
-	relname := filepath.Join(sh.Opts.BinDir, "y")
-	defer os.Remove(relname)
-	c = sh.Cmd(relname, "-addr="+addr)
-	eq(t, c.Stdout(), "Hello, world!\n")
 }
 
 var (
@@ -243,6 +227,7 @@ var (
 	serveFunc = gosh.RegisterFunc("serveFunc", lib.Serve)
 )
 
+// Mirrors ExampleFuncCmd in internal/gosh_example/main.go.
 func TestFuncCmd(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
@@ -255,6 +240,32 @@ func TestFuncCmd(t *testing.T) {
 
 	// Run client.
 	c = sh.FuncCmd(getFunc, addr)
+	eq(t, c.Stdout(), "Hello, world!\n")
+}
+
+// Tests that BuildGoPkg works when the -o flag is passed.
+func TestBuildGoPkg(t *testing.T) {
+	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	defer sh.Cleanup()
+
+	binPath := sh.BuildGoPkg("v.io/x/lib/gosh/internal/gosh_example_server")
+	c := sh.Cmd(binPath)
+	c.Start()
+	addr := c.AwaitVars("addr")["addr"]
+	neq(t, addr, "")
+
+	cwd, err := os.Getwd()
+	ok(t, err)
+	absName := filepath.Join(cwd, "x")
+	binPath = sh.BuildGoPkg("v.io/x/lib/gosh/internal/gosh_example_client", "-o", absName)
+	defer os.Remove(absName)
+	c = sh.Cmd(absName, "-addr="+addr)
+	eq(t, c.Stdout(), "Hello, world!\n")
+
+	relName := filepath.Join(sh.Opts.BinDir, "y")
+	binPath = sh.BuildGoPkg("v.io/x/lib/gosh/internal/gosh_example_client", "-o", "y")
+	defer os.Remove(relName)
+	c = sh.Cmd(relName, "-addr="+addr)
 	eq(t, c.Stdout(), "Hello, world!\n")
 }
 
