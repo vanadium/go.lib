@@ -13,8 +13,8 @@ repositories.
 ## Contributing code
 
 Please read the [contribution
-guidelines](https://github.com/vanadium/docs/blob/master/contributing/README.md)
-before sending patches.
+guidelines](https://vanadium.github.io/community/contributing.html) before
+sending patches.
 
 **We do not accept GitHub pull requests.** (We use
 [Gerrit](https://www.gerritcodereview.com/) instead for code reviews.)
