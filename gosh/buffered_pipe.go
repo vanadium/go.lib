@@ -47,16 +47,19 @@ func (p *bufferedPipe) Read(d []byte) (int, error) {
 
 // WriteTo implements the io.WriterTo method; it is the fast version of Read
 // used by io.Copy.
+// Unlike Read, which returns io.EOF to signal that all data has been read,
+// WriteTo blocks until all data has been written to w, and never returns
+// io.EOF.
 func (p *bufferedPipe) WriteTo(w io.Writer) (int64, error) {
 	p.cond.L.Lock()
 	defer p.cond.L.Unlock()
+	var written int64
 	for {
-		// Read any remaining data before checking whether the pipe is closed.
-		if p.buf.Len() > 0 {
-			return p.buf.WriteTo(w)
-		}
-		if p.closed {
-			return 0, io.EOF
+		// Keep writing data until the pipe is closed.
+		n, err := p.buf.WriteTo(w)
+		written += n
+		if p.closed || err != nil {
+			return written, err
 		}
 		p.cond.Wait()
 	}
