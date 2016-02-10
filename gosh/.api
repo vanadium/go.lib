@@ -53,6 +53,7 @@ pkg gosh, type Cmd struct, Args []string
 pkg gosh, type Cmd struct, Err error
 pkg gosh, type Cmd struct, ExitAfter time.Duration
 pkg gosh, type Cmd struct, ExitErrorIsOk bool
+pkg gosh, type Cmd struct, ExtraFiles []*os.File
 pkg gosh, type Cmd struct, IgnoreClosedPipeError bool
 pkg gosh, type Cmd struct, IgnoreParentExit bool
 pkg gosh, type Cmd struct, OutputDir string
