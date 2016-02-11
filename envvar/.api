@@ -1,3 +1,4 @@
+pkg envvar, func AppendUsingSeparator(string, string, string) string
 pkg envvar, func CopyMap(map[string]string) map[string]string
 pkg envvar, func CopySlice([]string) []string
 pkg envvar, func JoinKeyValue(string, string) string
@@ -7,6 +8,7 @@ pkg envvar, func LookPathAll([]string, string, map[string]bool) []string
 pkg envvar, func MapToSlice(map[string]string) []string
 pkg envvar, func MergeMaps(...map[string]string) map[string]string
 pkg envvar, func MergeSlices(...[]string) []string
+pkg envvar, func PrependUsingSeparator(string, string, string) string
 pkg envvar, func SliceToMap([]string) map[string]string
 pkg envvar, func SortByKey([]string)
 pkg envvar, func SplitKeyValue(string) (string, string)

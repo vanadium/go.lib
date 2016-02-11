@@ -161,6 +161,40 @@ func TestSplitJoinTokens(t *testing.T) {
 	}
 }
 
+func TestAppendPrepend(t *testing.T) {
+	tests := []struct {
+		Sep, Value, Existing, Result string
+	}{
+		{":", "Z", "", "Z"},
+		{":", "", "Z", "Z"},
+		{":", "", "", ""},
+		{":", "X", ":A:B", "X:A:B"},
+		{":", "Y", "A:B", "Y:A:B"},
+		{":", "Z", "A:::B", "Z:A:B"},
+		{":", "Z", "A:::B:", "Z:A:B"},
+	}
+	for i, test := range tests {
+		if got, want := PrependUsingSeparator(test.Value, test.Existing, test.Sep), test.Result; got != want {
+			t.Errorf("SplitTokens(%d) got %v, want %v", i, got, want)
+		}
+	}
+	tests = []struct {
+		Sep, Value, Existing, Result string
+	}{
+		{":", "Z", "", "Z"},
+		{":", "", "Z", "Z"},
+		{":", "", "", ""},
+		{":", "X", ":A:B:", "A:B:X"},
+		{":", "Y", "A:B", "A:B:Y"},
+		{":", "Z", "A:::B", "A:B:Z"},
+	}
+	for i, test := range tests {
+		if got, want := AppendUsingSeparator(test.Value, test.Existing, test.Sep), test.Result; got != want {
+			t.Errorf("SplitTokens(%d) got %v, want %v", i, got, want)
+		}
+	}
+}
+
 func TestSortByKey(t *testing.T) {
 	tests := []struct {
 		In, Sorted []string

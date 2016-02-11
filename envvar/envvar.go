@@ -145,6 +145,24 @@ func JoinTokens(tokens []string, separator string) string {
 	return value
 }
 
+// PrependUsingSeparator prepends the parameter val to parameter existing using
+// separator to split the tokens in existing  and to prepend val.
+// PrependUsingSeparator uses SplitTokens on the existing string
+// and hence filters out empty tokens, so "A::B:" becomes "A:B".
+func PrependUsingSeparator(val, existing, separator string) string {
+	tmp := SplitTokens(existing, separator)
+	return JoinTokens(append([]string{val}, tmp...), separator)
+}
+
+// AppendUsingSeparator appends the parameter val to parameter existing using
+// separator to split the tokens in existing string and to append val.
+// AppendUsingSeparator uses SplitTokens on the existing string
+// and hence filters out empty tokens, so "A::B:" becomes "A:B".
+func AppendUsingSeparator(val, existing, separator string) string {
+	tmp := SplitTokens(existing, separator)
+	return JoinTokens(append(tmp, val), separator)
+}
+
 // SortByKey sorts vars into ascending key order, where vars is expected to be
 // in the []"key=value" slice representation.
 func SortByKey(vars []string) {
