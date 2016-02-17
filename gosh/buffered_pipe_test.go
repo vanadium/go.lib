@@ -15,17 +15,17 @@ import (
 func TestReadWriteAfterClose(t *testing.T) {
 	p := newBufferedPipe()
 	if n, err := p.Write([]byte("foo")); n != 3 || err != nil {
-		t.Errorf("write got (%v,%v) want (3,nil)", n, err)
+		t.Errorf("write got (%v, %v), want (3, <nil>)", n, err)
 	}
 	if n, err := p.Write([]byte("barbaz")); n != 6 || err != nil {
-		t.Errorf("write got (%v,%v) want (6,nil)", n, err)
+		t.Errorf("write got (%v, %v), want (6, <nil>)", n, err)
 	}
 	if err := p.Close(); err != nil {
 		t.Errorf("close failed: %v", err)
 	}
 	// Read after close returns all data terminated by EOF.
 	if b, err := ioutil.ReadAll(p); string(b) != "foobarbaz" || err != nil {
-		t.Errorf("read got (%s,%v) want (foobarbaz,nil)", b, err)
+		t.Errorf("read got (%s, %v), want (foobarbaz, <nil>)", b, err)
 	}
 	// Write after close fails.
 	n, err := p.Write([]byte("already closed"))

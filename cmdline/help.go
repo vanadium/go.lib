@@ -227,7 +227,7 @@ func usageAll(w *textutil.LineWriter, env *Env, path []*Command, config *helpCon
 	}
 	if cmd.LookPath {
 		cmdPrefix := cmd.Name + "-"
-		for _, subCmd := range env.LookPathAll(cmdPrefix, cmd.subNames(cmdPrefix)) {
+		for _, subCmd := range env.LookPathPrefix(cmdPrefix, cmd.subNames(cmdPrefix)) {
 			runner := binaryRunner{subCmd, cmdPath}
 			var buffer bytes.Buffer
 			envCopy := env.clone()
@@ -310,7 +310,7 @@ func usage(w *textutil.LineWriter, env *Env, path []*Command, config *helpConfig
 	var extChildren []string
 	cmdPrefix := cmd.Name + "-"
 	if cmd.LookPath {
-		extChildren = env.LookPathAll(cmdPrefix, cmd.subNames(cmdPrefix))
+		extChildren = env.LookPathPrefix(cmdPrefix, cmd.subNames(cmdPrefix))
 	}
 	hasSubcommands := len(cmd.Children) > 0 || len(extChildren) > 0
 	if hasSubcommands {

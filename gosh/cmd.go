@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -15,6 +16,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"v.io/x/lib/lookpath"
 )
 
 var (
@@ -256,11 +259,12 @@ func newCmdInternal(sh *Shell, vars map[string]string, path string, args []strin
 func newCmd(sh *Shell, vars map[string]string, name string, args ...string) (*Cmd, error) {
 	// Mimics https://golang.org/src/os/exec/exec.go Command.
 	if filepath.Base(name) == name {
-		if lp, err := exec.LookPath(name); err != nil {
-			return nil, err
-		} else {
-			name = lp
+		dirs := splitTokens(sh.Vars["PATH"], ":")
+		lp := lookpath.Look(dirs, name)
+		if lp == "" {
+			return nil, fmt.Errorf("gosh: failed to locate executable: %s", name)
 		}
+		name = lp
 	}
 	return newCmdInternal(sh, vars, name, args)
 }

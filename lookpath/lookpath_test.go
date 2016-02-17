@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package envvar
+package lookpath_test
 
 import (
 	"io/ioutil"
@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"v.io/x/lib/lookpath"
 )
 
 func mkdir(t *testing.T, d ...string) string {
@@ -44,7 +46,7 @@ func initTmpDir(t *testing.T) (string, func()) {
 	}
 }
 
-func TestLookPath(t *testing.T) {
+func TestLook(t *testing.T) {
 	tmpDir, cleanup := initTmpDir(t)
 	defer cleanup()
 	dirA, dirB := mkdir(t, tmpDir, "a"), mkdir(t, tmpDir, "b")
@@ -67,17 +69,17 @@ func TestLookPath(t *testing.T) {
 		{[]string{dirA, dirB}, "foo", aFoo},
 		{[]string{dirA, dirB}, "bar", aBar},
 		{[]string{dirA, dirB}, "baz", bBaz},
-		// Make sure we find bExe, since aExe isn't executable
+		// Make sure we find bExe, since aExe isn't executable.
 		{[]string{dirA, dirB}, "exe", bExe},
 	}
 	for _, test := range tests {
-		if got, want := LookPath(test.Dirs, test.Name), test.Want; got != want {
+		if got, want := lookpath.Look(test.Dirs, test.Name), test.Want; got != want {
 			t.Errorf("dirs=%v name=%v got %v, want %v", test.Dirs, test.Name, got, want)
 		}
 	}
 }
 
-func TestLookPathAll(t *testing.T) {
+func TestLookPrefix(t *testing.T) {
 	tmpDir, cleanup := initTmpDir(t)
 	defer cleanup()
 	dirA, dirB := mkdir(t, tmpDir, "a"), mkdir(t, tmpDir, "b")
@@ -110,12 +112,12 @@ func TestLookPathAll(t *testing.T) {
 		{[]string{dirA, dirB}, "b", nil, []string{bBaa, aBar, bBaz, aBzz}},
 		// Don't find baz, since it's already provided.
 		{[]string{dirA, dirB}, "b", map[string]bool{"baz": true}, []string{bBaa, aBar, aBzz}},
-		// Make sure we find bExe, since aExe isn't executable
+		// Make sure we find bExe, since aExe isn't executable.
 		{[]string{dirA, dirB}, "exe", nil, []string{bExe}},
 		{[]string{dirA, dirB}, "e", nil, []string{bExe}},
 	}
 	for _, test := range tests {
-		if got, want := LookPathAll(test.Dirs, test.Prefix, test.Names), test.Want; !reflect.DeepEqual(got, want) {
+		if got, want := lookpath.LookPrefix(test.Dirs, test.Prefix, test.Names), test.Want; !reflect.DeepEqual(got, want) {
 			t.Errorf("dirs=%v prefix=%v names=%v got %v, want %v", test.Dirs, test.Prefix, test.Names, got, want)
 		}
 	}

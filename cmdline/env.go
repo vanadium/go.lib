@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"v.io/x/lib/envvar"
+	"v.io/x/lib/lookpath"
 	"v.io/x/lib/textutil"
 	"v.io/x/lib/timing"
 )
@@ -75,19 +76,19 @@ func (e *Env) TimerPop() {
 }
 
 // LookPath returns the absolute path of the executable with the given name,
-// based on the directories in PATH.  Calls envvar.LookPath.
+// based on the directories in PATH.  Calls lookpath.Look.
 func (e *Env) LookPath(name string) string {
 	e.TimerPush("lookpath " + name)
 	defer e.TimerPop()
-	return envvar.LookPath(e.pathDirs(), name)
+	return lookpath.Look(e.pathDirs(), name)
 }
 
-// LookPathAll returns the absolute paths of all executables with the given name
-// prefix, based on the directories in PATH.  Calls envvar.LookPath.
-func (e *Env) LookPathAll(prefix string, names map[string]bool) []string {
-	e.TimerPush("lookpathall " + prefix)
+// LookPathPrefix returns the absolute paths of all executables with the given
+// name prefix, based on the directories in PATH.  Calls lookpath.LookPrefix.
+func (e *Env) LookPathPrefix(prefix string, names map[string]bool) []string {
+	e.TimerPush("lookpathprefix " + prefix)
 	defer e.TimerPop()
-	return envvar.LookPathAll(e.pathDirs(), prefix, names)
+	return lookpath.LookPrefix(e.pathDirs(), prefix, names)
 }
 
 func usageErrorf(env *Env, usage func(*Env, io.Writer), format string, args ...interface{}) error {

@@ -243,30 +243,42 @@ func TestFuncCmd(t *testing.T) {
 	eq(t, c.Stdout(), "Hello, world!\n")
 }
 
-// Tests that BuildGoPkg works when the -o flag is passed.
+// Tests that BuildGoPkg works even when the -o flag is passed.
+// TODO(sadovsky): Add tests for (1) missing name after -o, (2) multiple
+// instances of -o, (3) using --o instead of -o, and perhaps other cases as
+// well.
 func TestBuildGoPkg(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 
-	binPath := sh.BuildGoPkg("v.io/x/lib/gosh/internal/gosh_example_server")
-	c := sh.Cmd(binPath)
-	c.Start()
-	addr := c.AwaitVars("addr")["addr"]
-	neq(t, addr, "")
-
-	cwd, err := os.Getwd()
-	ok(t, err)
-	absName := filepath.Join(cwd, "x")
-	binPath = sh.BuildGoPkg("v.io/x/lib/gosh/internal/gosh_example_client", "-o", absName)
-	defer os.Remove(absName)
-	c = sh.Cmd(absName, "-addr="+addr)
+	tempDir := sh.MakeTempDir()
+	absName := filepath.Join(tempDir, "hw")
+	sh.BuildGoPkg("v.io/x/lib/gosh/internal/hello_world", "-o", absName)
+	c := sh.Cmd(absName)
 	eq(t, c.Stdout(), "Hello, world!\n")
 
-	relName := filepath.Join(sh.Opts.BinDir, "y")
-	binPath = sh.BuildGoPkg("v.io/x/lib/gosh/internal/gosh_example_client", "-o", "y")
-	defer os.Remove(relName)
-	c = sh.Cmd(relName, "-addr="+addr)
+	absName = filepath.Join(sh.Opts.BinDir, "hw")
+	sh.BuildGoPkg("v.io/x/lib/gosh/internal/hello_world", "-o", "hw")
+	c = sh.Cmd(absName)
 	eq(t, c.Stdout(), "Hello, world!\n")
+}
+
+// Tests that Shell.Cmd uses Shell.Vars["PATH"] to locate executables with
+// relative names.
+func TestLookPath(t *testing.T) {
+	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	defer sh.Cleanup()
+
+	tempDir := sh.MakeTempDir()
+	sh.Vars["PATH"] += ":" + tempDir
+	absName, relName := filepath.Join(tempDir, "hw"), "hw"
+	sh.BuildGoPkg("v.io/x/lib/gosh/internal/hello_world", "-o", absName)
+	c := sh.Cmd(relName)
+	eq(t, c.Stdout(), "Hello, world!\n")
+
+	// Test the case where we cannot find the executable.
+	sh.Vars["PATH"] = ""
+	setsErr(t, sh, func() { sh.Cmd("yes") })
 }
 
 var (

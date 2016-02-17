@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package envvar
+package lookpath
 
 import (
 	"io/ioutil"
@@ -11,10 +11,10 @@ import (
 	"strings"
 )
 
-// LookPath returns the absolute path of the executable with the given name,
-// based on the given dirs.  If multiple exectuables match the name, the first
-// match in dirs is returned.  Invalid dirs are silently ignored.
-func LookPath(dirs []string, name string) string {
+// Look returns the absolute path of the executable with the given name, based
+// on the given dirs.  If multiple executables match the name, the first match
+// in dirs is returned.  Invalid dirs are silently ignored.
+func Look(dirs []string, name string) string {
 	if strings.Contains(name, string(filepath.Separator)) {
 		return ""
 	}
@@ -35,15 +35,15 @@ func LookPath(dirs []string, name string) string {
 	return ""
 }
 
-// LookPathAll returns the absolute paths of all executables with the given name
-// prefix, based on the given dirs.  If multiple exectuables match the prefix
+// LookPrefix returns the absolute paths of all executables with the given name
+// prefix, based on the given dirs.  If multiple executables match the prefix
 // with the same name, the first match in dirs is returned.  Invalid dirs are
 // silently ignored.  Returns a list of paths sorted by name.
 //
 // The names are filled in as the method runs, to ensure the first matching
 // property.  As a consequence, you may pass in a pre-populated names map to
 // prevent matching those names.  It is fine to pass in a nil names map.
-func LookPathAll(dirs []string, prefix string, names map[string]bool) []string {
+func LookPrefix(dirs []string, prefix string, names map[string]bool) []string {
 	if strings.Contains(prefix, string(filepath.Separator)) {
 		return nil
 	}

@@ -1,0 +1,2 @@
+pkg lookpath, func Look([]string, string) string
+pkg lookpath, func LookPrefix([]string, string, map[string]bool) []string
