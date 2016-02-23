@@ -1,6 +1,9 @@
 pkg simplemr, method (*Identity) Map(*MR, string, interface{}) error
 pkg simplemr, method (*Identity) Reduce(*MR, string, []interface{}) error
+pkg simplemr, method (*MR) Cancel()
+pkg simplemr, method (*MR) CancelCh() <-chan struct{}
 pkg simplemr, method (*MR) Error() error
+pkg simplemr, method (*MR) IsCancelled() bool
 pkg simplemr, method (*MR) MapOut(string, ...interface{})
 pkg simplemr, method (*MR) ReduceOut(string, ...interface{})
 pkg simplemr, method (*MR) Run(<-chan *Record, chan<- *Record, Mapper, Reducer) error
@@ -15,3 +18,4 @@ pkg simplemr, type Record struct, Key string
 pkg simplemr, type Record struct, Values []interface{}
 pkg simplemr, type Reducer interface { Reduce }
 pkg simplemr, type Reducer interface, Reduce(*MR, string, []interface{}) error
+pkg simplemr, var ErrMRCancelled error

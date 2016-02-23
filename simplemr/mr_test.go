@@ -5,7 +5,9 @@
 package simplemr_test
 
 import (
+	"errors"
 	"fmt"
+	"math/rand"
 	"runtime"
 	"strings"
 	"testing"
@@ -202,4 +204,63 @@ func TestChainedMR(t *testing.T) {
 	if err := mrt2.Error(); err != nil {
 		t.Fatal(err)
 	}
+}
+
+type cancelMR struct{ cancelMapper bool }
+
+var (
+	errMapperCancelled  = errors.New("mapper cancelled")
+	errReducerCancelled = errors.New("reducer cancelled")
+)
+
+func cancelEg(mr *simplemr.MR) error {
+	delay := rand.Int63n(1000) * int64(time.Millisecond)
+	select {
+	case <-mr.CancelCh():
+		return nil
+	case <-time.After(time.Duration(delay)):
+		mr.Cancel()
+		return nil
+	case <-time.After(time.Hour):
+	}
+	return fmt.Errorf("timeout")
+}
+
+func (c *cancelMR) Map(mr *simplemr.MR, key string, val interface{}) error {
+	if c.cancelMapper {
+		return cancelEg(mr)
+	}
+	mr.MapOut(key, val)
+	return nil
+}
+
+func (c *cancelMR) Reduce(mr *simplemr.MR, key string, values []interface{}) error {
+	if !c.cancelMapper {
+		return cancelEg(mr)
+	}
+	panic("should never get here")
+	return nil
+}
+
+func testCancel(t *testing.T, mapper bool) {
+	mrt := &simplemr.MR{}
+	in, out := newChans(10)
+	cancel := &cancelMR{true}
+	genInput := func() {
+		in <- &simplemr.Record{"d1", []interface{}{d1, d2, d3}}
+		in <- &simplemr.Record{"d2", []interface{}{d1, d2, d3}}
+		close(in)
+	}
+	go genInput()
+	if got, want := mrt.Run(in, out, cancel, cancel), simplemr.ErrMRCancelled; got != want {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestCancelMappers(t *testing.T) {
+	testCancel(t, true)
+}
+
+func TestCancelReducers(t *testing.T) {
+	testCancel(t, false)
 }

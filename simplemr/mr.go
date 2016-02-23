@@ -13,12 +13,15 @@
 package simplemr
 
 import (
+	"errors"
 	"fmt"
 	"runtime"
 	"sort"
 	"sync"
 	"time"
 )
+
+var ErrMRCancelled = errors.New("MR cancelled")
 
 // Mapper is in the interface that must be implemented by all mappers.
 type Mapper interface {
@@ -74,10 +77,14 @@ func (s *store) lookup(k string) []interface{} {
 
 // MR represents the Map Reduction.
 type MR struct {
-	input  <-chan *Record
-	output chan<- *Record
-	err    error
-	data   *store
+	input        <-chan *Record
+	output       chan<- *Record
+	cancel       chan struct{}
+	cancelled    bool
+	cancelled_mu sync.RWMutex // guards cancelled
+	err          error
+	data         *store
+
 	// The number of conccurent mappers to use. A value of 0 instructs
 	// the implementation to use an appropriate number, such as the number
 	// of available CPUs.
@@ -104,6 +111,33 @@ func (mr *MR) MapOut(key string, values ...interface{}) {
 // stream. It should only be called from a reducer.
 func (mr *MR) ReduceOut(key string, values ...interface{}) {
 	mr.output <- &Record{key, values}
+}
+
+// CancelCh returns a channel that will be closed when the Cancel
+// method is called. It should only be called by a mapper or reducer.
+func (mr *MR) CancelCh() <-chan struct{} {
+	return mr.cancel
+}
+
+// Cancel closes the channel intended to be used for monitoring
+// cancellation requests. If Cancel is called before any reducers
+// have been run then no reducers will be run. It can only be called
+// after mr.Run has been called, generally by a mapper or a reducer.
+func (mr *MR) Cancel() {
+	mr.cancelled_mu.Lock()
+	defer mr.cancelled_mu.Unlock()
+	if mr.cancelled {
+		return
+	}
+	close(mr.cancel)
+	mr.cancelled = true
+}
+
+// IsCancelled returns true if this MR has been cancelled.
+func (mr *MR) IsCancelled() bool {
+	mr.cancelled_mu.RLock()
+	defer mr.cancelled_mu.RUnlock()
+	return mr.cancelled
 }
 
 func (mr *MR) runMapper(ch chan error, mapper Mapper) {
@@ -139,6 +173,8 @@ func (mr *MR) runMappers(mapper Mapper, timeout <-chan time.Time) error {
 			if done == mr.NumMappers {
 				return nil
 			}
+		case <-mr.cancel:
+			return ErrMRCancelled
 		case <-timeout:
 			return fmt.Errorf("timed out mappers after %s", mr.Timeout)
 		}
@@ -172,6 +208,7 @@ func (mr *MR) runReducers(reducer Reducer, timeout <-chan time.Time) error {
 // Run may only be called once per MR receiver.
 func (mr *MR) Run(input <-chan *Record, output chan<- *Record, mapper Mapper, reducer Reducer) error {
 	mr.input, mr.output, mr.data = input, output, newStore()
+	mr.cancel = make(chan struct{})
 	if mr.NumMappers == 0 {
 		// TODO(cnicolaou,toddw): consider using a new goroutine
 		// for every input record rather than fixing concurrency like
@@ -187,6 +224,12 @@ func (mr *MR) Run(input <-chan *Record, output chan<- *Record, mapper Mapper, re
 	if mr.err = mr.runMappers(mapper, timeout); mr.err != nil {
 		return mr.err
 	}
+	if mr.IsCancelled() {
+		return ErrMRCancelled
+	}
 	mr.err = mr.runReducers(reducer, timeout)
+	if mr.IsCancelled() {
+		return ErrMRCancelled
+	}
 	return mr.err
 }
