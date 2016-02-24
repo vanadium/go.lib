@@ -83,6 +83,7 @@ type MR struct {
 	cancelled    bool
 	cancelled_mu sync.RWMutex // guards cancelled
 	err          error
+	err_mu       sync.RWMutex // guards err
 	data         *store
 
 	// The number of conccurent mappers to use. A value of 0 instructs
@@ -98,6 +99,8 @@ type MR struct {
 // safe to read its value once the output channel passed to Run has been
 // closed.
 func (mr *MR) Error() error {
+	mr.err_mu.RLock()
+	defer mr.err_mu.RUnlock()
 	return mr.err
 }
 
@@ -221,15 +224,21 @@ func (mr *MR) Run(input <-chan *Record, output chan<- *Record, mapper Mapper, re
 		timeout = time.After(mr.Timeout)
 	}
 	defer close(mr.output)
-	if mr.err = mr.runMappers(mapper, timeout); mr.err != nil {
-		return mr.err
+	if err := mr.runMappers(mapper, timeout); err != nil {
+		mr.err_mu.Lock()
+		mr.err = err
+		mr.err_mu.Unlock()
+		return err
 	}
 	if mr.IsCancelled() {
 		return ErrMRCancelled
 	}
-	mr.err = mr.runReducers(reducer, timeout)
+	err := mr.runReducers(reducer, timeout)
+	mr.err_mu.Lock()
+	mr.err = err
+	mr.err_mu.Unlock()
 	if mr.IsCancelled() {
 		return ErrMRCancelled
 	}
-	return mr.err
+	return err
 }

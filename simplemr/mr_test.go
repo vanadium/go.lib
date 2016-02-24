@@ -103,13 +103,13 @@ func (sr *slowReducer) Reduce(mr *simplemr.MR, key string, values []interface{})
 
 func TestTimeout(t *testing.T) {
 	in, out := newChans(1)
-	mrt := &simplemr.MR{Timeout: 10 * time.Millisecond}
+	mrt := &simplemr.MR{Timeout: 100 * time.Millisecond}
 	identity := &simplemr.Identity{}
 	mrt.Run(in, out, identity, identity)
 	if err := mrt.Error(); err == nil || !strings.Contains(err.Error(), "timed out mappers") {
 		t.Fatalf("missing or wrong error: %v", err)
 	}
-	mrt = &simplemr.MR{Timeout: 10 * time.Millisecond}
+	mrt = &simplemr.MR{Timeout: 100 * time.Millisecond}
 	in, out = newChans(1)
 	in <- &simplemr.Record{"key", []interface{}{"value"}}
 	close(in)
