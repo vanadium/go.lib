@@ -23,15 +23,19 @@ const (
 	// types of encoded bytes, 1 byte
 	typeBB1Params     marshaledType = 0
 	typeBB1PrivateKey               = 1
-	typeBB2Params                   = 2
-	typeBB2PrivateKey               = 3
+	typeBB1MasterKey                = 2
+	typeBB2Params                   = 3
+	typeBB2PrivateKey               = 4
+	typeBB2MasterKey                = 5
 
 	// Sizes excluding the magic number and type header.
 	headerSize                 = 3
 	marshaledBB1ParamsSize     = 2*marshaledG1Size + 2*marshaledG2Size + marshaledGTSize
 	marshaledBB1PrivateKeySize = 2 * marshaledG2Size
+	marshaledBB1MasterKeySize  = marshaledG2Size
 	marshaledBB2ParamsSize     = 2*marshaledG1Size + marshaledGTSize
 	marshaledBB2PrivateKeySize = fieldElemSize + marshaledG2Size
+	marshaledBB2MasterKeySize  = 2*fieldElemSize + marshaledG2Size
 )
 
 func writeFieldElement(elem *big.Int) []byte {
@@ -174,7 +178,7 @@ func MarshalPrivateKey(k PrivateKey) ([]byte, error) {
 		}
 		return ret, nil
 	default:
-		return nil, fmt.Errorf("MarshalPrivateKey for %T for implemented yet", k)
+		return nil, fmt.Errorf("MarshalPrivateKey for %T not implemented yet", k)
 	}
 }
 
@@ -233,5 +237,89 @@ func UnmarshalPrivateKey(params Params, data []byte) (PrivateKey, error) {
 		return k, nil
 	default:
 		return nil, fmt.Errorf("unrecognized private key type (%d)", typ)
+	}
+}
+
+// MarshalMasterKey encodes the private component of m into a byte slice.
+func MarshalMasterKey(m Master) ([]byte, error) {
+	switch m := m.(type) {
+	case *bb1master:
+		ret := make([]byte, 0, headerSize+marshaledBB1MasterKeySize)
+		for _, field := range [][]byte{
+			writeHeader(typeBB1MasterKey),
+			m.g0Hat.Marshal(),
+		} {
+			ret = append(ret, field...)
+		}
+		return ret, nil
+	case *bb2master:
+		ret := make([]byte, 0, headerSize+marshaledBB2MasterKeySize)
+		for _, field := range [][]byte{
+			writeHeader(typeBB2MasterKey),
+			writeFieldElement(m.x),
+			writeFieldElement(m.y),
+			m.hHat.Marshal(),
+		} {
+			ret = append(ret, field...)
+		}
+		return ret, nil
+	default:
+		return nil, fmt.Errorf("MarshalMasterKey for %T not implemented yet", m)
+	}
+}
+
+// UnmarshalMasterKey parses an encoded Master object.
+func UnmarshalMasterKey(params Params, data []byte) (Master, error) {
+	var typ marshaledType
+	var err error
+	if typ, data, err = readHeader(data); err != nil {
+		return nil, err
+	}
+	advance := func(n int) []byte {
+		ret := data[0:n]
+		data = data[n:]
+		return ret
+	}
+	switch typ {
+	case typeBB1MasterKey:
+		if len(data) != marshaledBB1MasterKeySize {
+			return nil, fmt.Errorf("invalid size")
+		}
+		m := &bb1master{
+			g0Hat: new(bn256.G2),
+		}
+		if _, ok := m.g0Hat.Unmarshal(advance(marshaledG2Size)); !ok {
+			return nil, fmt.Errorf("failed to unmarshal g0Hat")
+		}
+		p, ok := params.(*bb1params)
+		if !ok {
+			return nil, fmt.Errorf("params type %T incompatible with %T", params, m)
+		}
+		m.params = new(bb1params)
+		*(m.params) = *p
+		return m, nil
+	case typeBB2MasterKey:
+		if len(data) != marshaledBB2MasterKeySize {
+			return nil, fmt.Errorf("invalid size")
+		}
+		m := &bb2master{
+			x:    new(big.Int),
+			y:    new(big.Int),
+			hHat: new(bn256.G2),
+		}
+		m.x.SetBytes(advance(fieldElemSize))
+		m.y.SetBytes(advance(fieldElemSize))
+		if _, ok := m.hHat.Unmarshal(advance(marshaledG2Size)); !ok {
+			return nil, fmt.Errorf("failed to unmarshal hHat")
+		}
+		p, ok := params.(*bb2params)
+		if !ok {
+			return nil, fmt.Errorf("params type %T incompatible with %T", params, m)
+		}
+		m.params = new(bb2params)
+		*(m.params) = *p
+		return m, nil
+	default:
+		return nil, fmt.Errorf("unrecognized master key type (%d)", typ)
 	}
 }

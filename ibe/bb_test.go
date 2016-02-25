@@ -153,6 +153,10 @@ func testMarshaling(t *testing.T, setup SetupFunc) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	mkbytes, err := MarshalMasterKey(master)
+	if err != nil {
+		t.Fatal(err)
+	}
 	m := []byte("01234567899876543210123456789012")
 	overhead := bbParams.CiphertextOverhead()
 	var (
@@ -161,6 +165,19 @@ func testMarshaling(t *testing.T, setup SetupFunc) {
 		m1 = make([]byte, len(m))
 		m2 = make([]byte, len(m))
 	)
+	// Encrypt with the original params, decrypt with key extracted from unmarshaled
+	// master key.
+	if err := bbParams.Encrypt("alice", m, C1); err != nil {
+		t.Error(err)
+	} else if mk, err := UnmarshalMasterKey(bbParams, mkbytes); err != nil {
+		t.Error(err)
+	} else if bbSK, err := mk.Extract("alice"); err != nil {
+		t.Error(err)
+	} else if err := bbSK.Decrypt(C1, m2); err != nil {
+		t.Error(err)
+	} else if !bytes.Equal(m, m2) {
+		t.Errorf("Got %q, want %q", m, m2)
+	}
 	// Encrypt with the original params, decrypt with the unmarshaled key.
 	if err := bbParams.Encrypt("alice", m, C1); err != nil {
 		t.Error(err)
@@ -189,12 +206,18 @@ func testMarshaling(t *testing.T, setup SetupFunc) {
 	if _, err := UnmarshalPrivateKey(bbParams, skbytes[:len(skbytes)-1]); err == nil {
 		t.Errorf("UnmarshalPrivateKey succeeded on truncated input")
 	}
+	if _, err := UnmarshalMasterKey(bbParams, mkbytes[:len(mkbytes)-1]); err == nil {
+		t.Errorf("UnmarshalMasterKey succeeded on truncated input")
+	}
 	// Extension errors
 	if _, err := UnmarshalParams(append(pbytes, 0)); err == nil {
 		t.Errorf("UnmarshalParams succeeded on extended input")
 	}
 	if _, err := UnmarshalPrivateKey(bbParams, append(skbytes, 0)); err == nil {
 		t.Errorf("UnmarshalPrivateKey succeeded on extended input")
+	}
+	if _, err := UnmarshalMasterKey(bbParams, append(mkbytes, 0)); err == nil {
+		t.Errorf("UnmarshalMasterKey succeeded on extended input")
 	}
 	// Zero length (no valid header either)
 	if _, err := UnmarshalParams(nil); err == nil {
@@ -208,6 +231,12 @@ func testMarshaling(t *testing.T, setup SetupFunc) {
 	}
 	if _, err := UnmarshalPrivateKey(bbParams, []byte{}); err == nil {
 		t.Errorf("UnmarshalPrivateKey succeeded on zero length input")
+	}
+	if _, err := UnmarshalMasterKey(bbParams, nil); err == nil {
+		t.Errorf("UnmarshalMasterKey succeeded on nil input")
+	}
+	if _, err := UnmarshalMasterKey(bbParams, []byte{}); err == nil {
+		t.Errorf("UnmarshalMasterKey succeeded on zero length input")
 	}
 }
 

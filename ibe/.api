@@ -1,7 +1,9 @@
+pkg ibe, func MarshalMasterKey(Master) ([]byte, error)
 pkg ibe, func MarshalParams(Params) ([]byte, error)
 pkg ibe, func MarshalPrivateKey(PrivateKey) ([]byte, error)
 pkg ibe, func SetupBB1() (Master, error)
 pkg ibe, func SetupBB2() (Master, error)
+pkg ibe, func UnmarshalMasterKey(Params, []byte) (Master, error)
 pkg ibe, func UnmarshalParams([]byte) (Params, error)
 pkg ibe, func UnmarshalPrivateKey(Params, []byte) (PrivateKey, error)
 pkg ibe, type Master interface { Extract, Params }
