@@ -17,14 +17,15 @@ func ExampleCmd() {
 	defer sh.Cleanup()
 
 	// Start server.
-	binPath := sh.BuildGoPkg("v.io/x/lib/gosh/internal/gosh_example_server")
+	binDir := sh.MakeTempDir()
+	binPath := gosh.BuildGoPkg(sh, binDir, "v.io/x/lib/gosh/internal/gosh_example_server")
 	c := sh.Cmd(binPath)
 	c.Start()
 	addr := c.AwaitVars("addr")["addr"]
 	fmt.Println(addr)
 
 	// Run client.
-	binPath = sh.BuildGoPkg("v.io/x/lib/gosh/internal/gosh_example_client")
+	binPath = gosh.BuildGoPkg(sh, binDir, "v.io/x/lib/gosh/internal/gosh_example_client")
 	c = sh.Cmd(binPath, "-addr="+addr)
 	fmt.Print(c.Stdout())
 }

@@ -1,3 +1,4 @@
+pkg gosh, func BuildGoPkg(*Shell, string, string, ...string) string
 pkg gosh, func InitChildMain()
 pkg gosh, func InitMain()
 pkg gosh, func NewPipeline(*Cmd, ...*Cmd) *Pipeline
@@ -36,7 +37,6 @@ pkg gosh, method (*Pipeline) StdoutStderr() (string, string)
 pkg gosh, method (*Pipeline) Terminate(os.Signal)
 pkg gosh, method (*Pipeline) Wait()
 pkg gosh, method (*Shell) AddCleanupHandler(func())
-pkg gosh, method (*Shell) BuildGoPkg(string, ...string) string
 pkg gosh, method (*Shell) Cleanup()
 pkg gosh, method (*Shell) Cmd(string, ...string) *Cmd
 pkg gosh, method (*Shell) FuncCmd(*Func, ...interface{}) *Cmd
@@ -62,7 +62,6 @@ pkg gosh, type Cmd struct, PropagateOutput bool
 pkg gosh, type Cmd struct, Vars map[string]string
 pkg gosh, type Func struct
 pkg gosh, type Opts struct
-pkg gosh, type Opts struct, BinDir string
 pkg gosh, type Opts struct, ChildOutputDir string
 pkg gosh, type Opts struct, Fatalf func(string, ...interface{})
 pkg gosh, type Opts struct, Logf func(string, ...interface{})

@@ -7,7 +7,7 @@ package gosh_test
 // TODO(sadovsky): Add more tests:
 // - effects of Shell.Cleanup
 // - Shell.{Vars,Args,Rename,MakeTempFile,MakeTempDir}
-// - Shell.Opts.{PropagateChildOutput,ChildOutputDir,BinDir}
+// - Shell.Opts.{PropagateChildOutput,ChildOutputDir}
 // - Cmd.Clone
 // - Cmd.Opts.{IgnoreParentExit,ExitAfter,PropagateOutput}
 
@@ -204,22 +204,28 @@ func TestPushdNoPopdCleanup(t *testing.T) {
 	eq(t, getwdEvalSymlinks(t), startDir)
 }
 
+const (
+	helloWorldPkg = "v.io/x/lib/gosh/internal/hello_world"
+	helloWorldStr = "Hello, world!\n"
+)
+
 // Mirrors ExampleCmd in internal/gosh_example/main.go.
 func TestCmd(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 
 	// Start server.
-	binPath := sh.BuildGoPkg("v.io/x/lib/gosh/internal/gosh_example_server")
+	binDir := sh.MakeTempDir()
+	binPath := gosh.BuildGoPkg(sh, binDir, "v.io/x/lib/gosh/internal/gosh_example_server")
 	c := sh.Cmd(binPath)
 	c.Start()
 	addr := c.AwaitVars("addr")["addr"]
 	neq(t, addr, "")
 
 	// Run client.
-	binPath = sh.BuildGoPkg("v.io/x/lib/gosh/internal/gosh_example_client")
+	binPath = gosh.BuildGoPkg(sh, binDir, "v.io/x/lib/gosh/internal/gosh_example_client")
 	c = sh.Cmd(binPath, "-addr="+addr)
-	eq(t, c.Stdout(), "Hello, world!\n")
+	eq(t, c.Stdout(), helloWorldStr)
 }
 
 var (
@@ -240,27 +246,52 @@ func TestFuncCmd(t *testing.T) {
 
 	// Run client.
 	c = sh.FuncCmd(getFunc, addr)
-	eq(t, c.Stdout(), "Hello, world!\n")
+	eq(t, c.Stdout(), helloWorldStr)
 }
 
-// Tests that BuildGoPkg works even when the -o flag is passed.
-// TODO(sadovsky): Add tests for (1) missing name after -o, (2) multiple
-// instances of -o, (3) using --o instead of -o, and perhaps other cases as
-// well.
+// Tests BuildGoPkg's handling of the -o flag.
 func TestBuildGoPkg(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 
-	tempDir := sh.MakeTempDir()
-	absName := filepath.Join(tempDir, "hw")
-	sh.BuildGoPkg("v.io/x/lib/gosh/internal/hello_world", "-o", absName)
+	// Set -o to an absolute name.
+	relName := "hw"
+	absName := filepath.Join(sh.MakeTempDir(), relName)
+	eq(t, gosh.BuildGoPkg(sh, "", helloWorldPkg, "-o", absName), absName)
 	c := sh.Cmd(absName)
-	eq(t, c.Stdout(), "Hello, world!\n")
+	eq(t, c.Stdout(), helloWorldStr)
 
-	absName = filepath.Join(sh.Opts.BinDir, "hw")
-	sh.BuildGoPkg("v.io/x/lib/gosh/internal/hello_world", "-o", "hw")
+	// Set -o to a relative name with no path separators.
+	binDir := sh.MakeTempDir()
+	absName = filepath.Join(binDir, relName)
+	eq(t, gosh.BuildGoPkg(sh, binDir, helloWorldPkg, "-o", relName), absName)
 	c = sh.Cmd(absName)
-	eq(t, c.Stdout(), "Hello, world!\n")
+	eq(t, c.Stdout(), helloWorldStr)
+
+	// Set -o to a relative name that contains a path separator.
+	relNameWithSlash := filepath.Join("subdir", relName)
+	absName = filepath.Join(binDir, relNameWithSlash)
+	eq(t, gosh.BuildGoPkg(sh, binDir, helloWorldPkg, "-o", relNameWithSlash), absName)
+	c = sh.Cmd(absName)
+	eq(t, c.Stdout(), helloWorldStr)
+
+	// Missing location after -o.
+	setsErr(t, sh, func() { gosh.BuildGoPkg(sh, "", helloWorldPkg, "-o") })
+
+	// Multiple -o.
+	absName = filepath.Join(sh.MakeTempDir(), relName)
+	gosh.BuildGoPkg(sh, "", helloWorldPkg, "-o", relName, "-o", absName)
+	c = sh.Cmd(absName)
+	eq(t, c.Stdout(), helloWorldStr)
+
+	// Use --o instead of -o.
+	absName = filepath.Join(sh.MakeTempDir(), relName)
+	gosh.BuildGoPkg(sh, "", helloWorldPkg, "--o", absName)
+	c = sh.Cmd(absName)
+	eq(t, c.Stdout(), helloWorldStr)
 }
 
 // Tests that Shell.Cmd uses Shell.Vars["PATH"] to locate executables with
@@ -269,12 +300,13 @@ func TestLookPath(t *testing.T) {
 	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
 	defer sh.Cleanup()
 
-	tempDir := sh.MakeTempDir()
-	sh.Vars["PATH"] += ":" + tempDir
-	absName, relName := filepath.Join(tempDir, "hw"), "hw"
-	sh.BuildGoPkg("v.io/x/lib/gosh/internal/hello_world", "-o", absName)
+	binDir := sh.MakeTempDir()
+	sh.Vars["PATH"] = binDir + ":" + sh.Vars["PATH"]
+	relName := "hw"
+	absName := filepath.Join(binDir, relName)
+	gosh.BuildGoPkg(sh, "", helloWorldPkg, "-o", absName)
 	c := sh.Cmd(relName)
-	eq(t, c.Stdout(), "Hello, world!\n")
+	eq(t, c.Stdout(), helloWorldStr)
 
 	// Test the case where we cannot find the executable.
 	sh.Vars["PATH"] = ""

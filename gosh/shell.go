@@ -30,7 +30,6 @@ import (
 )
 
 const (
-	envBinDir         = "GOSH_BIN_DIR"
 	envChildOutputDir = "GOSH_CHILD_OUTPUT_DIR"
 	envExitAfter      = "GOSH_EXIT_AFTER"
 	envInvocation     = "GOSH_INVOCATION"
@@ -81,9 +80,6 @@ type Opts struct {
 	// files in this directory.
 	// If not specified, defaults to GOSH_CHILD_OUTPUT_DIR.
 	ChildOutputDir string
-	// Directory where BuildGoPkg() writes compiled binaries.
-	// If not specified, defaults to GOSH_BIN_DIR.
-	BinDir string
 }
 
 // NewShell returns a new Shell.
@@ -132,17 +128,6 @@ func (sh *Shell) Wait() {
 func (sh *Shell) Move(oldpath, newpath string) {
 	sh.Ok()
 	sh.HandleError(sh.move(oldpath, newpath))
-}
-
-// BuildGoPkg compiles a Go package using the "go build" command and writes the
-// resulting binary to sh.Opts.BinDir, or to the -o flag location if specified.
-// Returns the absolute path to the binary.
-func (sh *Shell) BuildGoPkg(pkg string, flags ...string) string {
-	// TODO(sadovsky): Convert BuildGoPkg into a utility function.
-	sh.Ok()
-	res, err := sh.buildGoPkg(pkg, flags...)
-	sh.HandleError(err)
-	return res
 }
 
 // MakeTempFile creates a new temporary file in os.TempDir, opens the file for
@@ -238,7 +223,7 @@ func newShell(opts Opts) (*Shell, error) {
 	}
 	// Filter out any gosh env vars coming from outside.
 	shVars := copyMap(osVars)
-	for _, key := range []string{envBinDir, envChildOutputDir, envExitAfter, envInvocation, envWatchParent} {
+	for _, key := range []string{envChildOutputDir, envExitAfter, envInvocation, envWatchParent} {
 		delete(shVars, key)
 	}
 	sh := &Shell{
@@ -246,16 +231,6 @@ func newShell(opts Opts) (*Shell, error) {
 		Vars:           shVars,
 		calledNewShell: true,
 		cleanupDone:    make(chan struct{}),
-	}
-	if sh.Opts.BinDir == "" {
-		sh.Opts.BinDir = osVars[envBinDir]
-		if sh.Opts.BinDir == "" {
-			var err error
-			if sh.Opts.BinDir, err = sh.makeTempDir(); err != nil {
-				sh.cleanup()
-				return sh, err
-			}
-		}
 	}
 	sh.cleanupOnSignal()
 	return sh, nil
@@ -383,55 +358,6 @@ func (sh *Shell) move(oldpath, newpath string) error {
 		return err
 	}
 	return os.Remove(oldpath)
-}
-
-func extractOutputFlag(flags ...string) (string, []string) {
-	for i, f := range flags {
-		if f == "-o" && len(flags) > i {
-			return flags[i+1], append(flags[:i], flags[i+2:]...)
-		}
-	}
-	return "", flags
-}
-
-func (sh *Shell) buildGoPkg(pkg string, flags ...string) (string, error) {
-	outputFlag, flags := extractOutputFlag(flags...)
-	binPath := filepath.Join(sh.Opts.BinDir, path.Base(pkg))
-	if outputFlag != "" {
-		if filepath.IsAbs(outputFlag) {
-			binPath = outputFlag
-		} else {
-			binPath = filepath.Join(sh.Opts.BinDir, outputFlag)
-		}
-	}
-	// If this binary has already been built, don't rebuild it.
-	if _, err := os.Stat(binPath); err == nil {
-		return binPath, nil
-	} else if !os.IsNotExist(err) {
-		return "", err
-	}
-	// Build binary to tempBinPath (in a fresh temporary directory), then move it
-	// to binPath.
-	tempDir, err := ioutil.TempDir(sh.Opts.BinDir, "")
-	if err != nil {
-		return "", err
-	}
-	defer os.RemoveAll(tempDir)
-	tempBinPath := filepath.Join(tempDir, path.Base(pkg))
-	args := []string{"build", "-o", tempBinPath}
-	args = append(args, flags...)
-	args = append(args, pkg)
-	c, err := sh.cmd(nil, "go", args...)
-	if err != nil {
-		return "", err
-	}
-	if err := c.run(); err != nil {
-		return "", err
-	}
-	if err := sh.move(tempBinPath, binPath); err != nil {
-		return "", err
-	}
-	return binPath, nil
 }
 
 func (sh *Shell) makeTempFile() (*os.File, error) {
@@ -609,4 +535,79 @@ func InitMain() {
 		log.Fatal(err)
 	}
 	os.Exit(0)
+}
+
+// BuildGoPkg compiles a Go package using the "go build" command and writes the
+// resulting binary to the given binDir, or to the -o flag location if
+// specified. If -o is relative, it is interpreted as relative to binDir. If the
+// binary already exists at the target location, it is not rebuilt. Returns the
+// absolute path to the binary.
+func BuildGoPkg(sh *Shell, binDir, pkg string, flags ...string) string {
+	sh.Ok()
+	res, err := buildGoPkg(sh, binDir, pkg, flags...)
+	sh.HandleError(err)
+	return res
+}
+
+func extractOutputFlag(flags ...string) (outputFlag string, otherFlags []string, err error) {
+	for i := 0; i < len(flags); i++ {
+		v := flags[i]
+		if v == "-o" || v == "--o" {
+			i++
+			if i == len(flags) {
+				return "", nil, errors.New("gosh: passed -o without location")
+			}
+			outputFlag = flags[i]
+		} else {
+			otherFlags = append(otherFlags, v)
+		}
+	}
+	return
+}
+
+func buildGoPkg(sh *Shell, binDir, pkg string, flags ...string) (string, error) {
+	outputFlag, flags, err := extractOutputFlag(flags...)
+	if err != nil {
+		return "", err
+	}
+	var binPath string
+	if outputFlag == "" {
+		binPath = filepath.Join(binDir, path.Base(pkg))
+	} else if filepath.IsAbs(outputFlag) {
+		binPath = outputFlag
+	} else {
+		binPath = filepath.Join(binDir, outputFlag)
+	}
+	// If the binary already exists at the target location, don't rebuild it.
+	if _, err := os.Stat(binPath); err == nil {
+		return binPath, nil
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
+	// Build binary to tempBinPath (in a fresh temporary directory), then move it
+	// to binPath.
+	tempDir, err := ioutil.TempDir(binDir, "")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(tempDir)
+	tempBinPath := filepath.Join(tempDir, path.Base(pkg))
+	args := []string{"build", "-o", tempBinPath}
+	args = append(args, flags...)
+	args = append(args, pkg)
+	c, err := sh.cmd(nil, "go", args...)
+	if err != nil {
+		return "", err
+	}
+	if err := c.run(); err != nil {
+		return "", err
+	}
+	// Create target directory, if needed.
+	if err := os.MkdirAll(filepath.Dir(binPath), 0700); err != nil {
+		return "", err
+	}
+	if err := sh.move(tempBinPath, binPath); err != nil {
+		return "", err
+	}
+	return binPath, nil
 }
