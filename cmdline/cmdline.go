@@ -69,8 +69,17 @@ type Command struct {
 
 	// Flags defined for this command.  When a flag F is defined on a command C,
 	// we allow F to be specified on the command line immediately after C, or
-	// after any descendant of C.
+	// after any descendant of C. This FlagSet is only used to specify the
+	// flags and their associated value variables, it is never parsed and hence
+	// methods on FlagSet that are generally used after parsing cannot be
+	// used on Flags. ParsedFlags should be used instead.
 	Flags flag.FlagSet
+	// ParsedFlags contains the FlagSet created by the Command
+	// implementation and that has had its Parse method called. It
+	// should be used instead of the Flags field for handling methods
+	// that assume Parse has been called (e.g. Parsed, Visit,
+	// NArgs etc).
+	ParsedFlags *flag.FlagSet
 
 	// Children of the command.
 	Children []*Command
@@ -436,6 +445,7 @@ func parseFlags(path []*Command, env *Env, args []string) ([]string, map[string]
 	if err := flags.Parse(args); err != nil {
 		return nil, nil, err
 	}
+	cmd.ParsedFlags = flags
 	return flags.Args(), extractSetFlags(flags), nil
 }
 

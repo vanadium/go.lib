@@ -2971,3 +2971,62 @@ The global flags are:
 	}
 	runTestCases(t, cmd, tests)
 }
+
+func TestParsedFlags(t *testing.T) {
+	root := &Command{
+		Name:   "root",
+		Short:  "short",
+		Long:   "long.",
+		Runner: RunnerFunc(runHello),
+	}
+	var v1, v2 bool
+	env := EnvFromOS()
+	root.Flags.BoolVar(&v1, "a", false, "bool")
+	root.Flags.BoolVar(&v2, "b", false, "bool")
+
+	// ParsedFlags should be nil if Parse fails.
+	_, _, err := Parse(root, env, []string{"-xx"})
+	if err == nil {
+		t.Errorf("expected an error")
+	}
+	var nilFlagSet *flag.FlagSet
+	if got, want := root.ParsedFlags, nilFlagSet; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	// ParsedFlags should be set and Parsed returns true if
+	// the command line is successfully parsed.
+	_, _, err = Parse(root, env, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := root.Flags.Parsed(), false; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+	if got, want := root.ParsedFlags.Parsed(), true; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+	if got, want := v1, false; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+	if got, want := v2, false; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	_, _, err = Parse(root, env, []string{"-a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := root.Flags.Parsed(), false; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+	if got, want := root.ParsedFlags.Parsed(), true; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+	if got, want := v1, true; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+	if got, want := v2, false; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}

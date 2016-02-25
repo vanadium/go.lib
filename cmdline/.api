@@ -20,6 +20,7 @@ pkg cmdline, type Command struct, Flags flag.FlagSet
 pkg cmdline, type Command struct, Long string
 pkg cmdline, type Command struct, LookPath bool
 pkg cmdline, type Command struct, Name string
+pkg cmdline, type Command struct, ParsedFlags *flag.FlagSet
 pkg cmdline, type Command struct, Runner Runner
 pkg cmdline, type Command struct, Short string
 pkg cmdline, type Command struct, Topics []Topic
