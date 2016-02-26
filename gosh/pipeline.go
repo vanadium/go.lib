@@ -163,15 +163,15 @@ func (p *Pipeline) CombinedOutput() string {
 
 // handleError is used instead of direct calls to Shell.HandleError throughout
 // the pipeline implementation. This is needed to handle the case where the user
-// has set Shell.Opts.Fatalf to a non-fatal function.
+// has set Shell.ContinueOnError to true.
 //
 // The general pattern is that after each Shell or Cmd method is called, we
-// check p.sh.Err. If there was an error it is wrapped with errAlreadyHandled,
-// indicating that Shell.HandleError has already been called with this error,
-// and should not be called again.
+// check p.sh.Err; if it's non-nil, we wrap it with errAlreadyHandled to
+// indicate that Shell.HandleError has already been called with this error and
+// should not be called again.
 func handleError(sh *Shell, err error) {
 	if _, ok := err.(errAlreadyHandled); ok {
-		return // the shell already handled this error
+		return // the shell has already handled this error
 	}
 	sh.HandleError(err)
 }
@@ -253,12 +253,12 @@ func (p *Pipeline) pipeTo(c *Cmd, mode pipeMode, clone bool) (e error) {
 }
 
 // TODO(toddw): Clean up resources in Shell.Cleanup. E.g. we'll currently leak
-// the os.Pipe fds if the user sets up a pipeline, but never calls Start (or
+// the os.Pipe fds if the user sets up a pipeline but never calls Start (or
 // Wait, Terminate).
 
 func (p *Pipeline) start() error {
 	// Start all commands in the pipeline, capturing the first error.
-	// Ensure all commands are processed, by avoiding early-exit.
+	// Ensure all commands are processed by avoiding early-exit.
 	var shErr, closeErr error
 	for i, c := range p.cmds {
 		p.sh.Err = nil
@@ -288,7 +288,7 @@ func (p *Pipeline) start() error {
 
 func (p *Pipeline) wait() error {
 	// Wait for all commands in the pipeline, capturing the first error.
-	// Ensure all commands are processed, by avoiding early-exit.
+	// Ensure all commands are processed by avoiding early-exit.
 	var shErr, closeErr error
 	for i, c := range p.cmds {
 		p.sh.Err = nil

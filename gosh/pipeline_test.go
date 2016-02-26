@@ -14,7 +14,7 @@ import (
 )
 
 func TestPipeline(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
 	echo := sh.FuncCmd(echoFunc)
@@ -55,9 +55,9 @@ func TestPipeline(t *testing.T) {
 }
 
 func TestPipelineDifferentShells(t *testing.T) {
-	sh1 := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh1 := gosh.NewShell(t)
 	defer sh1.Cleanup()
-	sh2 := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh2 := gosh.NewShell(t)
 	defer sh2.Cleanup()
 
 	setsErr(t, sh1, func() { gosh.NewPipeline(sh1.FuncCmd(echoFunc), sh2.FuncCmd(catFunc)) })
@@ -71,7 +71,7 @@ func TestPipelineDifferentShells(t *testing.T) {
 }
 
 func TestPipelineClosedPipe(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 	writeLoop, readLine := sh.FuncCmd(writeLoopFunc), sh.FuncCmd(readFunc)
 
@@ -88,7 +88,7 @@ func TestPipelineClosedPipe(t *testing.T) {
 }
 
 func TestPipelineCmdFailure(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 	cat := sh.FuncCmd(catFunc)
 	exit1 := sh.FuncCmd(exitFunc, 1)
@@ -170,7 +170,7 @@ func TestPipelineCmdFailure(t *testing.T) {
 }
 
 func TestPipelineSignal(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
 	for _, d := range []time.Duration{0, time.Hour} {
@@ -204,7 +204,7 @@ func TestPipelineSignal(t *testing.T) {
 }
 
 func TestPipelineTerminate(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
 	for _, d := range []time.Duration{0, time.Hour} {

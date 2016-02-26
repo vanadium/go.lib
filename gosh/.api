@@ -2,7 +2,7 @@ pkg gosh, func BuildGoPkg(*Shell, string, string, ...string) string
 pkg gosh, func InitChildMain()
 pkg gosh, func InitMain()
 pkg gosh, func NewPipeline(*Cmd, ...*Cmd) *Pipeline
-pkg gosh, func NewShell(Opts) *Shell
+pkg gosh, func NewShell(TB) *Shell
 pkg gosh, func RegisterFunc(string, interface{}) *Func
 pkg gosh, func SendVars(map[string]string)
 pkg gosh, method (*Cmd) AddStderrWriter(io.Writer)
@@ -61,14 +61,14 @@ pkg gosh, type Cmd struct, Path string
 pkg gosh, type Cmd struct, PropagateOutput bool
 pkg gosh, type Cmd struct, Vars map[string]string
 pkg gosh, type Func struct
-pkg gosh, type Opts struct
-pkg gosh, type Opts struct, ChildOutputDir string
-pkg gosh, type Opts struct, Fatalf func(string, ...interface{})
-pkg gosh, type Opts struct, Logf func(string, ...interface{})
-pkg gosh, type Opts struct, PropagateChildOutput bool
 pkg gosh, type Pipeline struct
 pkg gosh, type Shell struct
 pkg gosh, type Shell struct, Args []string
+pkg gosh, type Shell struct, ChildOutputDir string
+pkg gosh, type Shell struct, ContinueOnError bool
 pkg gosh, type Shell struct, Err error
-pkg gosh, type Shell struct, Opts Opts
+pkg gosh, type Shell struct, PropagateChildOutput bool
 pkg gosh, type Shell struct, Vars map[string]string
+pkg gosh, type TB interface { FailNow, Logf }
+pkg gosh, type TB interface, FailNow()
+pkg gosh, type TB interface, Logf(string, ...interface{})

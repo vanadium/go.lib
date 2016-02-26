@@ -6,10 +6,10 @@ package gosh_test
 
 // TODO(sadovsky): Add more tests:
 // - effects of Shell.Cleanup
-// - Shell.{Vars,Args,Rename,MakeTempFile,MakeTempDir}
-// - Shell.Opts.{PropagateChildOutput,ChildOutputDir}
+// - Shell.{PropagateChildOutput,ChildOutputDir,Vars,Args}
+// - Shell.{Move,MakeTempFile}
+// - Cmd.{IgnoreParentExit,ExitAfter,PropagateOutput}
 // - Cmd.Clone
-// - Cmd.Opts.{IgnoreParentExit,ExitAfter,PropagateOutput}
 
 import (
 	"bufio"
@@ -73,21 +73,13 @@ func toString(t *testing.T, r io.Reader) string {
 	return string(b)
 }
 
-func makeFatalf(t *testing.T) func(string, ...interface{}) {
-	return func(format string, v ...interface{}) {
-		debug.PrintStack()
-		t.Fatalf(format, v...)
-	}
-}
-
 func setsErr(t *testing.T, sh *gosh.Shell, f func()) {
-	calledFatalf := false
-	sh.Opts.Fatalf = func(string, ...interface{}) { calledFatalf = true }
+	continueOnError := sh.ContinueOnError
+	sh.ContinueOnError = true
 	f()
 	nok(t, sh.Err)
-	eq(t, calledFatalf, true)
 	sh.Err = nil
-	sh.Opts.Fatalf = makeFatalf(t)
+	sh.ContinueOnError = continueOnError
 }
 
 ////////////////////////////////////////
@@ -138,20 +130,32 @@ var (
 ////////////////////////////////////////
 // Tests
 
-func TestCustomFatalf(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+type customTB struct {
+	t             *testing.T
+	calledFailNow bool
+}
+
+func (tb *customTB) FailNow() {
+	tb.calledFailNow = true
+}
+
+func (tb *customTB) Logf(format string, args ...interface{}) {
+	tb.t.Logf(format, args...)
+}
+
+func TestCustomTB(t *testing.T) {
+	tb := &customTB{t: t}
+	sh := gosh.NewShell(tb)
 	defer sh.Cleanup()
 
-	var calledFatalf bool
-	sh.Opts.Fatalf = func(string, ...interface{}) { calledFatalf = true }
 	sh.HandleError(fakeError)
 	// Note, our deferred sh.Cleanup() should succeed despite this error.
 	nok(t, sh.Err)
-	eq(t, calledFatalf, true)
+	eq(t, tb.calledFailNow, true)
 }
 
 func TestPushdPopd(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
 	startDir, err := os.Getwd()
@@ -193,7 +197,7 @@ func getwdEvalSymlinks(t *testing.T) string {
 
 func TestPushdNoPopdCleanup(t *testing.T) {
 	startDir := getwdEvalSymlinks(t)
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	tmpDir := sh.MakeTempDir()
 	sh.Pushd(tmpDir)
 	eq(t, getwdEvalSymlinks(t), evalSymlinks(t, tmpDir))
@@ -211,7 +215,7 @@ const (
 
 // Mirrors ExampleCmd in internal/gosh_example/main.go.
 func TestCmd(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
 	// Start server.
@@ -235,7 +239,7 @@ var (
 
 // Mirrors ExampleFuncCmd in internal/gosh_example/main.go.
 func TestFuncCmd(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
 	// Start server.
@@ -254,7 +258,7 @@ func TestBuildGoPkg(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
 	}
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
 	// Set -o to an absolute name.
@@ -297,7 +301,7 @@ func TestBuildGoPkg(t *testing.T) {
 // Tests that Shell.Cmd uses Shell.Vars["PATH"] to locate executables with
 // relative names.
 func TestLookPath(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
 	binDir := sh.MakeTempDir()
@@ -326,7 +330,7 @@ var (
 
 // Tests that AwaitVars works under various conditions.
 func TestAwaitVars(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
 	c := sh.FuncCmd(sendVarsFunc, map[string]string{"a": "1"})
@@ -371,7 +375,7 @@ func TestAwaitVars(t *testing.T) {
 
 // Tests that AwaitVars returns immediately when the process exits.
 func TestAwaitProcessExit(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
 	c := sh.FuncCmd(exitFunc, 0)
@@ -399,7 +403,7 @@ var (
 
 // Tests function signature-checking and execution.
 func TestRegistry(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
 	// Variadic functions. Non-variadic functions are sufficiently covered in
@@ -441,7 +445,7 @@ func TestRegistry(t *testing.T) {
 }
 
 func TestStdin(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
 	// The "cat" command exits after the reader returns EOF.
@@ -487,7 +491,7 @@ func TestStdin(t *testing.T) {
 }
 
 func TestStdinPipeWriteUntilExit(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
 	// Ensure that Write calls on stdin fail after the process exits. Note that we
@@ -532,7 +536,7 @@ var writeFunc = gosh.RegisterFunc("writeFunc", func(stdout, stderr bool) error {
 })
 
 func TestStdoutStderr(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
 	// Write to stdout only.
@@ -564,7 +568,7 @@ func TestStdoutStderr(t *testing.T) {
 }
 
 var writeMoreFunc = gosh.RegisterFunc("writeMoreFunc", func() {
-	sh := gosh.NewShell(gosh.Opts{})
+	sh := gosh.NewShell(nil)
 	defer sh.Cleanup()
 
 	c := sh.FuncCmd(writeFunc, true, true)
@@ -578,7 +582,7 @@ var writeMoreFunc = gosh.RegisterFunc("writeMoreFunc", func() {
 
 // Tests that it's safe to add os.Stdout and os.Stderr as writers.
 func TestAddStdoutStderrWriter(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
 	stdout, stderr := sh.FuncCmd(writeMoreFunc).StdoutStderr()
@@ -587,7 +591,7 @@ func TestAddStdoutStderrWriter(t *testing.T) {
 }
 
 func TestCombinedOutput(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
 	c := sh.FuncCmd(writeFunc, true, true)
@@ -604,7 +608,7 @@ func TestCombinedOutput(t *testing.T) {
 }
 
 func TestOutputDir(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
 	dir := sh.MakeTempDir()
@@ -645,7 +649,7 @@ var replaceFunc = gosh.RegisterFunc("replaceFunc", func(old, new byte) error {
 })
 
 func TestSignal(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
 	for _, d := range []time.Duration{0, time.Hour} {
@@ -677,7 +681,7 @@ func TestSignal(t *testing.T) {
 }
 
 func TestTerminate(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
 	for _, d := range []time.Duration{0, time.Hour} {
@@ -701,7 +705,7 @@ func TestTerminate(t *testing.T) {
 }
 
 func TestShellWait(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
 	d0 := time.Duration(0)
@@ -745,7 +749,7 @@ func TestShellWait(t *testing.T) {
 }
 
 func TestExitErrorIsOk(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
 	// Exit code 0 is not an error.
@@ -768,7 +772,7 @@ func TestExitErrorIsOk(t *testing.T) {
 }
 
 func TestIgnoreClosedPipeError(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
 	// Since writeLoopFunc will only finish if it receives a write error, it's
@@ -814,14 +818,16 @@ func TestOkPanics(t *testing.T) {
 		sh.Ok()
 	}()
 	func() { // errShellErrIsNotNil
-		sh := gosh.NewShell(gosh.Opts{Fatalf: t.Logf})
+		sh := gosh.NewShell(t)
+		sh.ContinueOnError = true
 		defer sh.Cleanup()
 		sh.Err = fakeError
 		defer func() { neq(t, recover(), nil) }()
 		sh.Ok()
 	}()
 	func() { // errAlreadyCalledCleanup
-		sh := gosh.NewShell(gosh.Opts{Fatalf: t.Logf})
+		sh := gosh.NewShell(t)
+		sh.ContinueOnError = true
 		sh.Cleanup()
 		defer func() { neq(t, recover(), nil) }()
 		sh.Ok()
@@ -836,14 +842,16 @@ func TestHandleErrorPanics(t *testing.T) {
 		sh.HandleError(fakeError)
 	}()
 	func() { // errShellErrIsNotNil
-		sh := gosh.NewShell(gosh.Opts{Fatalf: t.Logf})
+		sh := gosh.NewShell(t)
+		sh.ContinueOnError = true
 		defer sh.Cleanup()
 		sh.Err = fakeError
 		defer func() { neq(t, recover(), nil) }()
 		sh.HandleError(fakeError)
 	}()
 	func() { // errAlreadyCalledCleanup
-		sh := gosh.NewShell(gosh.Opts{Fatalf: t.Logf})
+		sh := gosh.NewShell(t)
+		sh.ContinueOnError = true
 		sh.Cleanup()
 		defer func() { neq(t, recover(), nil) }()
 		sh.HandleError(fakeError)
@@ -861,14 +869,14 @@ func TestCleanupPanics(t *testing.T) {
 
 // Tests that sh.Cleanup succeeds even if sh.Err is not nil.
 func TestCleanupAfterError(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	sh.Err = fakeError
 	sh.Cleanup()
 }
 
 // Tests that sh.Cleanup can be called multiple times.
 func TestMultipleCleanup(t *testing.T) {
-	sh := gosh.NewShell(gosh.Opts{Fatalf: makeFatalf(t), Logf: t.Logf})
+	sh := gosh.NewShell(t)
 	sh.Cleanup()
 	sh.Cleanup()
 }

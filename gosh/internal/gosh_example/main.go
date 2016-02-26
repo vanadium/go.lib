@@ -13,7 +13,7 @@ import (
 
 // Mirrors TestCmd in shell_test.go.
 func ExampleCmd() {
-	sh := gosh.NewShell(gosh.Opts{})
+	sh := gosh.NewShell(nil)
 	defer sh.Cleanup()
 
 	// Start server.
@@ -37,7 +37,7 @@ var (
 
 // Mirrors TestFuncCmd in shell_test.go.
 func ExampleFuncCmd() {
-	sh := gosh.NewShell(gosh.Opts{})
+	sh := gosh.NewShell(nil)
 	defer sh.Cleanup()
 
 	// Start server.

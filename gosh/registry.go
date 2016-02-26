@@ -51,7 +51,7 @@ func RegisterFunc(name string, fi interface{}) *Func {
 	// Register the function's args with gob. Needed because Shell.Func takes
 	// interface{} arguments.
 	for i := 0; i < t.NumIn(); i++ {
-		// Note: Clients are responsible for registering any concrete types stored
+		// Note: Users are responsible for registering any concrete types stored
 		// inside interface{} arguments.
 		if t.In(i).Kind() == reflect.Interface {
 			continue
@@ -92,7 +92,7 @@ func (f *Func) call(args ...interface{}) error {
 		if arg != nil {
 			av = reflect.ValueOf(arg)
 		} else {
-			// Client passed nil; construct the zero value for this argument based on
+			// User passed nil; construct the zero value for this argument based on
 			// the function signature.
 			av = reflect.Zero(argType(t, i))
 		}

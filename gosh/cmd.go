@@ -50,9 +50,9 @@ type Cmd struct {
 	// the given duration has elapsed. Only takes effect if the child process was
 	// spawned via Shell.FuncCmd or explicitly calls InitChildMain.
 	ExitAfter time.Duration
-	// PropagateOutput is inherited from Shell.Opts.PropagateChildOutput.
+	// PropagateOutput is inherited from Shell.PropagateChildOutput.
 	PropagateOutput bool
-	// OutputDir is inherited from Shell.Opts.ChildOutputDir.
+	// OutputDir is inherited from Shell.ChildOutputDir.
 	OutputDir string
 	// ExitErrorIsOk specifies whether an *exec.ExitError should be reported via
 	// Shell.HandleError.
@@ -446,12 +446,12 @@ func (c *Cmd) stdinPipe() (io.WriteCloser, error) {
 	case c.c.Stdin != nil:
 		return nil, errAlreadySetStdin
 	}
-	// We want to provide an unlimited-size pipe to the user. If we set
-	// c.c.Stdin directly to the newBufferedPipe, the os/exec package will
-	// create an os.Pipe for us, along with a goroutine to copy data over. And
-	// exec.Cmd.Wait will wait for this goroutine to exit before returning, even
-	// if the process has already exited. That means the user will be forced to
-	// call Close on the returned WriteCloser, which is annoying.
+	// We want to provide an unlimited-size pipe to the user. If we set c.c.Stdin
+	// directly to the newBufferedPipe, the os/exec package will create an os.Pipe
+	// for us, along with a goroutine to copy data over. And exec.Cmd.Wait will
+	// wait for this goroutine to exit before returning, even if the process has
+	// already exited. That means the user will be forced to call Close on the
+	// returned WriteCloser, which is annoying.
 	//
 	// Instead, we set c.c.Stdin to our own os.Pipe, so that os/exec won't create
 	// the pipe nor the goroutine. We chain our newBufferedPipe in front of this,
