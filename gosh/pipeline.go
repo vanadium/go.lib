@@ -11,8 +11,6 @@ import (
 	"os"
 )
 
-var errPipelineCmdsHaveDifferentShells = errors.New("gosh: pipeline cmds have different shells")
-
 // Pipeline represents a pipeline of commands, where the stdout and/or stderr of
 // one command is connected to the stdin of the next command.
 //
@@ -173,7 +171,7 @@ func handleError(sh *Shell, err error) {
 	if _, ok := err.(errAlreadyHandled); ok {
 		return // the shell has already handled this error
 	}
-	sh.HandleError(err)
+	sh.HandleErrorWithSkip(err, 3)
 }
 
 type errAlreadyHandled struct {
@@ -208,7 +206,7 @@ func (p *Pipeline) clone() (*Pipeline, error) {
 
 func (p *Pipeline) pipeTo(c *Cmd, mode pipeMode, clone bool) (e error) {
 	if p.sh != c.Shell() {
-		return errPipelineCmdsHaveDifferentShells
+		return errors.New("gosh: pipeline cmds have different shells")
 	}
 	if clone {
 		c = c.Clone()

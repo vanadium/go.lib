@@ -41,6 +41,7 @@ pkg gosh, method (*Shell) Cleanup()
 pkg gosh, method (*Shell) Cmd(string, ...string) *Cmd
 pkg gosh, method (*Shell) FuncCmd(*Func, ...interface{}) *Cmd
 pkg gosh, method (*Shell) HandleError(error)
+pkg gosh, method (*Shell) HandleErrorWithSkip(error, int)
 pkg gosh, method (*Shell) MakeTempDir() string
 pkg gosh, method (*Shell) MakeTempFile() *os.File
 pkg gosh, method (*Shell) Move(string, string)

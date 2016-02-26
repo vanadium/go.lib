@@ -22,6 +22,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"runtime/debug"
 	"strings"
 	"testing"
@@ -133,6 +134,7 @@ var (
 type customTB struct {
 	t             *testing.T
 	calledFailNow bool
+	buf           *bytes.Buffer
 }
 
 func (tb *customTB) FailNow() {
@@ -140,7 +142,11 @@ func (tb *customTB) FailNow() {
 }
 
 func (tb *customTB) Logf(format string, args ...interface{}) {
-	tb.t.Logf(format, args...)
+	if tb.buf == nil {
+		tb.t.Logf(format, args...)
+	} else {
+		fmt.Fprintf(tb.buf, format, args...)
+	}
 }
 
 func TestCustomTB(t *testing.T) {
@@ -498,7 +504,7 @@ func TestStdinPipeWriteUntilExit(t *testing.T) {
 	// write to the command's stdin concurrently with the command's exit waiter
 	// goroutine closing stdin. Use "go test -race" catch races.
 	//
-	// Set a non-zero exit code, so that os.Exit exits immediately.  See the
+	// Set a non-zero exit code, so that os.Exit exits immediately. See the
 	// implementation of https://golang.org/pkg/os/#Exit for details.
 	c := sh.FuncCmd(exitFunc, 1)
 	c.ExitErrorIsOk = true
@@ -810,7 +816,7 @@ func (w errorWriter) Write(p []byte) (int, error) {
 	return 0, w.error
 }
 
-// Tests that sh.Ok panics under various conditions.
+// Tests that Shell.Ok panics under various conditions.
 func TestOkPanics(t *testing.T) {
 	func() { // errDidNotCallNewShell
 		sh := gosh.Shell{}
@@ -834,7 +840,7 @@ func TestOkPanics(t *testing.T) {
 	}()
 }
 
-// Tests that sh.HandleError panics under various conditions.
+// Tests that Shell.HandleError panics under various conditions.
 func TestHandleErrorPanics(t *testing.T) {
 	func() { // errDidNotCallNewShell
 		sh := gosh.Shell{}
@@ -858,7 +864,7 @@ func TestHandleErrorPanics(t *testing.T) {
 	}()
 }
 
-// Tests that sh.Cleanup panics under various conditions.
+// Tests that Shell.Cleanup panics under various conditions.
 func TestCleanupPanics(t *testing.T) {
 	func() { // errDidNotCallNewShell
 		sh := gosh.Shell{}
@@ -867,18 +873,65 @@ func TestCleanupPanics(t *testing.T) {
 	}()
 }
 
-// Tests that sh.Cleanup succeeds even if sh.Err is not nil.
+// Tests that Shell.Cleanup succeeds even if sh.Err is not nil.
 func TestCleanupAfterError(t *testing.T) {
 	sh := gosh.NewShell(t)
 	sh.Err = fakeError
 	sh.Cleanup()
 }
 
-// Tests that sh.Cleanup can be called multiple times.
+// Tests that Shell.Cleanup can be called multiple times.
 func TestMultipleCleanup(t *testing.T) {
 	sh := gosh.NewShell(t)
 	sh.Cleanup()
 	sh.Cleanup()
+}
+
+// Tests that Shell.HandleError logs errors using an appropriate runtime.Caller
+// skip value.
+func TestHandleErrorLogging(t *testing.T) {
+	tb := &customTB{t: t, buf: &bytes.Buffer{}}
+	sh := gosh.NewShell(tb)
+	defer sh.Cleanup()
+
+	// Call HandleError, then check that the stack trace and error got logged.
+	tb.buf.Reset()
+	sh.HandleError(fakeError)
+	_, file, line, _ := runtime.Caller(0)
+	got, wantSuffix := tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line-1, fakeError)
+	if !strings.HasSuffix(got, wantSuffix) {
+		t.Fatalf("got %v, want suffix %v", got, wantSuffix)
+	}
+	if got == wantSuffix {
+		t.Fatalf("missing stack trace: %v", got)
+	}
+	sh.Err = nil
+
+	// Same as above, but with ContinueOnError set to true. Only the error should
+	// get logged.
+	sh.ContinueOnError = true
+	tb.buf.Reset()
+	sh.HandleError(fakeError)
+	_, file, line, _ = runtime.Caller(0)
+	got, want := tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line-1, fakeError)
+	eq(t, got, want)
+	sh.Err = nil
+
+	// Same as above, but calling HandleErrorWithSkip, with skip set to 1.
+	tb.buf.Reset()
+	sh.HandleErrorWithSkip(fakeError, 1)
+	_, file, line, _ = runtime.Caller(0)
+	got, want = tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line-1, fakeError)
+	eq(t, got, want)
+	sh.Err = nil
+
+	// Same as above, but with skip set to 2.
+	tb.buf.Reset()
+	sh.HandleErrorWithSkip(fakeError, 2)
+	_, file, line, _ = runtime.Caller(1)
+	got, want = tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line, fakeError)
+	eq(t, got, want)
+	sh.Err = nil
 }
 
 func TestMain(m *testing.M) {

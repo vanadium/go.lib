@@ -24,6 +24,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"runtime"
 	"runtime/debug"
 	"sync"
 	"syscall"
@@ -85,21 +86,42 @@ type Shell struct {
 // testing.TB instance; non-tests should pass nil.
 func NewShell(tb TB) *Shell {
 	sh, err := newShell(tb)
-	sh.HandleError(err)
+	sh.handleError(err)
 	return sh
 }
 
 // HandleError sets sh.Err. If err is not nil and sh.ContinueOnError is false,
 // it also calls TB.FailNow.
 func (sh *Shell) HandleError(err error) {
+	sh.HandleErrorWithSkip(err, 2)
+}
+
+// handleError is intended for use by public Shell method implementations.
+func (sh *Shell) handleError(err error) {
+	sh.HandleErrorWithSkip(err, 3)
+}
+
+// HandleErrorWithSkip is like HandleError, but allows clients to specify the
+// skip value to pass to runtime.Caller.
+func (sh *Shell) HandleErrorWithSkip(err error, skip int) {
 	sh.Ok()
 	sh.Err = err
-	if err != nil && !sh.ContinueOnError {
-		if sh.tb != pkgLevelDefaultTB {
-			sh.tb.Logf(string(debug.Stack()))
-		}
-		sh.tb.FailNow()
+	if err == nil {
+		return
 	}
+	_, file, line, _ := runtime.Caller(skip)
+	toLog := fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line, err)
+	if sh.ContinueOnError {
+		sh.tb.Logf(toLog)
+		return
+	}
+	if sh.tb != pkgLevelDefaultTB {
+		sh.tb.Logf(string(debug.Stack()))
+	}
+	// Unfortunately, if FailNow panics, there's no way to make toLog get printed
+	// beneath the stack trace.
+	sh.tb.Logf(toLog)
+	sh.tb.FailNow()
 }
 
 // Cmd returns a Cmd for an invocation of the named program. The given arguments
@@ -107,7 +129,7 @@ func (sh *Shell) HandleError(err error) {
 func (sh *Shell) Cmd(name string, args ...string) *Cmd {
 	sh.Ok()
 	res, err := sh.cmd(nil, name, args...)
-	sh.HandleError(err)
+	sh.handleError(err)
 	return res
 }
 
@@ -118,20 +140,20 @@ func (sh *Shell) Cmd(name string, args ...string) *Cmd {
 func (sh *Shell) FuncCmd(f *Func, args ...interface{}) *Cmd {
 	sh.Ok()
 	res, err := sh.funcCmd(f, args...)
-	sh.HandleError(err)
+	sh.handleError(err)
 	return res
 }
 
 // Wait waits for all commands started by this Shell to exit.
 func (sh *Shell) Wait() {
 	sh.Ok()
-	sh.HandleError(sh.wait())
+	sh.handleError(sh.wait())
 }
 
 // Move moves a file.
 func (sh *Shell) Move(oldpath, newpath string) {
 	sh.Ok()
-	sh.HandleError(sh.move(oldpath, newpath))
+	sh.handleError(sh.move(oldpath, newpath))
 }
 
 // MakeTempFile creates a new temporary file in os.TempDir, opens the file for
@@ -139,7 +161,7 @@ func (sh *Shell) Move(oldpath, newpath string) {
 func (sh *Shell) MakeTempFile() *os.File {
 	sh.Ok()
 	res, err := sh.makeTempFile()
-	sh.HandleError(err)
+	sh.handleError(err)
 	return res
 }
 
@@ -148,20 +170,20 @@ func (sh *Shell) MakeTempFile() *os.File {
 func (sh *Shell) MakeTempDir() string {
 	sh.Ok()
 	res, err := sh.makeTempDir()
-	sh.HandleError(err)
+	sh.handleError(err)
 	return res
 }
 
 // Pushd behaves like Bash pushd.
 func (sh *Shell) Pushd(dir string) {
 	sh.Ok()
-	sh.HandleError(sh.pushd(dir))
+	sh.handleError(sh.pushd(dir))
 }
 
 // Popd behaves like Bash popd.
 func (sh *Shell) Popd() {
 	sh.Ok()
-	sh.HandleError(sh.popd())
+	sh.handleError(sh.popd())
 }
 
 // AddCleanupHandler registers the given function to be called during cleanup.
@@ -169,7 +191,7 @@ func (sh *Shell) Popd() {
 // spawned by gosh.
 func (sh *Shell) AddCleanupHandler(f func()) {
 	sh.Ok()
-	sh.HandleError(sh.addCleanupHandler(f))
+	sh.handleError(sh.addCleanupHandler(f))
 }
 
 // Cleanup cleans up all resources (child processes, temporary files and
@@ -542,7 +564,7 @@ func InitMain() {
 func BuildGoPkg(sh *Shell, binDir, pkg string, flags ...string) string {
 	sh.Ok()
 	res, err := buildGoPkg(sh, binDir, pkg, flags...)
-	sh.HandleError(err)
+	sh.handleError(err)
 	return res
 }
 

@@ -65,7 +65,7 @@ type Cmd struct {
 	// Shell.HandleError.
 	IgnoreClosedPipeError bool
 	// ExtraFiles is used to populate ExtraFiles in the underlying exec.Cmd
-	// object.  Does not get cloned.
+	// object. Does not get cloned.
 	ExtraFiles []*os.File
 	// Internal state.
 	sh                *Shell
@@ -308,9 +308,10 @@ func (c *Cmd) handleError(err error) {
 		err = nil
 	}
 	c.Err = err
-	if !c.errorIsOk(err) {
-		c.sh.HandleError(err)
+	if c.errorIsOk(err) {
+		err = nil
 	}
+	c.sh.HandleErrorWithSkip(err, 3)
 }
 
 func (c *Cmd) isRunning() bool {
