@@ -161,36 +161,95 @@ func TestSplitJoinTokens(t *testing.T) {
 	}
 }
 
-func TestAppendPrepend(t *testing.T) {
+func TestUniqueTokens(t *testing.T) {
 	tests := []struct {
-		Sep, Value, Existing, Result string
+		Tokens, Want []string
 	}{
-		{":", "Z", "", "Z"},
-		{":", "", "Z", "Z"},
-		{":", "", "", ""},
-		{":", "X", ":A:B", "X:A:B"},
-		{":", "Y", "A:B", "Y:A:B"},
-		{":", "Z", "A:::B", "Z:A:B"},
-		{":", "Z", "A:::B:", "Z:A:B"},
+		{nil, nil},
+		{[]string{""}, nil},
+		{[]string{"A"}, []string{"A"}},
+		{[]string{"A", "A"}, []string{"A"}},
+		{[]string{"A", "B"}, []string{"A", "B"}},
+		{[]string{"A", "B", "A", "B"}, []string{"A", "B"}},
 	}
-	for i, test := range tests {
-		if got, want := PrependUsingSeparator(test.Value, test.Existing, test.Sep), test.Result; got != want {
-			t.Errorf("SplitTokens(%d) got %v, want %v", i, got, want)
+	for _, test := range tests {
+		if got, want := UniqueTokens(test.Tokens), test.Want; !reflect.DeepEqual(got, want) {
+			t.Errorf("UniqueTokens(%q) got %q, want %q", test.Tokens, got, want)
 		}
 	}
-	tests = []struct {
-		Sep, Value, Existing, Result string
+}
+
+func TestFilterToken(t *testing.T) {
+	tests := []struct {
+		Tokens []string
+		Target string
+		Want   []string
 	}{
-		{":", "Z", "", "Z"},
-		{":", "", "Z", "Z"},
-		{":", "", "", ""},
-		{":", "X", ":A:B:", "A:B:X"},
-		{":", "Y", "A:B", "A:B:Y"},
-		{":", "Z", "A:::B", "A:B:Z"},
+		{nil, "", nil},
+		{nil, "A", nil},
+		{[]string{""}, "", nil},
+		{[]string{""}, "A", nil},
+		{[]string{"A"}, "", []string{"A"}},
+		{[]string{"A"}, "A", nil},
+		{[]string{"A"}, "B", []string{"A"}},
+		{[]string{"A", "A"}, "", []string{"A", "A"}},
+		{[]string{"A", "A"}, "A", nil},
+		{[]string{"A", "A"}, "B", []string{"A", "A"}},
+		{[]string{"A", "B"}, "", []string{"A", "B"}},
+		{[]string{"A", "B"}, "A", []string{"B"}},
+		{[]string{"A", "B"}, "B", []string{"A"}},
+		{[]string{"A", "B", "A", "B"}, "", []string{"A", "B", "A", "B"}},
+		{[]string{"A", "B", "A", "B"}, "A", []string{"B", "B"}},
+		{[]string{"A", "B", "A", "B"}, "B", []string{"A", "A"}},
 	}
-	for i, test := range tests {
-		if got, want := AppendUsingSeparator(test.Value, test.Existing, test.Sep), test.Result; got != want {
-			t.Errorf("SplitTokens(%d) got %v, want %v", i, got, want)
+	for _, test := range tests {
+		if got, want := FilterToken(test.Tokens, test.Target), test.Want; !reflect.DeepEqual(got, want) {
+			t.Errorf("FilterToken(%q, %q) got %q, want %q", test.Tokens, test.Target, got, want)
+		}
+	}
+}
+
+func TestPrependUniqueToken(t *testing.T) {
+	tests := []struct {
+		Sep, Value, Token, Want string
+	}{
+		{":", "", "", ""},
+		{":", "", "Z", "Z"},
+		{":", "Z", "", "Z"},
+		{":", "Z", "Z", "Z"},
+		{":", ":Z:Z:", "Z", "Z"},
+		{":", ":A:B", "Z", "Z:A:B"},
+		{":", "A:B", "Z", "Z:A:B"},
+		{":", "A:::B", "Z", "Z:A:B"},
+		{":", "A:::B:", "Z", "Z:A:B"},
+		{":", "Z:A:Z:B:Z", "Z", "Z:A:B"},
+		{":", "Z:A:Z:B:Z:A:Z:B:Z", "Z", "Z:A:B"},
+	}
+	for _, test := range tests {
+		if got, want := PrependUniqueToken(test.Value, test.Sep, test.Token), test.Want; got != want {
+			t.Errorf("PrependUniqueToken(%q, %q, %q) got %v, want %v", test.Value, test.Sep, test.Token, got, want)
+		}
+	}
+}
+
+func TestAppendUniqueToken(t *testing.T) {
+	tests := []struct {
+		Sep, Value, Token, Want string
+	}{
+		{":", "", "", ""},
+		{":", "", "Z", "Z"},
+		{":", "Z", "", "Z"},
+		{":", "Z", "Z", "Z"},
+		{":", ":Z:Z:", "Z", "Z"},
+		{":", ":A:B:", "Z", "A:B:Z"},
+		{":", "A:B", "Z", "A:B:Z"},
+		{":", "A:::B", "Z", "A:B:Z"},
+		{":", "Z:A:Z:B:Z", "Z", "A:B:Z"},
+		{":", "Z:A:Z:B:Z:A:Z:B:Z", "Z", "A:B:Z"},
+	}
+	for _, test := range tests {
+		if got, want := AppendUniqueToken(test.Value, test.Sep, test.Token), test.Want; got != want {
+			t.Errorf("AppendUniqueToken(%q, %q, %q) got %v, want %v", test.Value, test.Sep, test.Token, got, want)
 		}
 	}
 }

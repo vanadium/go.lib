@@ -145,22 +145,51 @@ func JoinTokens(tokens []string, separator string) string {
 	return value
 }
 
-// PrependUsingSeparator prepends the parameter val to parameter existing using
-// separator to split the tokens in existing  and to prepend val.
-// PrependUsingSeparator uses SplitTokens on the existing string
-// and hence filters out empty tokens, so "A::B:" becomes "A:B".
-func PrependUsingSeparator(val, existing, separator string) string {
-	tmp := SplitTokens(existing, separator)
-	return JoinTokens(append([]string{val}, tmp...), separator)
+// UniqueTokens returns a new slice containing tokens that are not empty or
+// duplicated, and in the same relative order as the original slice.
+func UniqueTokens(tokens []string) []string {
+	var unique []string
+	seen := make(map[string]bool)
+	for _, token := range tokens {
+		if token == "" || seen[token] {
+			continue
+		}
+		seen[token] = true
+		unique = append(unique, token)
+	}
+	return unique
 }
 
-// AppendUsingSeparator appends the parameter val to parameter existing using
-// separator to split the tokens in existing string and to append val.
-// AppendUsingSeparator uses SplitTokens on the existing string
-// and hence filters out empty tokens, so "A::B:" becomes "A:B".
-func AppendUsingSeparator(val, existing, separator string) string {
-	tmp := SplitTokens(existing, separator)
-	return JoinTokens(append(tmp, val), separator)
+// FilterToken returns a new slice containing tokens that are not empty or match
+// the target, and in the same relative order as the original slice.
+func FilterToken(tokens []string, target string) []string {
+	var filtered []string
+	for _, token := range tokens {
+		if token == "" || token == target {
+			continue
+		}
+		filtered = append(filtered, token)
+	}
+	return filtered
+}
+
+// PrependUniqueToken prepends token to value, which is separated by separator,
+// removing all empty and duplicate tokens.  Returns a string where token only
+// occurs once, and is first.
+func PrependUniqueToken(value, separator, token string) string {
+	result := SplitTokens(value, separator)
+	result = append([]string{token}, result...)
+	return JoinTokens(UniqueTokens(result), separator)
+}
+
+// AppendUniqueToken appends token to value, which is separated by separator,
+// and removes all empty and duplicate tokens.  Returns a string where token
+// only occurs once, and is last.
+func AppendUniqueToken(value, separator, token string) string {
+	result := SplitTokens(value, separator)
+	result = FilterToken(result, token)
+	result = append(result, token)
+	return JoinTokens(UniqueTokens(result), separator)
 }
 
 // SortByKey sorts vars into ascending key order, where vars is expected to be

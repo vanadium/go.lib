@@ -1,16 +1,18 @@
-pkg envvar, func AppendUsingSeparator(string, string, string) string
+pkg envvar, func AppendUniqueToken(string, string, string) string
 pkg envvar, func CopyMap(map[string]string) map[string]string
 pkg envvar, func CopySlice([]string) []string
+pkg envvar, func FilterToken([]string, string) []string
 pkg envvar, func JoinKeyValue(string, string) string
 pkg envvar, func JoinTokens([]string, string) string
 pkg envvar, func MapToSlice(map[string]string) []string
 pkg envvar, func MergeMaps(...map[string]string) map[string]string
 pkg envvar, func MergeSlices(...[]string) []string
-pkg envvar, func PrependUsingSeparator(string, string, string) string
+pkg envvar, func PrependUniqueToken(string, string, string) string
 pkg envvar, func SliceToMap([]string) map[string]string
 pkg envvar, func SortByKey([]string)
 pkg envvar, func SplitKeyValue(string) (string, string)
 pkg envvar, func SplitTokens(string, string) []string
+pkg envvar, func UniqueTokens([]string) []string
 pkg envvar, func VarsFromMap(map[string]string) *Vars
 pkg envvar, func VarsFromOS() *Vars
 pkg envvar, func VarsFromSlice([]string) *Vars
