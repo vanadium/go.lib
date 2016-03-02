@@ -964,7 +964,7 @@ func TestCmdFailureLoggingEnabled(t *testing.T) {
 	// Note: When a FuncCmd fails, InitMain calls log.Fatal(err), which writes err
 	// to stderr. In several places below, our expected stderr must accommodate
 	// this logged fakeError string.
-	cmdFailureLoggingTestCases := []struct {
+	tests := []struct {
 		nStdout    int
 		nStderr    int
 		wantStdout string
@@ -981,16 +981,16 @@ func TestCmdFailureLoggingEnabled(t *testing.T) {
 	}
 
 	sep := strings.Repeat("-", 40)
-	for _, tc := range cmdFailureLoggingTestCases {
+	for _, test := range tests {
 		tb.Reset()
-		sh.FuncCmd(cmdFailureFunc, tc.nStdout, tc.nStderr).Run()
+		sh.FuncCmd(cmdFailureFunc, test.nStdout, test.nStderr).Run()
 		got := tb.buf.String()
-		wantStdout := fmt.Sprintf("\nSTDOUT\n%s\n%s\n", sep, tc.wantStdout)
+		wantStdout := fmt.Sprintf("\nSTDOUT\n%s\n%s\n", sep, test.wantStdout)
 		if !strings.Contains(got, wantStdout) {
 			t.Fatalf("got %v, want substring %v", got, wantStdout)
 		}
 		// Stderr includes fakeError.
-		wantStderr := fmt.Sprintf("\nSTDERR\n%s\n%s", sep, tc.wantStderr)
+		wantStderr := fmt.Sprintf("\nSTDERR\n%s\n%s", sep, test.wantStderr)
 		if !strings.Contains(got, wantStderr) {
 			t.Fatalf("got %v, want substring %v", got, wantStderr)
 		}
