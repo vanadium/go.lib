@@ -137,6 +137,13 @@ type customTB struct {
 	buf           *bytes.Buffer
 }
 
+func (tb *customTB) Reset() {
+	tb.calledFailNow = false
+	if tb.buf != nil {
+		tb.buf.Reset()
+	}
+}
+
 func (tb *customTB) FailNow() {
 	tb.calledFailNow = true
 }
@@ -895,7 +902,7 @@ func TestHandleErrorLogging(t *testing.T) {
 	defer sh.Cleanup()
 
 	// Call HandleError, then check that the stack trace and error got logged.
-	tb.buf.Reset()
+	tb.Reset()
 	sh.HandleError(fakeError)
 	_, file, line, _ := runtime.Caller(0)
 	got, wantSuffix := tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line-1, fakeError)
@@ -910,7 +917,7 @@ func TestHandleErrorLogging(t *testing.T) {
 	// Same as above, but with ContinueOnError set to true. Only the error should
 	// get logged.
 	sh.ContinueOnError = true
-	tb.buf.Reset()
+	tb.Reset()
 	sh.HandleError(fakeError)
 	_, file, line, _ = runtime.Caller(0)
 	got, want := tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line-1, fakeError)
@@ -918,7 +925,7 @@ func TestHandleErrorLogging(t *testing.T) {
 	sh.Err = nil
 
 	// Same as above, but calling HandleErrorWithSkip, with skip set to 1.
-	tb.buf.Reset()
+	tb.Reset()
 	sh.HandleErrorWithSkip(fakeError, 1)
 	_, file, line, _ = runtime.Caller(0)
 	got, want = tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line-1, fakeError)
@@ -926,12 +933,100 @@ func TestHandleErrorLogging(t *testing.T) {
 	sh.Err = nil
 
 	// Same as above, but with skip set to 2.
-	tb.buf.Reset()
+	tb.Reset()
 	sh.HandleErrorWithSkip(fakeError, 2)
 	_, file, line, _ = runtime.Caller(1)
 	got, want = tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line, fakeError)
 	eq(t, got, want)
 	sh.Err = nil
+}
+
+var cmdFailureFunc = gosh.RegisterFunc("cmdFailureFunc", func(nStdout, nStderr int) error {
+	if _, err := os.Stdout.Write([]byte(strings.Repeat("A", nStdout))); err != nil {
+		return err
+	}
+	if _, err := os.Stderr.Write([]byte(strings.Repeat("B", nStderr))); err != nil {
+		return err
+	}
+	time.Sleep(time.Second)
+	return fakeError
+})
+
+// Tests that when a command fails, we log the head and tail of its stdout and
+// stderr.
+func TestCmdFailureLoggingEnabled(t *testing.T) {
+	tb := &customTB{t: t, buf: &bytes.Buffer{}}
+	sh := gosh.NewShell(tb)
+	defer sh.Cleanup()
+
+	const k = 1 << 15
+
+	// Note: When a FuncCmd fails, InitMain calls log.Fatal(err), which writes err
+	// to stderr. In several places below, our expected stderr must accommodate
+	// this logged fakeError string.
+	cmdFailureLoggingTestCases := []struct {
+		nStdout    int
+		nStderr    int
+		wantStdout string
+		wantStderr string
+	}{
+		{0, 0, "[ empty ]", ""},
+		{1, 1, "A", "B"},
+		{k, k, strings.Repeat("A", k), strings.Repeat("B", k)},
+		{k + 1, k + 1, strings.Repeat("A", k+1), strings.Repeat("B", k+1)},
+		// Stderr includes fakeError.
+		{2 * k, 2 * k, strings.Repeat("A", 2*k), strings.Repeat("B", k) + "\n[ ... skipping "},
+		// Stderr includes fakeError.
+		{2*k + 1, 2*k + 1, strings.Repeat("A", k) + "\n[ ... skipping 1 bytes ... ]\n" + strings.Repeat("A", k), strings.Repeat("B", k) + "\n[ ... skipping "},
+	}
+
+	sep := strings.Repeat("-", 40)
+	for _, tc := range cmdFailureLoggingTestCases {
+		tb.Reset()
+		sh.FuncCmd(cmdFailureFunc, tc.nStdout, tc.nStderr).Run()
+		got := tb.buf.String()
+		wantStdout := fmt.Sprintf("\nSTDOUT\n%s\n%s\n", sep, tc.wantStdout)
+		if !strings.Contains(got, wantStdout) {
+			t.Fatalf("got %v, want substring %v", got, wantStdout)
+		}
+		// Stderr includes fakeError.
+		wantStderr := fmt.Sprintf("\nSTDERR\n%s\n%s", sep, tc.wantStderr)
+		if !strings.Contains(got, wantStderr) {
+			t.Fatalf("got %v, want substring %v", got, wantStderr)
+		}
+		sh.Err = nil
+	}
+}
+
+// Tests that we don't log command failures when ExitErrorIsOk or
+// ContinueOnError is set.
+func TestCmdFailureLoggingDisabled(t *testing.T) {
+	tb := &customTB{t: t, buf: &bytes.Buffer{}}
+	sh := gosh.NewShell(tb)
+	defer sh.Cleanup()
+
+	// If ExitErrorIsOk is set and the command fails, we shouldn't log anything.
+	tb.Reset()
+	c := sh.FuncCmd(exitFunc, 1)
+	c.ExitErrorIsOk = true
+	c.Run()
+	eq(t, tb.calledFailNow, false)
+	eq(t, tb.buf.String(), "")
+
+	// If ContinueOnError is set and the command fails, we should log the exit
+	// status but not the command stderr.
+	tb.Reset()
+	c = sh.FuncCmd(exitFunc, 1)
+	sh.ContinueOnError = true
+	c.Run()
+	eq(t, tb.calledFailNow, false)
+	got := tb.buf.String()
+	if !strings.Contains(got, "exit status 1") {
+		t.Fatalf("missing error: %s", got)
+	}
+	if strings.Contains(got, "STDERR") {
+		t.Fatalf("should not log stderr: %s", got)
+	}
 }
 
 func TestMain(m *testing.M) {

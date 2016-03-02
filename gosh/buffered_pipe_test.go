@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-func TestReadWriteAfterClose(t *testing.T) {
+func TestBufferedPipeReadWriteAfterClose(t *testing.T) {
 	p := newBufferedPipe()
 	if n, err := p.Write([]byte("foo")); n != 3 || err != nil {
 		t.Errorf("write got (%v, %v), want (3, <nil>)", n, err)
@@ -37,7 +37,7 @@ func TestReadWriteAfterClose(t *testing.T) {
 	}
 }
 
-func TestReadFromWriteTo(t *testing.T) {
+func TestBufferedPipeReadFromWriteTo(t *testing.T) {
 	p, buf := newBufferedPipe(), new(bytes.Buffer)
 	if n, err := p.(io.ReaderFrom).ReadFrom(strings.NewReader("foobarbaz")); n != 9 || err != nil {
 		t.Errorf("ReadFrom got (%v, %v), want (9, <nil>)", n, err)
@@ -62,7 +62,7 @@ func TestReadFromWriteTo(t *testing.T) {
 	}
 }
 
-func TestWriteToMany(t *testing.T) {
+func TestBufferedPipeWriteToMany(t *testing.T) {
 	p := newBufferedPipe()
 	pR, pW := io.Pipe()
 	nCh, errCh := make(chan int64, 1), make(chan error, 1)

@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -77,6 +78,8 @@ type Cmd struct {
 	stdinDoneChan     chan error
 	started           bool // protected by sh.cleanupMu
 	exited            bool // protected by cond.L
+	stdoutHeadTail    *headTail
+	stderrHeadTail    *headTail
 	stdoutWriters     []io.Writer
 	stderrWriters     []io.Writer
 	afterStartClosers []io.Closer
@@ -235,16 +238,20 @@ func (c *Cmd) Pid() int {
 ////////////////////////////////////////
 // Internals
 
+const headTailCapacity = 1 << 15
+
 func newCmdInternal(sh *Shell, vars map[string]string, path string, args []string) (*Cmd, error) {
 	c := &Cmd{
-		Path:     path,
-		Vars:     vars,
-		Args:     append([]string{path}, args...),
-		sh:       sh,
-		c:        &exec.Cmd{},
-		cond:     sync.NewCond(&sync.Mutex{}),
-		waitChan: make(chan error, 1),
-		recvVars: map[string]string{},
+		Path:           path,
+		Vars:           vars,
+		Args:           append([]string{path}, args...),
+		sh:             sh,
+		c:              &exec.Cmd{},
+		cond:           sync.NewCond(&sync.Mutex{}),
+		waitChan:       make(chan error, 1),
+		stdoutHeadTail: newHeadTail(headTailCapacity),
+		stderrHeadTail: newHeadTail(headTailCapacity),
+		recvVars:       map[string]string{},
 	}
 	// Protect against concurrent signal-triggered Shell.cleanup().
 	sh.cleanupMu.Lock()
@@ -268,13 +275,13 @@ func newCmd(sh *Shell, vars map[string]string, name string, args ...string) (*Cm
 	return newCmdInternal(sh, vars, name, args)
 }
 
+func isExitError(err error) bool {
+	_, ok := err.(*exec.ExitError)
+	return ok
+}
+
 func (c *Cmd) errorIsOk(err error) bool {
-	if c.ExitErrorIsOk {
-		if _, ok := err.(*exec.ExitError); ok {
-			return true
-		}
-	}
-	return err == nil
+	return err == nil || c.ExitErrorIsOk && isExitError(err)
 }
 
 // An explanation of closed pipe errors. Consider the pipeline "yes | head -1",
@@ -302,6 +309,8 @@ func (c *Cmd) errorIsOk(err error) bool {
 // might also want to add code to InitChildMain to exit the program with 141 if
 // it receives SIGPIPE.
 
+var sep = strings.Repeat("-", 40)
+
 func (c *Cmd) handleError(err error) {
 	if c.IgnoreClosedPipeError && isClosedPipeError(err) {
 		err = nil
@@ -309,6 +318,11 @@ func (c *Cmd) handleError(err error) {
 	c.Err = err
 	if c.errorIsOk(err) {
 		err = nil
+	}
+	if isExitError(err) && !c.sh.ContinueOnError {
+		c.sh.tb.Logf("gosh: command failed: %s\n", strings.Join(c.Args, " "))
+		c.sh.tb.Logf("\nSTDOUT\n%s\n%s\n", sep, c.stdoutHeadTail.String())
+		c.sh.tb.Logf("\nSTDERR\n%s\n%s\n", sep, c.stderrHeadTail.String())
 	}
 	c.sh.HandleErrorWithSkip(err, 3)
 }
@@ -371,6 +385,8 @@ func (w *recvWriter) Write(p []byte) (n int, err error) {
 
 func (c *Cmd) makeStdoutStderr() (io.Writer, io.Writer, error) {
 	c.stderrWriters = append(c.stderrWriters, &recvWriter{c: c})
+	c.stdoutWriters = append(c.stdoutWriters, c.stdoutHeadTail)
+	c.stderrWriters = append(c.stderrWriters, c.stderrHeadTail)
 	if c.PropagateOutput {
 		c.stdoutWriters = append(c.stdoutWriters, os.Stdout)
 		c.stderrWriters = append(c.stderrWriters, os.Stderr)
@@ -757,4 +773,56 @@ func (c *Cmd) combinedOutput() (string, error) {
 	c.stderrWriters = append(c.stderrWriters, &output)
 	err := c.run()
 	return output.String(), err
+}
+
+////////////////////////////////////////
+// Head-and-tail buffer
+
+// headTail stores the first and last 'capacity' written bytes.
+type headTail struct {
+	head     []byte
+	tail     *ringBuffer
+	nWritten int // number of bytes written
+}
+
+func newHeadTail(capacity int) *headTail {
+	return &headTail{head: make([]byte, capacity)}
+}
+
+// Write writes to the buffer.
+func (b *headTail) Write(p []byte) (int, error) {
+	nHead := len(b.head) - b.nWritten // number of bytes to write to head
+	if nHead > len(p) {
+		nHead = len(p)
+	} else if nHead < 0 {
+		nHead = 0
+	}
+	if nHead > 0 {
+		copy(b.head[b.nWritten:], p[:nHead])
+	}
+	// Write any remaining bytes to tail.
+	if len(p) > nHead {
+		if b.tail == nil {
+			b.tail = newRingBuffer(len(b.head))
+		}
+		b.tail.Append(p[nHead:])
+	}
+	b.nWritten += len(p)
+	return len(p), nil
+}
+
+// String returns the buffer as a string.
+func (b *headTail) String() string {
+	if b.nWritten == 0 {
+		return "[ empty ]"
+	}
+	if b.tail == nil {
+		return string(b.head[:b.nWritten])
+	}
+	tail := b.tail.String()
+	skipped := b.nWritten - 2*len(b.head)
+	if skipped <= 0 {
+		return fmt.Sprintf("%s%s", b.head, tail)
+	}
+	return fmt.Sprintf("%s\n[ ... skipping %d bytes ... ]\n%s", b.head, skipped, tail)
 }

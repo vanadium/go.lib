@@ -324,8 +324,9 @@ func (sh *Shell) funcCmd(f *Func, args ...interface{}) (*Cmd, error) {
 }
 
 func (sh *Shell) wait() error {
-	// Note: It is illegal to call newCmdInternal concurrently with Shell.wait, so
-	// we need not hold cleanupMu when accessing sh.cmds below.
+	// Note: It is illegal to call newCmdInternal (which mutates sh.cmds)
+	// concurrently with Shell.wait, so we need not hold cleanupMu when accessing
+	// sh.cmds below.
 	var res error
 	for _, c := range sh.cmds {
 		if !c.started || c.calledWait {
