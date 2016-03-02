@@ -48,14 +48,14 @@ type helpConfig struct {
 
 // Run implements the Runner interface method.
 func (h helpRunner) Run(env *Env, args []string) error {
-	w := textutil.NewUTF8LineWriter(env.Stdout, h.width)
+	w := textutil.NewUTF8WrapWriter(env.Stdout, h.width)
 	defer w.Flush()
 	return runHelp(w, env, args, h.path, h.helpConfig)
 }
 
 // usageFunc is used as the implementation of the Env.Usage function.
 func (h helpRunner) usageFunc(env *Env, writer io.Writer) {
-	w := textutil.NewUTF8LineWriter(writer, h.width)
+	w := textutil.NewUTF8WrapWriter(writer, h.width)
 	usage(w, env, h.path, h.helpConfig, h.helpConfig.firstCall)
 	w.Flush()
 }
@@ -104,7 +104,7 @@ the CMDLINE_WIDTH environment variable.
 }
 
 // runHelp implements the run-time behavior of the help command.
-func runHelp(w *textutil.LineWriter, env *Env, args []string, path []*Command, config *helpConfig) error {
+func runHelp(w *textutil.WrapWriter, env *Env, args []string, path []*Command, config *helpConfig) error {
 	if len(args) == 0 {
 		usage(w, env, path, config, config.firstCall)
 		return nil
@@ -185,7 +185,7 @@ func firstRuneToUpper(s string) string {
 	return string(unicode.ToUpper(r)) + s[n:]
 }
 
-func lineBreak(w *textutil.LineWriter, style style) {
+func lineBreak(w *textutil.WrapWriter, style style) {
 	w.Flush()
 	switch style {
 	case styleCompact, styleFull:
@@ -215,7 +215,7 @@ func needsHelpChild(cmd *Command) bool {
 }
 
 // usageAll prints usage recursively via DFS from the path onward.
-func usageAll(w *textutil.LineWriter, env *Env, path []*Command, config *helpConfig, firstCall bool) {
+func usageAll(w *textutil.WrapWriter, env *Env, path []*Command, config *helpConfig, firstCall bool) {
 	cmd, cmdPath := path[len(path)-1], pathName(config.prefix, path)
 	usage(w, env, path, config, firstCall)
 	for _, child := range cmd.Children {
@@ -278,7 +278,7 @@ func usageAll(w *textutil.LineWriter, env *Env, path []*Command, config *helpCon
 // usage prints the usage of the last command in path to w.  The bool firstCall
 // is set to false when printing usage for multiple commands, and is used to
 // avoid printing redundant information (e.g. help command, global flags).
-func usage(w *textutil.LineWriter, env *Env, path []*Command, config *helpConfig, firstCall bool) {
+func usage(w *textutil.WrapWriter, env *Env, path []*Command, config *helpConfig, firstCall bool) {
 	cmd, cmdPath := path[len(path)-1], pathName(config.prefix, path)
 	env.TimerPush("usage " + cmdPath)
 	defer env.TimerPop()
@@ -423,7 +423,7 @@ func usage(w *textutil.LineWriter, env *Env, path []*Command, config *helpConfig
 	}
 }
 
-func flagsUsage(w *textutil.LineWriter, path []*Command, config *helpConfig) bool {
+func flagsUsage(w *textutil.WrapWriter, path []*Command, config *helpConfig) bool {
 	cmd, cmdPath := path[len(path)-1], pathName(config.prefix, path)
 	allFlags := pathFlags(path)
 	numCompact := countFlags(&cmd.Flags, nil, true)
@@ -450,7 +450,7 @@ func flagsUsage(w *textutil.LineWriter, path []*Command, config *helpConfig) boo
 	return false
 }
 
-func globalFlagsUsage(w *textutil.LineWriter, config *helpConfig) bool {
+func globalFlagsUsage(w *textutil.WrapWriter, config *helpConfig) bool {
 	numCompact := countFlags(globalFlags, nonHiddenGlobalFlags, true)
 	numFull := countFlags(globalFlags, nonHiddenGlobalFlags, false)
 	if config.style == styleCompact {
@@ -484,7 +484,7 @@ func countFlags(flags *flag.FlagSet, regexps []*regexp.Regexp, match bool) (num 
 	return
 }
 
-func printFlags(w *textutil.LineWriter, flags, filter *flag.FlagSet, style style, regexps []*regexp.Regexp, match bool) {
+func printFlags(w *textutil.WrapWriter, flags, filter *flag.FlagSet, style style, regexps []*regexp.Regexp, match bool) {
 	flags.VisitAll(func(f *flag.Flag) {
 		if filter != nil && filter.Lookup(f.Name) != nil {
 			return

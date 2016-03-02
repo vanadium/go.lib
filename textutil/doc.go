@@ -6,7 +6,8 @@
 //
 // This package includes a combination of low-level and high-level utilities.
 // The main high-level utilities are:
-//   NewUTF8LineWriter: Line-based text formatter.
+//   NewUTF8WrapWriter: Text formatter with line-based word wrapping.
 //   PrefixWriter:      Add prefix to output.
+//   PrefixLineWriter:  Add prefix to each line in output.
 //   ByteReplaceWriter: Replace single byte with bytes in output.
 package textutil

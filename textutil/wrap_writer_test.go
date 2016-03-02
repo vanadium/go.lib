@@ -20,7 +20,7 @@ var (
 	allIndents1 = [][]int{{1}, {2}, {1, 2}, {2, 1}}
 )
 
-func TestLineWriter(t *testing.T) {
+func TestWrapWriter(t *testing.T) {
 	tests := []struct {
 		Width   int
 		Indents [][]int
@@ -164,8 +164,8 @@ func TestLineWriter(t *testing.T) {
 				}
 				for _, indents := range test.Indents {
 					var buf bytes.Buffer
-					w := newUTF8LineWriter(t, &buf, test.Width, lp, indents)
-					lineWriterWriteFlush(t, w, xlateIn(test.In), sizes)
+					w := newUTF8WrapWriter(t, &buf, test.Width, lp, indents)
+					wrapWriterWriteFlush(t, w, xlateIn(test.In), sizes)
 					if got, want := buf.String(), xlateWant(test.Want, lp, indents); got != want {
 						t.Errorf("%q sizes:%v lp:%q indents:%v got %q, want %q", test.In, sizes, lp, indents, got, want)
 					}
@@ -175,7 +175,7 @@ func TestLineWriter(t *testing.T) {
 	}
 }
 
-func TestLineWriterForceVerbatim(t *testing.T) {
+func TestWrapWriterForceVerbatim(t *testing.T) {
 	tests := []struct {
 		In   string // See xlateIn for details on the format
 		Want string // See xlateIn for details on the format
@@ -206,9 +206,9 @@ func TestLineWriterForceVerbatim(t *testing.T) {
 		// Run with a variety of chunk sizes.
 		for _, sizes := range [][]int{nil, {1}, {2}, {1, 2}, {2, 1}} {
 			var buf bytes.Buffer
-			w := newUTF8LineWriter(t, &buf, 1, lp{}, nil)
+			w := newUTF8WrapWriter(t, &buf, 1, lp{}, nil)
 			w.ForceVerbatim(true)
-			lineWriterWriteFlush(t, w, xlateIn(test.In), sizes)
+			wrapWriterWriteFlush(t, w, xlateIn(test.In), sizes)
 			if got, want := buf.String(), xlateIn(test.Want); got != want {
 				t.Errorf("%q sizes:%v got %q, want %q", test.In, sizes, got, want)
 			}
@@ -273,8 +273,8 @@ func spaces(count int) string {
 	return strings.Repeat(" ", count)
 }
 
-func newUTF8LineWriter(t testing.TB, buf io.Writer, width int, lp lp, indents []int) *LineWriter {
-	w := NewUTF8LineWriter(buf, width)
+func newUTF8WrapWriter(t testing.TB, buf io.Writer, width int, lp lp, indents []int) *WrapWriter {
+	w := NewUTF8WrapWriter(buf, width)
 	if lp.line != "" || lp.para != "" {
 		if err := w.SetLineTerminator(lp.line); err != nil {
 			t.Errorf("SetLineTerminator(%q) got %v, want nil", lp.line, err)
@@ -295,7 +295,7 @@ func newUTF8LineWriter(t testing.TB, buf io.Writer, width int, lp lp, indents []
 	return w
 }
 
-func lineWriterWriteFlush(t testing.TB, w *LineWriter, text string, sizes []int) {
+func wrapWriterWriteFlush(t testing.TB, w *WrapWriter, text string, sizes []int) {
 	// Write chunks of different sizes until we've exhausted the input.
 	remain := []byte(text)
 	for ix := 0; len(remain) > 0; ix++ {
@@ -312,40 +312,40 @@ func lineWriterWriteFlush(t testing.TB, w *LineWriter, text string, sizes []int)
 	}
 }
 
-func benchUTF8LineWriter(b *testing.B, width int, sizes []int) {
+func benchUTF8WrapWriter(b *testing.B, width int, sizes []int) {
 	for i := 0; i < b.N; i++ {
 		var buf bytes.Buffer
-		w := newUTF8LineWriter(b, &buf, width, lp{}, nil)
-		lineWriterWriteFlush(b, w, benchText, sizes)
+		w := newUTF8WrapWriter(b, &buf, width, lp{}, nil)
+		wrapWriterWriteFlush(b, w, benchText, sizes)
 	}
 }
 
-func BenchmarkUTF8LineWriter_Sizes_0_Width_0(b *testing.B) {
-	benchUTF8LineWriter(b, 0, nil)
+func BenchmarkUTF8WrapWriter_Sizes_0_Width_0(b *testing.B) {
+	benchUTF8WrapWriter(b, 0, nil)
 }
-func BenchmarkUTF8LineWriter_Sizes_0_Width_10(b *testing.B) {
-	benchUTF8LineWriter(b, 10, nil)
+func BenchmarkUTF8WrapWriter_Sizes_0_Width_10(b *testing.B) {
+	benchUTF8WrapWriter(b, 10, nil)
 }
-func BenchmarkUTF8LineWriter_Sizes_0_Width_Inf(b *testing.B) {
-	benchUTF8LineWriter(b, -1, nil)
-}
-
-func BenchmarkUTF8LineWriter_Sizes_1_Width_0(b *testing.B) {
-	benchUTF8LineWriter(b, 0, []int{1})
-}
-func BenchmarkUTF8LineWriter_Sizes_1_Width_10(b *testing.B) {
-	benchUTF8LineWriter(b, 10, []int{1})
-}
-func BenchmarkUTF8LineWriter_Sizes_1_Width_Inf(b *testing.B) {
-	benchUTF8LineWriter(b, -1, []int{1})
+func BenchmarkUTF8WrapWriter_Sizes_0_Width_Inf(b *testing.B) {
+	benchUTF8WrapWriter(b, -1, nil)
 }
 
-func BenchmarkUTF8LineWriter_Sizes_1_2_3_Width_0(b *testing.B) {
-	benchUTF8LineWriter(b, 0, []int{1, 2, 3})
+func BenchmarkUTF8WrapWriter_Sizes_1_Width_0(b *testing.B) {
+	benchUTF8WrapWriter(b, 0, []int{1})
 }
-func BenchmarkUTF8LineWriter_Sizes_1_2_3_Width_10(b *testing.B) {
-	benchUTF8LineWriter(b, 10, []int{1, 2, 3})
+func BenchmarkUTF8WrapWriter_Sizes_1_Width_10(b *testing.B) {
+	benchUTF8WrapWriter(b, 10, []int{1})
 }
-func BenchmarkUTF8LineWriter_Sizes_1_2_3_Width_Inf(b *testing.B) {
-	benchUTF8LineWriter(b, -1, []int{1, 2, 3})
+func BenchmarkUTF8WrapWriter_Sizes_1_Width_Inf(b *testing.B) {
+	benchUTF8WrapWriter(b, -1, []int{1})
+}
+
+func BenchmarkUTF8WrapWriter_Sizes_1_2_3_Width_0(b *testing.B) {
+	benchUTF8WrapWriter(b, 0, []int{1, 2, 3})
+}
+func BenchmarkUTF8WrapWriter_Sizes_1_2_3_Width_10(b *testing.B) {
+	benchUTF8WrapWriter(b, 10, []int{1, 2, 3})
+}
+func BenchmarkUTF8WrapWriter_Sizes_1_2_3_Width_Inf(b *testing.B) {
+	benchUTF8WrapWriter(b, -1, []int{1, 2, 3})
 }

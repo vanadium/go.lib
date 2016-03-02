@@ -26,7 +26,7 @@ unless it would result in a line with leading or trailing spaces.
 Example usage in a unix terminal:
   $ cat myfile.txt | linewrap
 
-See http://godoc.org/v.io/x/lib/textutil#LineWriter for details on the
+See http://godoc.org/v.io/x/lib/textutil#WrapWriter for details on the
 formatting algorithm.
 
 Usage:

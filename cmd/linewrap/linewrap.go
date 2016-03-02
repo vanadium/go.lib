@@ -45,7 +45,7 @@ unless it would result in a line with leading or trailing spaces.
 Example usage in a unix terminal:
   $ cat myfile.txt | linewrap
 
-See http://godoc.org/v.io/x/lib/textutil#LineWriter for details on the
+See http://godoc.org/v.io/x/lib/textutil#WrapWriter for details on the
 formatting algorithm.
 `,
 }
@@ -109,7 +109,7 @@ func runLineWrap(env *cmdline.Env, args []string) error {
 			indents = append(indents, indent)
 		}
 	}
-	w := textutil.NewUTF8LineWriter(env.Stdout, flagWidth)
+	w := textutil.NewUTF8WrapWriter(env.Stdout, flagWidth)
 	if err := w.SetLineTerminator(lineTerm); err != nil {
 		return err
 	}

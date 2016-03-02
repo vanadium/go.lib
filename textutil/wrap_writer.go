@@ -10,7 +10,7 @@ import (
 	"unicode"
 )
 
-// LineWriter implements an io.Writer filter that formats input text into output
+// WrapWriter implements an io.Writer filter that formats input text into output
 // lines with a given target width in runes.
 //
 // Each input rune is classified into one of three kinds:
@@ -52,7 +52,7 @@ import (
 //
 //   http://www.unicode.org/reports/tr14 [Unicode Line Breaking Algorithm]
 //   http://www.unicode.org/versions/Unicode4.0.0/ch05.pdf [5.8 Newline Guidelines]
-type LineWriter struct {
+type WrapWriter struct {
 	// State configured by the user.
 	w             io.Writer
 	runeDecoder   RuneChunkDecoder
@@ -93,11 +93,11 @@ const (
 	stateSkipSpace              // Skip spaces in input line.
 )
 
-// NewLineWriter returns a new LineWriter with the given target width in runes,
+// NewWrapWriter returns a new WrapWriter with the given target width in runes,
 // producing output on the underlying writer w.  The dec and enc are used to
 // respectively decode runes from Write calls, and encode runes to w.
-func NewLineWriter(w io.Writer, width int, dec RuneChunkDecoder, enc RuneEncoder) *LineWriter {
-	ret := &LineWriter{
+func NewWrapWriter(w io.Writer, width int, dec RuneChunkDecoder, enc RuneEncoder) *WrapWriter {
+	ret := &WrapWriter{
 		w:            w,
 		runeDecoder:  dec,
 		width:        runePos(width),
@@ -111,23 +111,23 @@ func NewLineWriter(w io.Writer, width int, dec RuneChunkDecoder, enc RuneEncoder
 	return ret
 }
 
-// NewUTF8LineWriter returns a new LineWriter filter that implements io.Writer,
+// NewUTF8WrapWriter returns a new WrapWriter filter that implements io.Writer,
 // and decodes and encodes runes in UTF-8.
-func NewUTF8LineWriter(w io.Writer, width int) *LineWriter {
-	return NewLineWriter(w, width, &UTF8ChunkDecoder{}, UTF8Encoder{})
+func NewUTF8WrapWriter(w io.Writer, width int) *WrapWriter {
+	return NewWrapWriter(w, width, &UTF8ChunkDecoder{}, UTF8Encoder{})
 }
 
 // Width returns the target width in runes.  If width < 0 the width is
 // unlimited; each paragraph is output as a single line.
-func (w *LineWriter) Width() int { return int(w.width) }
+func (w *WrapWriter) Width() int { return int(w.width) }
 
 // SetLineTerminator sets the line terminator for subsequent Write calls.  Every
 // output line is terminated with term; EOL runes from the input are never
-// written to the output.  A new LineWriter instance uses "\n" as the default
+// written to the output.  A new WrapWriter instance uses "\n" as the default
 // line terminator.
 //
 // Calls Flush internally, and returns any Flush error.
-func (w *LineWriter) SetLineTerminator(term string) error {
+func (w *WrapWriter) SetLineTerminator(term string) error {
 	if err := w.Flush(); err != nil {
 		return err
 	}
@@ -138,11 +138,11 @@ func (w *LineWriter) SetLineTerminator(term string) error {
 
 // SetParagraphSeparator sets the paragraph separator for subsequent Write
 // calls.  Every consecutive pair of non-empty paragraphs is separated with sep;
-// EOL runes from the input are never written to the output.  A new LineWriter
+// EOL runes from the input are never written to the output.  A new WrapWriter
 // instance uses "\n" as the default paragraph separator.
 //
 // Calls Flush internally, and returns any Flush error.
-func (w *LineWriter) SetParagraphSeparator(sep string) error {
+func (w *WrapWriter) SetParagraphSeparator(sep string) error {
 	if err := w.Flush(); err != nil {
 		return err
 	}
@@ -160,10 +160,10 @@ func (w *LineWriter) SetParagraphSeparator(sep string) error {
 //
 // SetIndents() is equivalent to SetIndents(""), SetIndents("", ""), etc.
 //
-// A new LineWriter instance has no indents by default.
+// A new WrapWriter instance has no indents by default.
 //
 // Calls Flush internally, and returns any Flush error.
-func (w *LineWriter) SetIndents(indents ...string) error {
+func (w *WrapWriter) SetIndents(indents ...string) error {
 	if err := w.Flush(); err != nil {
 		return err
 	}
@@ -190,17 +190,17 @@ func (w *LineWriter) SetIndents(indents ...string) error {
 // lines don't start with spaces.
 //
 // Calls Flush internally, and returns any Flush error.
-func (w *LineWriter) ForceVerbatim(v bool) error {
+func (w *WrapWriter) ForceVerbatim(v bool) error {
 	w.forceVerbatim = v
 	return w.Flush()
 }
 
-// Write implements io.Writer by buffering data into the LineWriter w.  Actual
+// Write implements io.Writer by buffering data into the WrapWriter w.  Actual
 // writes to the underlying writer may occur, and may include data buffered in
 // either this Write call or previous Write calls.
 //
 // Flush must be called after the last call to Write.
-func (w *LineWriter) Write(data []byte) (int, error) {
+func (w *WrapWriter) Write(data []byte) (int, error) {
 	return WriteRuneChunk(w.runeDecoder, w.addRune, data)
 }
 
@@ -211,7 +211,7 @@ func (w *LineWriter) Write(data []byte) (int, error) {
 //
 // Flush must be called after the last call to Write, and may be called an
 // arbitrary number of times before the last Write.
-func (w *LineWriter) Flush() error {
+func (w *WrapWriter) Flush() error {
 	if err := FlushRuneChunk(w.runeDecoder, w.addRune); err != nil {
 		return err
 	}
@@ -226,7 +226,7 @@ func (w *LineWriter) Flush() error {
 }
 
 // addRune is called every time w.runeDecoder decodes a full rune.
-func (w *LineWriter) addRune(r rune) error {
+func (w *WrapWriter) addRune(r rune) error {
 	state, lineBreak := w.nextState(r, w.updateRune(r))
 	if lineBreak {
 		if err := w.writeLine(); err != nil {
@@ -259,7 +259,7 @@ func runeKind(r rune) kind {
 	return kindLetter
 }
 
-func (w *LineWriter) updateRune(r rune) bool {
+func (w *WrapWriter) updateRune(r rune) bool {
 	forceLineBreak := false
 	switch kind := runeKind(r); kind {
 	case kindEOL:
@@ -343,7 +343,7 @@ func (w *LineWriter) updateRune(r rune) bool {
 //
 // Note that Flush calls behave exactly as if an explicit U+2028 line separator
 // were added to the end of all buffered data.
-func (w *LineWriter) nextState(r rune, forceLineBreak bool) (state, bool) {
+func (w *WrapWriter) nextState(r rune, forceLineBreak bool) (state, bool) {
 	kind := runeKind(r)
 	if w.forceVerbatim {
 		return stateVerbatim, forceLineBreak || kind == kindEOL
@@ -388,7 +388,7 @@ func (w *LineWriter) nextState(r rune, forceLineBreak bool) (state, bool) {
 	return stateWordWrap, false
 }
 
-func (w *LineWriter) writeLine() error {
+func (w *WrapWriter) writeLine() error {
 	if w.lastWordEnd == -1 {
 		// Don't write blank lines, but we must reset the line in case the paragraph
 		// has just been terminated.
@@ -419,7 +419,7 @@ func (w *LineWriter) writeLine() error {
 	return nil
 }
 
-func (w *LineWriter) resetLine() {
+func (w *WrapWriter) resetLine() {
 	w.lineBuf.Reset()
 	w.newWordStart = -1
 	w.lastWordEnd = -1
@@ -441,7 +441,7 @@ func (w *LineWriter) resetLine() {
 	w.lineStart = w.lineBuf.ByteLen()
 }
 
-func (w *LineWriter) bufferRune(r rune, state state, lineBreak bool) {
+func (w *WrapWriter) bufferRune(r rune, state state, lineBreak bool) {
 	// Never add leading spaces to the buffer in the wordWrap state.
 	wordWrapNoLeadingSpaces := state == stateWordWrap && !lineBreak
 	switch kind := runeKind(r); kind {
