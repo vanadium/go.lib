@@ -259,9 +259,8 @@ func newCmdInternal(sh *Shell, vars map[string]string, path string, args []strin
 func newCmd(sh *Shell, vars map[string]string, name string, args ...string) (*Cmd, error) {
 	// Mimics https://golang.org/src/os/exec/exec.go Command.
 	if filepath.Base(name) == name {
-		dirs := splitTokens(sh.Vars["PATH"], ":")
-		lp := lookpath.Look(dirs, name)
-		if lp == "" {
+		lp, err := lookpath.Look(sh.Vars, name)
+		if err != nil {
 			return nil, fmt.Errorf("gosh: failed to locate executable: %s", name)
 		}
 		name = lp

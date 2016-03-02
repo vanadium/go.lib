@@ -5,10 +5,13 @@
 package lookpath_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"v.io/x/lib/lookpath"
@@ -46,35 +49,61 @@ func initTmpDir(t *testing.T) (string, func()) {
 	}
 }
 
+func pathEnv(dir ...string) map[string]string {
+	return map[string]string{"PATH": strings.Join(dir, string(filepath.ListSeparator))}
+}
+
+func isNotFoundError(err error, name string) bool {
+	e, ok := err.(*exec.Error)
+	return ok && e.Name == name && e.Err == exec.ErrNotFound
+}
+
 func TestLook(t *testing.T) {
 	tmpDir, cleanup := initTmpDir(t)
 	defer cleanup()
 	dirA, dirB := mkdir(t, tmpDir, "a"), mkdir(t, tmpDir, "b")
 	aFoo, aBar := mkfile(t, dirA, "foo", 0755), mkfile(t, dirA, "bar", 0755)
 	bBar, bBaz := mkfile(t, dirB, "bar", 0755), mkfile(t, dirB, "baz", 0755)
-	_, bExe := mkfile(t, dirA, "exe", 0644), mkfile(t, dirB, "exe", 0755)
+	aExe, bExe := mkfile(t, dirA, "exe", 0644), mkfile(t, dirB, "exe", 0755)
 	tests := []struct {
-		Dirs []string
+		Env  map[string]string
 		Name string
 		Want string
 	}{
 		{nil, "", ""},
 		{nil, "foo", ""},
-		{[]string{dirA}, "foo", aFoo},
-		{[]string{dirA}, "bar", aBar},
-		{[]string{dirA}, "baz", ""},
-		{[]string{dirB}, "foo", ""},
-		{[]string{dirB}, "bar", bBar},
-		{[]string{dirB}, "baz", bBaz},
-		{[]string{dirA, dirB}, "foo", aFoo},
-		{[]string{dirA, dirB}, "bar", aBar},
-		{[]string{dirA, dirB}, "baz", bBaz},
+		{pathEnv(dirA), "foo", aFoo},
+		{pathEnv(dirA), "bar", aBar},
+		{pathEnv(dirA), "baz", ""},
+		{pathEnv(dirB), "foo", ""},
+		{pathEnv(dirB), "bar", bBar},
+		{pathEnv(dirB), "baz", bBaz},
+		{pathEnv(dirA, dirB), "foo", aFoo},
+		{pathEnv(dirA, dirB), "bar", aBar},
+		{pathEnv(dirA, dirB), "baz", bBaz},
 		// Make sure we find bExe, since aExe isn't executable.
-		{[]string{dirA, dirB}, "exe", bExe},
+		{pathEnv(dirA, dirB), "exe", bExe},
+		// Absolute name lookups.
+		{nil, dirA, ""},
+		{nil, dirB, ""},
+		{nil, aFoo, aFoo},
+		{nil, aBar, aBar},
+		{nil, bBar, bBar},
+		{nil, bBaz, bBaz},
+		{nil, aExe, ""},
+		{nil, bExe, bExe},
 	}
 	for _, test := range tests {
-		if got, want := lookpath.Look(test.Dirs, test.Name), test.Want; got != want {
-			t.Errorf("dirs=%v name=%v got %v, want %v", test.Dirs, test.Name, got, want)
+		hdr := fmt.Sprintf("env=%v name=%v", test.Env, test.Name)
+		look, err := lookpath.Look(test.Env, test.Name)
+		if got, want := look, test.Want; got != want {
+			t.Errorf("%s got %v, want %v", hdr, got, want)
+		}
+		if (look == "") == (err == nil) {
+			t.Errorf("%s got mismatched look=%v err=%v", hdr, look, err)
+		}
+		if err != nil && !isNotFoundError(err, test.Name) {
+			t.Errorf("%s got wrong error %v", hdr, err)
 		}
 	}
 }
@@ -86,39 +115,65 @@ func TestLookPrefix(t *testing.T) {
 	aFoo, aBar := mkfile(t, dirA, "foo", 0755), mkfile(t, dirA, "bar", 0755)
 	bBar, bBaz := mkfile(t, dirB, "bar", 0755), mkfile(t, dirB, "baz", 0755)
 	aBzz, bBaa := mkfile(t, dirA, "bzz", 0755), mkfile(t, dirB, "baa", 0755)
-	_, bExe := mkfile(t, dirA, "exe", 0644), mkfile(t, dirB, "exe", 0755)
+	aExe, bExe := mkfile(t, dirA, "exe", 0644), mkfile(t, dirB, "exe", 0755)
 	tests := []struct {
-		Dirs   []string
+		Env    map[string]string
 		Prefix string
 		Names  map[string]bool
 		Want   []string
 	}{
 		{nil, "", nil, nil},
 		{nil, "foo", nil, nil},
-		{[]string{dirA}, "foo", nil, []string{aFoo}},
-		{[]string{dirA}, "bar", nil, []string{aBar}},
-		{[]string{dirA}, "baz", nil, nil},
-		{[]string{dirA}, "f", nil, []string{aFoo}},
-		{[]string{dirA}, "b", nil, []string{aBar, aBzz}},
-		{[]string{dirB}, "foo", nil, nil},
-		{[]string{dirB}, "bar", nil, []string{bBar}},
-		{[]string{dirB}, "baz", nil, []string{bBaz}},
-		{[]string{dirB}, "f", nil, nil},
-		{[]string{dirB}, "b", nil, []string{bBaa, bBar, bBaz}},
-		{[]string{dirA, dirB}, "foo", nil, []string{aFoo}},
-		{[]string{dirA, dirB}, "bar", nil, []string{aBar}},
-		{[]string{dirA, dirB}, "baz", nil, []string{bBaz}},
-		{[]string{dirA, dirB}, "f", nil, []string{aFoo}},
-		{[]string{dirA, dirB}, "b", nil, []string{bBaa, aBar, bBaz, aBzz}},
+		{pathEnv(dirA), "foo", nil, []string{aFoo}},
+		{pathEnv(dirA), "bar", nil, []string{aBar}},
+		{pathEnv(dirA), "baz", nil, nil},
+		{pathEnv(dirA), "f", nil, []string{aFoo}},
+		{pathEnv(dirA), "b", nil, []string{aBar, aBzz}},
+		{pathEnv(dirB), "foo", nil, nil},
+		{pathEnv(dirB), "bar", nil, []string{bBar}},
+		{pathEnv(dirB), "baz", nil, []string{bBaz}},
+		{pathEnv(dirB), "f", nil, nil},
+		{pathEnv(dirB), "b", nil, []string{bBaa, bBar, bBaz}},
+		{pathEnv(dirA, dirB), "foo", nil, []string{aFoo}},
+		{pathEnv(dirA, dirB), "bar", nil, []string{aBar}},
+		{pathEnv(dirA, dirB), "baz", nil, []string{bBaz}},
+		{pathEnv(dirA, dirB), "f", nil, []string{aFoo}},
+		{pathEnv(dirA, dirB), "b", nil, []string{bBaa, aBar, bBaz, aBzz}},
 		// Don't find baz, since it's already provided.
-		{[]string{dirA, dirB}, "b", map[string]bool{"baz": true}, []string{bBaa, aBar, aBzz}},
+		{pathEnv(dirA, dirB), "b", map[string]bool{"baz": true}, []string{bBaa, aBar, aBzz}},
 		// Make sure we find bExe, since aExe isn't executable.
-		{[]string{dirA, dirB}, "exe", nil, []string{bExe}},
-		{[]string{dirA, dirB}, "e", nil, []string{bExe}},
+		{pathEnv(dirA, dirB), "exe", nil, []string{bExe}},
+		{pathEnv(dirA, dirB), "e", nil, []string{bExe}},
+		// Absolute prefix lookups.
+		{nil, dirA, nil, nil},
+		{nil, dirB, nil, nil},
+		{nil, aFoo, nil, []string{aFoo}},
+		{nil, aBar, nil, []string{aBar}},
+		{nil, bBar, nil, []string{bBar}},
+		{nil, bBaz, nil, []string{bBaz}},
+		{nil, aBzz, nil, []string{aBzz}},
+		{nil, bBaa, nil, []string{bBaa}},
+		{nil, filepath.Join(dirA, "f"), nil, []string{aFoo}},
+		{nil, filepath.Join(dirA, "b"), nil, []string{aBar, aBzz}},
+		{nil, filepath.Join(dirB, "f"), nil, nil},
+		{nil, filepath.Join(dirB, "b"), nil, []string{bBaa, bBar, bBaz}},
+		{nil, filepath.Join(dirB, "b"), map[string]bool{"baz": true}, []string{bBaa, bBar}},
+		{nil, aExe, nil, nil},
+		{nil, filepath.Join(dirA, "e"), nil, nil},
+		{nil, bExe, nil, []string{bExe}},
+		{nil, filepath.Join(dirB, "e"), nil, []string{bExe}},
 	}
 	for _, test := range tests {
-		if got, want := lookpath.LookPrefix(test.Dirs, test.Prefix, test.Names), test.Want; !reflect.DeepEqual(got, want) {
-			t.Errorf("dirs=%v prefix=%v names=%v got %v, want %v", test.Dirs, test.Prefix, test.Names, got, want)
+		hdr := fmt.Sprintf("env=%v prefix=%v names=%v", test.Env, test.Prefix, test.Names)
+		look, err := lookpath.LookPrefix(test.Env, test.Prefix, test.Names)
+		if got, want := look, test.Want; !reflect.DeepEqual(got, want) {
+			t.Errorf("%s got %v, want %v", hdr, got, want)
+		}
+		if (look == nil) == (err == nil) {
+			t.Errorf("%s got mismatched look=%v err=%v", hdr, look, err)
+		}
+		if err != nil && !isNotFoundError(err, test.Prefix+"*") {
+			t.Errorf("%s got wrong error %v", hdr, err)
 		}
 	}
 }

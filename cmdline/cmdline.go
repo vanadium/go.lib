@@ -382,7 +382,7 @@ func (cmd *Command) parse(path []*Command, env *Env, args []string, setFlags map
 	}
 	if cmd.LookPath {
 		// Look for a matching executable in PATH.
-		if subCmd := env.LookPath(cmd.Name + "-" + subName); subCmd != "" {
+		if subCmd, _ := env.LookPath(cmd.Name + "-" + subName); subCmd != "" {
 			extArgs := append(flagsAsArgs(setFlags), subArgs...)
 			return binaryRunner{subCmd, cmdPath}, extArgs, nil
 		}

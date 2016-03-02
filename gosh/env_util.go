@@ -72,14 +72,3 @@ func mergeMaps(maps ...map[string]string) map[string]string {
 func copyMap(m map[string]string) map[string]string {
 	return mergeMaps(m)
 }
-
-// splitTokens is like strings.Split(value, sep), but drops empty tokens.
-func splitTokens(s, sep string) []string {
-	var tokens []string
-	for _, token := range strings.Split(s, sep) {
-		if token != "" {
-			tokens = append(tokens, token)
-		}
-	}
-	return tokens
-}

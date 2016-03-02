@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"strconv"
-	"strings"
 
 	"v.io/x/lib/envvar"
 	"v.io/x/lib/lookpath"
@@ -77,18 +76,18 @@ func (e *Env) TimerPop() {
 
 // LookPath returns the absolute path of the executable with the given name,
 // based on the directories in PATH.  Calls lookpath.Look.
-func (e *Env) LookPath(name string) string {
+func (e *Env) LookPath(name string) (string, error) {
 	e.TimerPush("lookpath " + name)
 	defer e.TimerPop()
-	return lookpath.Look(e.pathDirs(), name)
+	return lookpath.Look(e.Vars, name)
 }
 
 // LookPathPrefix returns the absolute paths of all executables with the given
 // name prefix, based on the directories in PATH.  Calls lookpath.LookPrefix.
-func (e *Env) LookPathPrefix(prefix string, names map[string]bool) []string {
+func (e *Env) LookPathPrefix(prefix string, names map[string]bool) ([]string, error) {
 	e.TimerPush("lookpathprefix " + prefix)
 	defer e.TimerPop()
-	return lookpath.LookPrefix(e.pathDirs(), prefix, names)
+	return lookpath.LookPrefix(e.Vars, prefix, names)
 }
 
 func usageErrorf(env *Env, usage func(*Env, io.Writer), format string, args ...interface{}) error {
@@ -124,10 +123,6 @@ func (e *Env) style() style {
 
 func (e *Env) prefix() string {
 	return e.Vars["CMDLINE_PREFIX"]
-}
-
-func (e *Env) pathDirs() []string {
-	return strings.Split(e.Vars["PATH"], string(os.PathListSeparator))
 }
 
 func (e *Env) firstCall() bool {

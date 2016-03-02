@@ -5,8 +5,8 @@ pkg cmdline, func HideGlobalFlagsExcept(...*regexp.Regexp)
 pkg cmdline, func Main(*Command)
 pkg cmdline, func Parse(*Command, *Env, []string) (Runner, []string, error)
 pkg cmdline, func ParseAndRun(*Command, *Env, []string) error
-pkg cmdline, method (*Env) LookPath(string) string
-pkg cmdline, method (*Env) LookPathPrefix(string, map[string]bool) []string
+pkg cmdline, method (*Env) LookPath(string) (string, error)
+pkg cmdline, method (*Env) LookPathPrefix(string, map[string]bool) ([]string, error)
 pkg cmdline, method (*Env) TimerPop()
 pkg cmdline, method (*Env) TimerPush(string)
 pkg cmdline, method (*Env) UsageErrorf(string, ...interface{}) error

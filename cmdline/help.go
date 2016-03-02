@@ -127,7 +127,7 @@ func runHelp(w *textutil.LineWriter, env *Env, args []string, path []*Command, c
 	}
 	if cmd.LookPath {
 		// Look for a matching executable in PATH.
-		if subCmd := env.LookPath(cmd.Name + "-" + subName); subCmd != "" {
+		if subCmd, _ := env.LookPath(cmd.Name + "-" + subName); subCmd != "" {
 			runner := binaryRunner{subCmd, cmdPath}
 			envCopy := env.clone()
 			envCopy.Vars["CMDLINE_STYLE"] = config.style.String()
@@ -227,7 +227,8 @@ func usageAll(w *textutil.LineWriter, env *Env, path []*Command, config *helpCon
 	}
 	if cmd.LookPath {
 		cmdPrefix := cmd.Name + "-"
-		for _, subCmd := range env.LookPathPrefix(cmdPrefix, cmd.subNames(cmdPrefix)) {
+		subCmds, _ := env.LookPathPrefix(cmdPrefix, cmd.subNames(cmdPrefix))
+		for _, subCmd := range subCmds {
 			runner := binaryRunner{subCmd, cmdPath}
 			var buffer bytes.Buffer
 			envCopy := env.clone()
@@ -310,7 +311,7 @@ func usage(w *textutil.LineWriter, env *Env, path []*Command, config *helpConfig
 	var extChildren []string
 	cmdPrefix := cmd.Name + "-"
 	if cmd.LookPath {
-		extChildren = env.LookPathPrefix(cmdPrefix, cmd.subNames(cmdPrefix))
+		extChildren, _ = env.LookPathPrefix(cmdPrefix, cmd.subNames(cmdPrefix))
 	}
 	hasSubcommands := len(cmd.Children) > 0 || len(extChildren) > 0
 	if hasSubcommands {
