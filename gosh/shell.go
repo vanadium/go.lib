@@ -150,12 +150,7 @@ func (sh *Shell) Wait() {
 	sh.handleError(sh.wait())
 }
 
-// Move moves a file from 'oldpath' to 'newpath'. It first attempts an atomic
-// rename, using os.Rename; if that fails, it copies 'oldpath' to 'newpath',
-// then deletes 'oldpath'. Requires that 'newpath' does not exist, and that the
-// parent directory of 'newpath' does exist. Currently only supports moving an
-// individual file; moving a directory is not yet supported, but may be in the
-// future.
+// Move moves a file.
 func (sh *Shell) Move(oldpath, newpath string) {
 	sh.Ok()
 	sh.handleError(sh.move(oldpath, newpath))
@@ -345,7 +340,7 @@ func (sh *Shell) wait() error {
 	return res
 }
 
-func copyFile(to, from string) error {
+func copyFile(from, to string) error {
 	fi, err := os.Stat(from)
 	if err != nil {
 		return err
@@ -368,33 +363,18 @@ func copyFile(to, from string) error {
 }
 
 func (sh *Shell) move(oldpath, newpath string) error {
-	fi, err := os.Stat(oldpath)
-	if err != nil {
+	var err error
+	if err = os.Rename(oldpath, newpath); err != nil {
+		// Concurrent, same-directory rename operations sometimes fail on certain
+		// filesystems, so we retry once after a random backoff.
+		time.Sleep(time.Duration(rand.Int63n(1000)) * time.Millisecond)
+		err = os.Rename(oldpath, newpath)
+	}
+	// If the error was a LinkError, try copying the file over.
+	if _, ok := err.(*os.LinkError); !ok {
 		return err
 	}
-	if fi.Mode().IsDir() {
-		return errors.New("gosh: moving a directory is not yet supported")
-	}
-	if _, err := os.Stat(newpath); !os.IsNotExist(err) {
-		return errors.New("gosh: destination file must not exist")
-	}
-	if _, err := os.Stat(filepath.Dir(newpath)); err != nil {
-		if os.IsNotExist(err) {
-			return errors.New("gosh: destination file's parent directory must exist")
-		}
-		return err
-	}
-	if err := os.Rename(oldpath, newpath); err == nil {
-		return nil
-	}
-	// Concurrent, same-directory rename operations sometimes fail on certain
-	// systems, so we retry once after a random backoff.
-	time.Sleep(time.Duration(rand.Int63n(1000)) * time.Millisecond)
-	if err := os.Rename(oldpath, newpath); err == nil {
-		return nil
-	}
-	// Try copying the file over.
-	if err := copyFile(newpath, oldpath); err != nil {
+	if err := copyFile(oldpath, newpath); err != nil {
 		return err
 	}
 	return os.Remove(oldpath)
@@ -649,6 +629,5 @@ func buildGoPkg(sh *Shell, binDir, pkg string, flags ...string) (string, error) 
 	if err := sh.move(tempBinPath, binPath); err != nil {
 		return "", err
 	}
-	sh.tb.Logf("Built executable: %s\n", binPath)
 	return binPath, nil
 }

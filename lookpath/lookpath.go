@@ -60,7 +60,7 @@ func Look(env map[string]string, name string) (string, error) {
 		}
 		return file, nil
 	}
-	return "", &exec.Error{Name: name, Err: exec.ErrNotFound}
+	return "", &exec.Error{name, exec.ErrNotFound}
 }
 
 // LookPrefix returns the absolute paths of all executables with the given name
@@ -114,7 +114,7 @@ func LookPrefix(env map[string]string, prefix string, names map[string]bool) ([]
 		sort.Sort(byBase(all))
 		return all, nil
 	}
-	return nil, &exec.Error{Name: prefix + "*", Err: exec.ErrNotFound}
+	return nil, &exec.Error{prefix + "*", exec.ErrNotFound}
 }
 
 type byBase []string
