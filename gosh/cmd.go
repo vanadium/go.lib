@@ -298,16 +298,15 @@ func (c *Cmd) errorIsOk(err error) bool {
 // IgnoreClosedPipeError handles this case. gosh.Pipeline sets this option to
 // true, so that by default the pipeline above will succeed, but will fail on
 // any other error. Note that the exec package always returns an ExitError if
-// the child process exited with a non-zero exit code; the closed pipe error is
-// only returned if the child process exited with a zero exit code, and Write on
-// the io.MultiWriter in the parent process received the closed pipe error.
+// the child process exited with a non-zero exit code, or died due to a signal;
+// io.ErrClosedPipe and os.PathError are only returned if the child process
+// exited with a zero exit code, and Write on the io.MultiWriter in the parent
+// process received the closed pipe error.
 //
-// TODO(toddw): We could adopt the convention that exit code 141 indicates
-// "closed pipe", and use IgnoreClosedPipeError to also ignore that case. We
-// choose 141 because it's 128 + 13, where SIGPIPE is 13, and there is an
-// existing convention for this. By default Go programs ignore SIGPIPE, so we
-// might also want to add code to InitChildMain to exit the program with 141 if
-// it receives SIGPIPE.
+// Starting in go 1.6, by default all go programs will exit with SIGPIPE if they
+// try to write to a broken os.Stdout or os.Stderr. This is the behavior we
+// want; it means that normal go programs will behave as expected wrt
+// IgnoreClosedPipeError, and gosh.Pipeline will work by default.
 
 var sep = strings.Repeat("-", 40)
 
@@ -506,8 +505,18 @@ func isClosedPipeError(err error) bool {
 		return true
 	}
 	// Closed pipe on os.Pipe; mirrors logic in os/exec/exec_posix.go.
-	if pe, ok := err.(*os.PathError); ok && pe.Op == "write" && pe.Path == "|1" && pe.Err == syscall.EPIPE {
-		return true
+	if pe, ok := err.(*os.PathError); ok {
+		if pe.Op == "write" && pe.Path == "|1" && pe.Err == syscall.EPIPE {
+			return true
+		}
+	}
+	// Process exited due to a SIGPIPE signal.
+	if ee, ok := err.(*exec.ExitError); ok {
+		if ws, ok := ee.ProcessState.Sys().(syscall.WaitStatus); ok {
+			if ws.Signaled() && ws.Signal() == syscall.SIGPIPE {
+				return true
+			}
+		}
 	}
 	return false
 }
