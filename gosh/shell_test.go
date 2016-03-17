@@ -7,7 +7,6 @@ package gosh_test
 // TODO(sadovsky): Add more tests:
 // - effects of Shell.Cleanup
 // - Shell.{PropagateChildOutput,ChildOutputDir,Vars,Args}
-// - Shell.{Move,MakeTempFile}
 // - Cmd.{IgnoreParentExit,ExitAfter,PropagateOutput}
 // - Cmd.Clone
 
@@ -83,8 +82,8 @@ func setsErr(t *testing.T, sh *gosh.Shell, f func()) {
 	sh.ContinueOnError = continueOnError
 }
 
-////////////////////////////////////////
-// Simple functions
+////////////////////////////////////////////////////////////////////////////////
+// Simple registered functions
 
 // Simplified versions of various Unix commands.
 var (
@@ -128,8 +127,8 @@ var (
 	})
 )
 
-////////////////////////////////////////
-// Tests
+////////////////////////////////////////////////////////////////////////////////
+// Shell tests
 
 type customTB struct {
 	t             *testing.T
@@ -221,6 +220,229 @@ func TestPushdNoPopdCleanup(t *testing.T) {
 	eq(t, getwdEvalSymlinks(t), startDir)
 }
 
+func TestMakeTempDir(t *testing.T) {
+	sh := gosh.NewShell(t)
+	defer sh.Cleanup()
+
+	name := sh.MakeTempDir()
+	fi, err := os.Stat(name)
+	ok(t, err)
+	eq(t, fi.Mode().IsDir(), true)
+}
+
+func TestMakeTempFile(t *testing.T) {
+	sh := gosh.NewShell(t)
+	defer sh.Cleanup()
+
+	file := sh.MakeTempFile()
+	fi, err := file.Stat()
+	ok(t, err)
+	eq(t, fi.Mode().IsRegular(), true)
+}
+
+func TestMove(t *testing.T) {
+	sh := gosh.NewShell(t)
+	defer sh.Cleanup()
+
+	// TODO(sadovsky): Run all tests twice: once with oldpath and newpath on the
+	// same volume, and once with oldpath and newpath on different volumes.
+	src, dst := sh.MakeTempDir(), sh.MakeTempDir()
+	// Foo files exist, bar files do not.
+	srcFoo, dstFoo := filepath.Join(src, "srcFoo"), filepath.Join(dst, "dstFoo")
+	srcBar, dstBar := filepath.Join(src, "srcBar"), filepath.Join(dst, "dstBar")
+	ioutil.WriteFile(srcFoo, []byte("srcFoo"), 0600)
+	ioutil.WriteFile(dstFoo, []byte("dstFoo"), 0600)
+
+	// Move should fail if source does not exist.
+	setsErr(t, sh, func() { sh.Move(srcBar, dstBar) })
+
+	// Move should fail if source is a directory.
+	setsErr(t, sh, func() { sh.Move(src, dstBar) })
+
+	// Move should fail if destination exists, regardless of whether it is a
+	// regular file or a directory.
+	setsErr(t, sh, func() { sh.Move(srcFoo, dstFoo) })
+	setsErr(t, sh, func() { sh.Move(srcFoo, dst) })
+
+	// Move should fail if destination's parent does not exist.
+	setsErr(t, sh, func() { sh.Move(srcFoo, filepath.Join(dst, "subdir", "a")) })
+
+	// Move should succeed if source exists and is a file, destination does not
+	// exist, and destination's parent exists.
+	sh.Move(srcFoo, dstBar)
+	if _, err := os.Stat(srcFoo); !os.IsNotExist(err) {
+		t.Fatalf("got %v, expected IsNotExist", err)
+	}
+	buf, err := ioutil.ReadFile(dstBar)
+	ok(t, err)
+	eq(t, string(buf), "srcFoo")
+}
+
+func TestShellWait(t *testing.T) {
+	sh := gosh.NewShell(t)
+	defer sh.Cleanup()
+
+	d0 := time.Duration(0)
+	d200 := 200 * time.Millisecond
+
+	c0 := sh.FuncCmd(sleepFunc, d0, 0)   // not started
+	c1 := sh.Cmd("/#invalid#/!binary!")  // failed to start
+	c2 := sh.FuncCmd(sleepFunc, d200, 0) // running and will succeed
+	c3 := sh.FuncCmd(sleepFunc, d200, 1) // running and will fail
+	c4 := sh.FuncCmd(sleepFunc, d0, 0)   // succeeded
+	c5 := sh.FuncCmd(sleepFunc, d0, 0)   // succeeded, called wait
+	c6 := sh.FuncCmd(sleepFunc, d0, 1)   // failed
+	c7 := sh.FuncCmd(sleepFunc, d0, 1)   // failed, called wait
+
+	c3.ExitErrorIsOk = true
+	c6.ExitErrorIsOk = true
+	c7.ExitErrorIsOk = true
+
+	// Make sure c1 fails to start. This indirectly tests that Shell.Cleanup works
+	// even if Cmd.Start failed.
+	setsErr(t, sh, c1.Start)
+
+	// Start commands, then wait for them to exit.
+	for _, c := range []*gosh.Cmd{c2, c3, c4, c5, c6, c7} {
+		c.Start()
+	}
+	// Wait for a bit to allow the zero-sleep commands to exit.
+	time.Sleep(100 * time.Millisecond)
+	c5.Wait()
+	c7.Wait()
+	sh.Wait()
+
+	// It should be possible to run existing unstarted commands, and to create and
+	// run new commands, after calling Shell.Wait.
+	c0.Run()
+	sh.FuncCmd(sleepFunc, d0, 0).Run()
+	sh.FuncCmd(sleepFunc, d0, 0).Start()
+
+	// Call Shell.Wait again.
+	sh.Wait()
+}
+
+// Tests that Shell.Ok panics under various conditions.
+func TestOkPanics(t *testing.T) {
+	func() { // errDidNotCallNewShell
+		sh := gosh.Shell{}
+		defer func() { neq(t, recover(), nil) }()
+		sh.Ok()
+	}()
+	func() { // errShellErrIsNotNil
+		sh := gosh.NewShell(t)
+		sh.ContinueOnError = true
+		defer sh.Cleanup()
+		sh.Err = fakeError
+		defer func() { neq(t, recover(), nil) }()
+		sh.Ok()
+	}()
+	func() { // errAlreadyCalledCleanup
+		sh := gosh.NewShell(t)
+		sh.ContinueOnError = true
+		sh.Cleanup()
+		defer func() { neq(t, recover(), nil) }()
+		sh.Ok()
+	}()
+}
+
+// Tests that Shell.HandleError panics under various conditions.
+func TestHandleErrorPanics(t *testing.T) {
+	func() { // errDidNotCallNewShell
+		sh := gosh.Shell{}
+		defer func() { neq(t, recover(), nil) }()
+		sh.HandleError(fakeError)
+	}()
+	func() { // errShellErrIsNotNil
+		sh := gosh.NewShell(t)
+		sh.ContinueOnError = true
+		defer sh.Cleanup()
+		sh.Err = fakeError
+		defer func() { neq(t, recover(), nil) }()
+		sh.HandleError(fakeError)
+	}()
+	func() { // errAlreadyCalledCleanup
+		sh := gosh.NewShell(t)
+		sh.ContinueOnError = true
+		sh.Cleanup()
+		defer func() { neq(t, recover(), nil) }()
+		sh.HandleError(fakeError)
+	}()
+}
+
+// Tests that Shell.Cleanup panics under various conditions.
+func TestCleanupPanics(t *testing.T) {
+	func() { // errDidNotCallNewShell
+		sh := gosh.Shell{}
+		defer func() { neq(t, recover(), nil) }()
+		sh.Cleanup()
+	}()
+}
+
+// Tests that Shell.Cleanup succeeds even if sh.Err is not nil.
+func TestCleanupAfterError(t *testing.T) {
+	sh := gosh.NewShell(t)
+	sh.Err = fakeError
+	sh.Cleanup()
+}
+
+// Tests that Shell.Cleanup can be called multiple times.
+func TestMultipleCleanup(t *testing.T) {
+	sh := gosh.NewShell(t)
+	sh.Cleanup()
+	sh.Cleanup()
+}
+
+// Tests that Shell.HandleError logs errors using an appropriate runtime.Caller
+// skip value.
+func TestHandleErrorLogging(t *testing.T) {
+	tb := &customTB{t: t, buf: &bytes.Buffer{}}
+	sh := gosh.NewShell(tb)
+	defer sh.Cleanup()
+
+	// Call HandleError, then check that the stack trace and error got logged.
+	tb.Reset()
+	sh.HandleError(fakeError)
+	_, file, line, _ := runtime.Caller(0)
+	got, wantSuffix := tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line-1, fakeError)
+	if !strings.HasSuffix(got, wantSuffix) {
+		t.Fatalf("got %v, want suffix %v", got, wantSuffix)
+	}
+	if got == wantSuffix {
+		t.Fatalf("missing stack trace: %v", got)
+	}
+	sh.Err = nil
+
+	// Same as above, but with ContinueOnError set to true. Only the error should
+	// get logged.
+	sh.ContinueOnError = true
+	tb.Reset()
+	sh.HandleError(fakeError)
+	_, file, line, _ = runtime.Caller(0)
+	got, want := tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line-1, fakeError)
+	eq(t, got, want)
+	sh.Err = nil
+
+	// Same as above, but calling HandleErrorWithSkip, with skip set to 1.
+	tb.Reset()
+	sh.HandleErrorWithSkip(fakeError, 1)
+	_, file, line, _ = runtime.Caller(0)
+	got, want = tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line-1, fakeError)
+	eq(t, got, want)
+	sh.Err = nil
+
+	// Same as above, but with skip set to 2.
+	tb.Reset()
+	sh.HandleErrorWithSkip(fakeError, 2)
+	_, file, line, _ = runtime.Caller(1)
+	got, want = tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line, fakeError)
+	eq(t, got, want)
+	sh.Err = nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Cmd tests
+
 const (
 	helloWorldPkg = "v.io/x/lib/gosh/internal/hello_world"
 	helloWorldStr = "Hello, world!\n"
@@ -263,51 +485,6 @@ func TestFuncCmd(t *testing.T) {
 
 	// Run client.
 	c = sh.FuncCmd(getFunc, addr)
-	eq(t, c.Stdout(), helloWorldStr)
-}
-
-// Tests BuildGoPkg's handling of the -o flag.
-func TestBuildGoPkg(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
-	sh := gosh.NewShell(t)
-	defer sh.Cleanup()
-
-	// Set -o to an absolute name.
-	relName := "hw"
-	absName := filepath.Join(sh.MakeTempDir(), relName)
-	eq(t, gosh.BuildGoPkg(sh, "", helloWorldPkg, "-o", absName), absName)
-	c := sh.Cmd(absName)
-	eq(t, c.Stdout(), helloWorldStr)
-
-	// Set -o to a relative name with no path separators.
-	binDir := sh.MakeTempDir()
-	absName = filepath.Join(binDir, relName)
-	eq(t, gosh.BuildGoPkg(sh, binDir, helloWorldPkg, "-o", relName), absName)
-	c = sh.Cmd(absName)
-	eq(t, c.Stdout(), helloWorldStr)
-
-	// Set -o to a relative name that contains a path separator.
-	relNameWithSlash := filepath.Join("subdir", relName)
-	absName = filepath.Join(binDir, relNameWithSlash)
-	eq(t, gosh.BuildGoPkg(sh, binDir, helloWorldPkg, "-o", relNameWithSlash), absName)
-	c = sh.Cmd(absName)
-	eq(t, c.Stdout(), helloWorldStr)
-
-	// Missing location after -o.
-	setsErr(t, sh, func() { gosh.BuildGoPkg(sh, "", helloWorldPkg, "-o") })
-
-	// Multiple -o.
-	absName = filepath.Join(sh.MakeTempDir(), relName)
-	gosh.BuildGoPkg(sh, "", helloWorldPkg, "-o", relName, "-o", absName)
-	c = sh.Cmd(absName)
-	eq(t, c.Stdout(), helloWorldStr)
-
-	// Use --o instead of -o.
-	absName = filepath.Join(sh.MakeTempDir(), relName)
-	gosh.BuildGoPkg(sh, "", helloWorldPkg, "--o", absName)
-	c = sh.Cmd(absName)
 	eq(t, c.Stdout(), helloWorldStr)
 }
 
@@ -387,7 +564,7 @@ func TestAwaitVars(t *testing.T) {
 }
 
 // Tests that AwaitVars returns immediately when the process exits.
-func TestAwaitProcessExit(t *testing.T) {
+func TestAwaitVarsProcessExit(t *testing.T) {
 	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
@@ -717,50 +894,6 @@ func TestTerminate(t *testing.T) {
 	setsErr(t, sh, func() { c.Terminate(os.Interrupt) })
 }
 
-func TestShellWait(t *testing.T) {
-	sh := gosh.NewShell(t)
-	defer sh.Cleanup()
-
-	d0 := time.Duration(0)
-	d200 := 200 * time.Millisecond
-
-	c0 := sh.FuncCmd(sleepFunc, d0, 0)   // not started
-	c1 := sh.Cmd("/#invalid#/!binary!")  // failed to start
-	c2 := sh.FuncCmd(sleepFunc, d200, 0) // running and will succeed
-	c3 := sh.FuncCmd(sleepFunc, d200, 1) // running and will fail
-	c4 := sh.FuncCmd(sleepFunc, d0, 0)   // succeeded
-	c5 := sh.FuncCmd(sleepFunc, d0, 0)   // succeeded, called wait
-	c6 := sh.FuncCmd(sleepFunc, d0, 1)   // failed
-	c7 := sh.FuncCmd(sleepFunc, d0, 1)   // failed, called wait
-
-	c3.ExitErrorIsOk = true
-	c6.ExitErrorIsOk = true
-	c7.ExitErrorIsOk = true
-
-	// Make sure c1 fails to start. This indirectly tests that Shell.Cleanup works
-	// even if Cmd.Start failed.
-	setsErr(t, sh, c1.Start)
-
-	// Start commands, then wait for them to exit.
-	for _, c := range []*gosh.Cmd{c2, c3, c4, c5, c6, c7} {
-		c.Start()
-	}
-	// Wait for a bit to allow the zero-sleep commands to exit.
-	time.Sleep(100 * time.Millisecond)
-	c5.Wait()
-	c7.Wait()
-	sh.Wait()
-
-	// It should be possible to run existing unstarted commands, and to create and
-	// run new commands, after calling Shell.Wait.
-	c0.Run()
-	sh.FuncCmd(sleepFunc, d0, 0).Run()
-	sh.FuncCmd(sleepFunc, d0, 0).Start()
-
-	// Call Shell.Wait again.
-	sh.Wait()
-}
-
 func TestExitErrorIsOk(t *testing.T) {
 	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
@@ -821,124 +954,6 @@ type errorWriter struct {
 
 func (w errorWriter) Write(p []byte) (int, error) {
 	return 0, w.error
-}
-
-// Tests that Shell.Ok panics under various conditions.
-func TestOkPanics(t *testing.T) {
-	func() { // errDidNotCallNewShell
-		sh := gosh.Shell{}
-		defer func() { neq(t, recover(), nil) }()
-		sh.Ok()
-	}()
-	func() { // errShellErrIsNotNil
-		sh := gosh.NewShell(t)
-		sh.ContinueOnError = true
-		defer sh.Cleanup()
-		sh.Err = fakeError
-		defer func() { neq(t, recover(), nil) }()
-		sh.Ok()
-	}()
-	func() { // errAlreadyCalledCleanup
-		sh := gosh.NewShell(t)
-		sh.ContinueOnError = true
-		sh.Cleanup()
-		defer func() { neq(t, recover(), nil) }()
-		sh.Ok()
-	}()
-}
-
-// Tests that Shell.HandleError panics under various conditions.
-func TestHandleErrorPanics(t *testing.T) {
-	func() { // errDidNotCallNewShell
-		sh := gosh.Shell{}
-		defer func() { neq(t, recover(), nil) }()
-		sh.HandleError(fakeError)
-	}()
-	func() { // errShellErrIsNotNil
-		sh := gosh.NewShell(t)
-		sh.ContinueOnError = true
-		defer sh.Cleanup()
-		sh.Err = fakeError
-		defer func() { neq(t, recover(), nil) }()
-		sh.HandleError(fakeError)
-	}()
-	func() { // errAlreadyCalledCleanup
-		sh := gosh.NewShell(t)
-		sh.ContinueOnError = true
-		sh.Cleanup()
-		defer func() { neq(t, recover(), nil) }()
-		sh.HandleError(fakeError)
-	}()
-}
-
-// Tests that Shell.Cleanup panics under various conditions.
-func TestCleanupPanics(t *testing.T) {
-	func() { // errDidNotCallNewShell
-		sh := gosh.Shell{}
-		defer func() { neq(t, recover(), nil) }()
-		sh.Cleanup()
-	}()
-}
-
-// Tests that Shell.Cleanup succeeds even if sh.Err is not nil.
-func TestCleanupAfterError(t *testing.T) {
-	sh := gosh.NewShell(t)
-	sh.Err = fakeError
-	sh.Cleanup()
-}
-
-// Tests that Shell.Cleanup can be called multiple times.
-func TestMultipleCleanup(t *testing.T) {
-	sh := gosh.NewShell(t)
-	sh.Cleanup()
-	sh.Cleanup()
-}
-
-// Tests that Shell.HandleError logs errors using an appropriate runtime.Caller
-// skip value.
-func TestHandleErrorLogging(t *testing.T) {
-	tb := &customTB{t: t, buf: &bytes.Buffer{}}
-	sh := gosh.NewShell(tb)
-	defer sh.Cleanup()
-
-	// Call HandleError, then check that the stack trace and error got logged.
-	tb.Reset()
-	sh.HandleError(fakeError)
-	_, file, line, _ := runtime.Caller(0)
-	got, wantSuffix := tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line-1, fakeError)
-	if !strings.HasSuffix(got, wantSuffix) {
-		t.Fatalf("got %v, want suffix %v", got, wantSuffix)
-	}
-	if got == wantSuffix {
-		t.Fatalf("missing stack trace: %v", got)
-	}
-	sh.Err = nil
-
-	// Same as above, but with ContinueOnError set to true. Only the error should
-	// get logged.
-	sh.ContinueOnError = true
-	tb.Reset()
-	sh.HandleError(fakeError)
-	_, file, line, _ = runtime.Caller(0)
-	got, want := tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line-1, fakeError)
-	eq(t, got, want)
-	sh.Err = nil
-
-	// Same as above, but calling HandleErrorWithSkip, with skip set to 1.
-	tb.Reset()
-	sh.HandleErrorWithSkip(fakeError, 1)
-	_, file, line, _ = runtime.Caller(0)
-	got, want = tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line-1, fakeError)
-	eq(t, got, want)
-	sh.Err = nil
-
-	// Same as above, but with skip set to 2.
-	tb.Reset()
-	sh.HandleErrorWithSkip(fakeError, 2)
-	_, file, line, _ = runtime.Caller(1)
-	got, want = tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line, fakeError)
-	eq(t, got, want)
-	sh.Err = nil
 }
 
 var cmdFailureFunc = gosh.RegisterFunc("cmdFailureFunc", func(nStdout, nStderr int) error {
@@ -1032,4 +1047,52 @@ func TestCmdFailureLoggingDisabled(t *testing.T) {
 func TestMain(m *testing.M) {
 	gosh.InitMain()
 	os.Exit(m.Run())
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Other tests
+
+// Tests BuildGoPkg's handling of the -o flag.
+func TestBuildGoPkg(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	sh := gosh.NewShell(t)
+	defer sh.Cleanup()
+
+	// Set -o to an absolute name.
+	relName := "hw"
+	absName := filepath.Join(sh.MakeTempDir(), relName)
+	eq(t, gosh.BuildGoPkg(sh, "", helloWorldPkg, "-o", absName), absName)
+	c := sh.Cmd(absName)
+	eq(t, c.Stdout(), helloWorldStr)
+
+	// Set -o to a relative name with no path separators.
+	binDir := sh.MakeTempDir()
+	absName = filepath.Join(binDir, relName)
+	eq(t, gosh.BuildGoPkg(sh, binDir, helloWorldPkg, "-o", relName), absName)
+	c = sh.Cmd(absName)
+	eq(t, c.Stdout(), helloWorldStr)
+
+	// Set -o to a relative name that contains a path separator.
+	relNameWithSlash := filepath.Join("subdir", relName)
+	absName = filepath.Join(binDir, relNameWithSlash)
+	eq(t, gosh.BuildGoPkg(sh, binDir, helloWorldPkg, "-o", relNameWithSlash), absName)
+	c = sh.Cmd(absName)
+	eq(t, c.Stdout(), helloWorldStr)
+
+	// Missing location after -o.
+	setsErr(t, sh, func() { gosh.BuildGoPkg(sh, "", helloWorldPkg, "-o") })
+
+	// Multiple -o.
+	absName = filepath.Join(sh.MakeTempDir(), relName)
+	gosh.BuildGoPkg(sh, "", helloWorldPkg, "-o", relName, "-o", absName)
+	c = sh.Cmd(absName)
+	eq(t, c.Stdout(), helloWorldStr)
+
+	// Use --o instead of -o.
+	absName = filepath.Join(sh.MakeTempDir(), relName)
+	gosh.BuildGoPkg(sh, "", helloWorldPkg, "--o", absName)
+	c = sh.Cmd(absName)
+	eq(t, c.Stdout(), helloWorldStr)
 }
