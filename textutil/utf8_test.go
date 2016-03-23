@@ -35,10 +35,7 @@ func TestUTF8ChunkDecoder(t *testing.T) {
 		{"\uFFFD", []rune{'\uFFFD'}, nil},
 		{"a\uFFFDb", []rune{'a', '\uFFFD', 'b'}, nil},
 		{"\x80", []rune{'\uFFFD'}, nil},
-		// TODO(toddw): Enable the below line when we've switched to go1.6+.  It
-		// fails in go1.5 because of a bugfix that changed this behavior.
-		// https://go-review.googlesource.com/#/c/16940/4/src/unicode/utf8/utf8.go@a142
-		// {"\xFF", []rune{'\uFFFD'}, nil},
+		{"\xFF", []rune{'\uFFFD'}, nil},
 		{"a\x80b", []rune{'a', '\uFFFD', 'b'}, nil},
 		{"a\xFFb", []rune{'a', '\uFFFD', 'b'}, nil},
 		// Multi-byte full runes.
