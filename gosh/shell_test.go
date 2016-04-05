@@ -18,12 +18,14 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"reflect"
 	"runtime"
 	"runtime/debug"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -868,6 +870,46 @@ func TestSignal(t *testing.T) {
 	c := sh.FuncCmd(sleepFunc, time.Duration(0), 0)
 	c.Run()
 	setsErr(t, sh, func() { c.Signal(os.Interrupt) })
+}
+
+var processGroup = gosh.RegisterFunc("processGroup", func(dir string, n int) {
+	for x := 0; x < n; x++ {
+		c := exec.Command("bash", "-c", fmt.Sprintf("trap 'echo > log.%d; exit' INT; echo READY; sleep 60", x))
+		c.Dir = dir
+		out, err := c.StdoutPipe()
+		if err != nil {
+			panic(err)
+		}
+		c.Start()
+		bufio.NewReader(out).ReadString('\n')
+	}
+	gosh.SendVars(map[string]string{"ready": ""})
+	time.Sleep(time.Minute)
+})
+
+func TestCleanupProcessGroup(t *testing.T) {
+	sh := gosh.NewShell(t)
+	defer sh.Cleanup()
+
+	workdir := sh.MakeTempDir()
+	const N = 5
+	c := sh.FuncCmd(processGroup, workdir, N)
+	c.Start()
+	c.AwaitVars("ready")
+	c.Signal(os.Interrupt)
+
+	// Wait for the process group to be gone.
+	for syscall.Kill(-c.Pid(), 0) != syscall.ESRCH {
+		time.Sleep(100 * time.Millisecond)
+	}
+	count := 0
+	for x := 0; x < N; x++ {
+		f := filepath.Join(workdir, fmt.Sprintf("log.%d", x))
+		if _, err := os.Stat(f); err == nil {
+			count++
+		}
+	}
+	eq(t, count, N)
 }
 
 func TestTerminate(t *testing.T) {

@@ -78,6 +78,8 @@ type Cmd struct {
 	stdinDoneChan     chan error
 	started           bool // protected by sh.cleanupMu
 	exited            bool // protected by cond.L
+	calledCleanup     bool // protected by cleanupMu
+	cleanupMu         sync.Mutex
 	stdoutHeadTail    *headTail
 	stderrHeadTail    *headTail
 	stdoutWriters     []io.Writer
@@ -616,6 +618,12 @@ func (c *Cmd) start() (e error) {
 		return err
 	}
 	c.c.ExtraFiles = c.ExtraFiles
+	// Create a new process group for the child.
+	if c.c.SysProcAttr == nil {
+		c.c.SysProcAttr = &syscall.SysProcAttr{}
+	}
+	c.c.SysProcAttr.Setpgid = true
+	c.c.SysProcAttr.Pgid = 0
 	// Start the command.
 	if err = c.c.Start(); err != nil {
 		return err
@@ -646,6 +654,7 @@ func (c *Cmd) startExitWaiter() {
 			}
 		}
 		c.waitChan <- waitErr
+		c.cleanupProcessGroup()
 	}()
 }
 
@@ -730,6 +739,32 @@ func (c *Cmd) signal(sig os.Signal) error {
 		return err
 	}
 	return nil
+}
+
+func (c *Cmd) cleanupProcessGroup() {
+	if !c.started {
+		return
+	}
+	c.cleanupMu.Lock()
+	defer c.cleanupMu.Unlock()
+
+	if c.calledCleanup {
+		return
+	}
+	c.calledCleanup = true
+
+	// Send SIGINT first; then, after a grace period, send SIGKILL to any
+	// process that is still running.
+	if err := syscall.Kill(-c.Pid(), syscall.SIGINT); err == syscall.ESRCH {
+		return
+	}
+	for i := 0; i < 10; i++ {
+		time.Sleep(100 * time.Millisecond)
+		if err := syscall.Kill(-c.Pid(), 0); err == syscall.ESRCH {
+			return
+		}
+	}
+	syscall.Kill(-c.Pid(), syscall.SIGKILL)
 }
 
 func (c *Cmd) terminate(sig os.Signal) error {

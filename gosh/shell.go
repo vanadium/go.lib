@@ -471,55 +471,29 @@ func (sh *Shell) addCleanupHandler(f func()) error {
 	return nil
 }
 
-// forEachRunningCmd applies f to each running child process.
-func (sh *Shell) forEachRunningCmd(f func(*Cmd)) bool {
-	anyRunning := false
+// Note: It is safe to run Shell.cleanupRunningCmds concurrently with the waiter
+// goroutine and with Cmd.wait. In particular, Shell.cleanupRunningCmds only
+// calls c.{isRunning,Pid}, all of which are thread-safe with the waiter
+// goroutine and with Cmd.wait.
+func (sh *Shell) cleanupRunningCmds() {
+	var wg sync.WaitGroup
 	for _, c := range sh.cmds {
-		if c.isRunning() {
-			anyRunning = true
-			if f != nil {
-				f(c)
-			}
+		if !c.started {
+			continue
 		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c.cleanupProcessGroup()
+		}()
 	}
-	return anyRunning
-}
-
-// Note: It is safe to run Shell.terminateRunningCmds concurrently with the
-// waiter goroutine and with Cmd.wait. In particular, Shell.terminateRunningCmds
-// only calls c.{isRunning,Pid,signal}, all of which are thread-safe with the
-// waiter goroutine and with Cmd.wait.
-func (sh *Shell) terminateRunningCmds() {
-	// Send os.Interrupt first; if that doesn't work, send os.Kill.
-	anyRunning := sh.forEachRunningCmd(func(c *Cmd) {
-		if err := c.signal(os.Interrupt); err != nil {
-			sh.tb.Logf("%d.Signal(os.Interrupt) failed: %v\n", c.Pid(), err)
-		}
-	})
-	// If any child is still running, wait for 100ms.
-	if anyRunning {
-		time.Sleep(100 * time.Millisecond)
-		anyRunning = sh.forEachRunningCmd(func(c *Cmd) {
-			sh.tb.Logf("%s (PID %d) did not die\n", c.Path, c.Pid())
-		})
-	}
-	// If any child is still running, wait for another second, then send os.Kill
-	// to all running children.
-	if anyRunning {
-		time.Sleep(time.Second)
-		sh.forEachRunningCmd(func(c *Cmd) {
-			if err := c.signal(os.Kill); err != nil {
-				sh.tb.Logf("%d.Signal(os.Kill) failed: %v\n", c.Pid(), err)
-			}
-		})
-		sh.tb.Logf("Killed all remaining child processes\n")
-	}
+	wg.Wait()
 }
 
 func (sh *Shell) cleanup() {
 	sh.calledCleanup = true
-	// Terminate all children that are still running.
-	sh.terminateRunningCmds()
+	// Clean up all children that are still running.
+	sh.cleanupRunningCmds()
 	// Close and delete all temporary files.
 	for _, tempFile := range sh.tempFiles {
 		name := tempFile.Name()
