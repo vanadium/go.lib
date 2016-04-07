@@ -24,6 +24,7 @@ import (
 	"reflect"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -872,18 +873,14 @@ func TestSignal(t *testing.T) {
 	setsErr(t, sh, func() { c.Signal(os.Interrupt) })
 }
 
-var processGroup = gosh.RegisterFunc("processGroup", func(dir string, n int) {
+var processGroup = gosh.RegisterFunc("processGroup", func(n int) {
+	pids := make([]string, n)
 	for x := 0; x < n; x++ {
-		c := exec.Command("bash", "-c", fmt.Sprintf("trap 'echo > log.%d; exit' INT; echo READY; sleep 60", x))
-		c.Dir = dir
-		out, err := c.StdoutPipe()
-		if err != nil {
-			panic(err)
-		}
+		c := exec.Command("sleep", "3600")
 		c.Start()
-		bufio.NewReader(out).ReadString('\n')
+		pids[x] = strconv.Itoa(c.Process.Pid)
 	}
-	gosh.SendVars(map[string]string{"ready": ""})
+	gosh.SendVars(map[string]string{"pids": strings.Join(pids, ",")})
 	time.Sleep(time.Minute)
 })
 
@@ -891,25 +888,19 @@ func TestCleanupProcessGroup(t *testing.T) {
 	sh := gosh.NewShell(t)
 	defer sh.Cleanup()
 
-	workdir := sh.MakeTempDir()
-	const N = 5
-	c := sh.FuncCmd(processGroup, workdir, N)
+	c := sh.FuncCmd(processGroup, 5)
 	c.Start()
-	c.AwaitVars("ready")
+	pids := c.AwaitVars("pids")["pids"]
 	c.Signal(os.Interrupt)
 
-	// Wait for the process group to be gone.
+	// Wait for all processes in the child's process group to exit.
 	for syscall.Kill(-c.Pid(), 0) != syscall.ESRCH {
 		time.Sleep(100 * time.Millisecond)
 	}
-	count := 0
-	for x := 0; x < N; x++ {
-		f := filepath.Join(workdir, fmt.Sprintf("log.%d", x))
-		if _, err := os.Stat(f); err == nil {
-			count++
-		}
+	for _, pid := range strings.Split(pids, ",") {
+		p, _ := strconv.Atoi(pid)
+		eq(t, syscall.Kill(p, 0), syscall.ESRCH)
 	}
-	eq(t, count, N)
 }
 
 func TestTerminate(t *testing.T) {
