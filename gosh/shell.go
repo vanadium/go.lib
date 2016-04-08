@@ -482,10 +482,10 @@ func (sh *Shell) cleanupRunningCmds() {
 			continue
 		}
 		wg.Add(1)
-		go func() {
+		go func(cmd *Cmd) {
 			defer wg.Done()
-			c.cleanupProcessGroup()
-		}()
+			cmd.cleanupProcessGroup()
+		}(c)
 	}
 	wg.Wait()
 }
