@@ -20,12 +20,11 @@ type timerNetConfigWatcher struct {
 	stop chan struct{} // channel to tell the watcher to stop
 }
 
-// Stop any waiter
 func (w *timerNetConfigWatcher) Stop() {
 	w.stop <- struct{}{}
 }
 
-func (w *timerNetConfigWatcher) Channel() chan struct{} {
+func (w *timerNetConfigWatcher) Channel() <-chan struct{} {
 	return w.c
 }
 

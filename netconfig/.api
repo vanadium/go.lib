@@ -10,5 +10,5 @@ pkg netconfig, type IPRoute struct, IfcIndex int
 pkg netconfig, type IPRoute struct, Net net.IPNet
 pkg netconfig, type IPRoute struct, PreferredSource net.IP
 pkg netconfig, type NetConfigWatcher interface { Channel, Stop }
-pkg netconfig, type NetConfigWatcher interface, Channel() chan struct{}
+pkg netconfig, type NetConfigWatcher interface, Channel() <-chan struct{}
 pkg netconfig, type NetConfigWatcher interface, Stop()

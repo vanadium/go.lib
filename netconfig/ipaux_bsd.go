@@ -42,10 +42,14 @@ func (w *bsdNetConfigWatcher) Stop() {
 		return
 	}
 	w.stopped = true
+	if w.t != nil {
+		w.t.Stop()
+		w.t = nil
+	}
 	syscall.Close(w.s)
 }
 
-func (w *bsdNetConfigWatcher) Channel() chan struct{} {
+func (w *bsdNetConfigWatcher) Channel() <-chan struct{} {
 	return w.c
 }
 
@@ -80,7 +84,10 @@ func (w *bsdNetConfigWatcher) ding() {
 }
 
 func (w *bsdNetConfigWatcher) watcher() {
-	defer w.Stop()
+	defer func() {
+		w.Stop()
+		close(w.c)
+	}()
 
 	// Loop waiting for messages.
 	for {
@@ -111,7 +118,7 @@ func (w *bsdNetConfigWatcher) watcher() {
 			// NOTE(p): I chose 3 seconds because that covers all the
 			// events involved in moving from one wifi network to another.
 			w.Lock()
-			if w.t == nil {
+			if w.t == nil && !w.stopped {
 				w.t = time.AfterFunc(3*time.Second, w.ding)
 			}
 			w.Unlock()

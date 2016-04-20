@@ -269,11 +269,15 @@ func (w *rtnetlinkWatcher) Stop() {
 	if w.stopped {
 		return
 	}
+	if w.t != nil {
+		w.t.Stop()
+		w.t = nil
+	}
 	w.stopped = true
 	syscall.Close(w.s)
 }
 
-func (w *rtnetlinkWatcher) Channel() chan struct{} {
+func (w *rtnetlinkWatcher) Channel() <-chan struct{} {
 	return w.c
 }
 
@@ -319,6 +323,10 @@ func (w *rtnetlinkWatcher) ding() {
 }
 
 func (w *rtnetlinkWatcher) watcher() {
+	defer func() {
+		w.Stop()
+		close(w.c)
+	}()
 	var newAddrs []net.IP
 	for {
 		rb := make([]byte, 4096)
@@ -361,21 +369,14 @@ func (w *rtnetlinkWatcher) watcher() {
 			// NOTE(p): I chose 3 seconds because that covers all the
 			// events involved in moving from one wifi network to another.
 			w.Lock()
-			if w.t == nil {
+			if w.t == nil && !w.stopped {
 				w.t = time.AfterFunc(3*time.Second, w.ding)
 			}
 			w.Unlock()
 		}
 	}
-
-	w.Stop()
-	w.Lock()
-	close(w.c)
-	if w.t != nil {
-		w.t.Stop()
-	}
-	w.Unlock()
 }
+
 func toIP(a []byte) (net.IP, error) {
 	switch len(a) {
 	case 4:

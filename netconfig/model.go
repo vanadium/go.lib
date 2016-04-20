@@ -21,7 +21,9 @@ type NetConfigWatcher interface {
 	// A channel that returns an item whenever the network addresses or
 	// interfaces have changed. It is up to the caller to reread the
 	// network configuration in such cases.
-	Channel() chan struct{}
+	//
+	// The channel will be closed when the watcher exits.
+	Channel() <-chan struct{}
 }
 
 // IPRoute represents a route in the kernel's routing table.
