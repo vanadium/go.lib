@@ -16,6 +16,8 @@ pkg cmdline, type Command struct
 pkg cmdline, type Command struct, ArgsLong string
 pkg cmdline, type Command struct, ArgsName string
 pkg cmdline, type Command struct, Children []*Command
+pkg cmdline, type Command struct, DontInheritFlags bool
+pkg cmdline, type Command struct, DontPropagateFlags bool
 pkg cmdline, type Command struct, Flags flag.FlagSet
 pkg cmdline, type Command struct, Long string
 pkg cmdline, type Command struct, LookPath bool

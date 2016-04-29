@@ -80,6 +80,14 @@ type Command struct {
 	// that assume Parse has been called (e.g. Parsed, Visit,
 	// NArgs etc).
 	ParsedFlags *flag.FlagSet
+	// DontPropagateFlags indicates whether to prevent the flags defined on this
+	// command and the ancestor commands from being propagated to the descendant
+	// commands.
+	DontPropagateFlags bool
+	// DontInheritFlags indicates whether to stop inheriting the flags from the
+	// ancestor commands. The flags for the ancestor commands will not be
+	// propagated to the child commands as well.
+	DontInheritFlags bool
 
 	// Children of the command.
 	Children []*Command
@@ -471,11 +479,17 @@ func copyFlags(flags *flag.FlagSet) *flag.FlagSet {
 func pathFlags(path []*Command) *flag.FlagSet {
 	cmd := path[len(path)-1]
 	flags := copyFlags(&cmd.Flags)
-	if cmd.Name != helpName {
+	if cmd.Name != helpName && !cmd.DontInheritFlags {
 		// Walk backwards to merge flags up to the root command.  If this takes too
 		// long, we could consider memoizing previous results.
 		for p := len(path) - 2; p >= 0; p-- {
+			if path[p].DontPropagateFlags {
+				break
+			}
 			mergeFlags(flags, &path[p].Flags)
+			if path[p].DontInheritFlags {
+				break
+			}
 		}
 	}
 	return flags

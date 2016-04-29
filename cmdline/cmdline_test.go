@@ -13,7 +13,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -3029,4 +3031,106 @@ func TestParsedFlags(t *testing.T) {
 	if got, want := v2, false; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
+}
+
+type fc struct {
+	DontPropagateFlags bool
+	DontInheritFlags   bool
+}
+
+func TestFlagPropagation(t *testing.T) {
+	var err error
+	env := EnvFromOS()
+
+	tests := []struct {
+		flagConfigs []fc
+		args        []string
+		want        []string
+	}{
+		{
+			[]fc{fc{false, false}, fc{false, false}, fc{false, false}},
+			[]string{"cmd1", "cmd2"},
+			[]string{"flag0", "flag1", "flag2"},
+		},
+		{
+			[]fc{fc{true, false}, fc{false, false}, fc{false, false}},
+			[]string{"cmd1", "cmd2"},
+			[]string{"flag1", "flag2"},
+		},
+		{
+			[]fc{fc{false, false}, fc{true, false}, fc{false, false}},
+			[]string{"cmd1", "cmd2"},
+			[]string{"flag2"},
+		},
+		{
+			[]fc{fc{false, false}, fc{false, true}, fc{false, false}},
+			[]string{"cmd1", "cmd2"},
+			[]string{"flag1", "flag2"},
+		},
+		{
+			[]fc{fc{false, false}, fc{true, true}, fc{false, false}},
+			[]string{"cmd1", "cmd2"},
+			[]string{"flag2"},
+		},
+		{
+			[]fc{fc{false, false}, fc{false, false}, fc{true, false}},
+			[]string{"cmd1", "cmd2"},
+			[]string{"flag0", "flag1", "flag2"},
+		},
+		{
+			[]fc{fc{false, false}, fc{false, false}, fc{false, true}},
+			[]string{"cmd1", "cmd2"},
+			[]string{"flag2"},
+		},
+		{
+			[]fc{fc{false, false}, fc{false, false}, fc{true, true}},
+			[]string{"cmd1", "cmd2"},
+			[]string{"flag2"},
+		},
+	}
+
+	for _, test := range tests {
+		commands := createCommandTree(test.flagConfigs)
+		root := commands[0]
+		leaf := commands[len(commands)-1]
+
+		_, _, err = Parse(root, env, test.args)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		want := map[string]bool{}
+		globalFlags.VisitAll(func(f *flag.Flag) { want[f.Name] = true })
+		for _, flagName := range test.want {
+			want[flagName] = true
+		}
+
+		got := map[string]bool{}
+		leaf.ParsedFlags.VisitAll(func(f *flag.Flag) { got[f.Name] = true })
+
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	}
+}
+
+func createCommandTree(flagConfigs []fc) []*Command {
+	size := len(flagConfigs)
+	result := make([]*Command, size)
+
+	result[size-1] = &Command{Runner: RunnerFunc(runHello)}
+	for i := size - 2; i >= 0; i-- {
+		result[i] = &Command{Children: []*Command{result[i+1]}}
+	}
+
+	for i, cmd := range result {
+		cmd.Name = "cmd" + strconv.Itoa(i)
+		cmd.Short = "short"
+		cmd.Long = "long."
+		cmd.Flags.Bool("flag"+strconv.Itoa(i), false, "bool")
+		cmd.DontPropagateFlags = flagConfigs[i].DontPropagateFlags
+		cmd.DontInheritFlags = flagConfigs[i].DontInheritFlags
+	}
+
+	return result
 }
