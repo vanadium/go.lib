@@ -8,14 +8,12 @@ import (
 	"testing"
 )
 
-func TestNetConfigWatcherStop(t *testing.T) {
-	w, err := NewNetConfigWatcher()
+func TestNotifyChange(t *testing.T) {
+	ch, err := NotifyChange()
 	if err != nil {
 		t.Fatal(err)
 	}
-	w.Stop()
-	// The channel should eventually be closed when the watcher exits.
-	// If it doesn't close, then this test will run into a timeout.
-	for range w.Channel() {
+	if ch == nil {
+		t.Fatalf("Expected non-nil channel")
 	}
 }

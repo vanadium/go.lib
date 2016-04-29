@@ -14,9 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"sync"
 	"syscall"
-	"time"
 	"unsafe"
 
 	"v.io/x/lib/vlog"
@@ -255,87 +253,36 @@ func parsertLinkMessage(nlm syscall.NetlinkMessage) (*rtLinkMessage, error) {
 	return m, nil
 }
 
-type rtnetlinkWatcher struct {
-	sync.Mutex
-	t       *time.Timer
-	c       chan struct{}
-	s       int
-	stopped bool
-}
-
-func (w *rtnetlinkWatcher) Stop() {
-	w.Lock()
-	defer w.Unlock()
-	if w.stopped {
-		return
-	}
-	if w.t != nil {
-		w.t.Stop()
-		w.t = nil
-	}
-	w.stopped = true
-	syscall.Close(w.s)
-}
-
-func (w *rtnetlinkWatcher) Channel() <-chan struct{} {
-	return w.c
-}
-
 const (
 	GROUPS = C.RTMGRP_LINK | C.RTMGRP_IPV4_IFADDR | C.RTMGRP_IPV4_MROUTE | C.RTMGRP_IPV4_ROUTE | C.RTMGRP_IPV6_IFADDR | C.RTMGRP_IPV6_MROUTE | C.RTMGRP_IPV6_ROUTE | C.RTMGRP_NOTIFY
 )
 
-// NewNetConfigWatcher returns a watcher that wakes up anyone
-// calling the Wait routine whenever the configuration changes.
-func NewNetConfigWatcher() (NetConfigWatcher, error) {
+func (n *notifier) initLocked() error {
 	s, err := syscall.Socket(syscall.AF_NETLINK, syscall.SOCK_RAW, syscall.NETLINK_ROUTE)
 	if err != nil {
-		vlog.Infof("netconfig socket failed: %s", err)
-		return nil, err
+		return fmt.Errorf("socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE) failed: %v", err)
 	}
 
 	lsa := &syscall.SockaddrNetlink{Family: syscall.AF_NETLINK, Groups: GROUPS}
 	if err := syscall.Bind(s, lsa); err != nil {
-		vlog.Infof("netconfig bind failed: %s", err)
-		return nil, err
+		syscall.Close(s)
+		return fmt.Errorf("bind(%d, {AF_NETLINK, 0x%x}) failed: %v", s, lsa.Groups)
 	}
-
-	w := &rtnetlinkWatcher{c: make(chan struct{}, 1), s: s}
-	go w.watcher()
-	return w, nil
+	go watcher(n, s)
+	return nil
 }
 
-func (w *rtnetlinkWatcher) ding() {
-	w.Lock()
-	defer w.Unlock()
-	w.t = nil
-	if w.stopped {
-		return
-	}
-	// Don't let us hang in the lock.  The default is safe because the requirement
-	// is that the client get a message after the last config change.  Since this is
-	// a queued chan, we really don't have to stuff anything in it if there's already
-	// something there.
-	select {
-	case w.c <- struct{}{}:
-	default:
-	}
-}
-
-func (w *rtnetlinkWatcher) watcher() {
-	defer func() {
-		w.Stop()
-		close(w.c)
-	}()
+func watcher(n *notifier, sock int) {
+	defer syscall.Close(sock)
 	var newAddrs []net.IP
+	buf := make([]byte, 4096)
 	for {
-		rb := make([]byte, 4096)
-		nr, _, err := syscall.Recvfrom(w.s, rb, 0)
+		nr, _, err := syscall.Recvfrom(sock, buf, 0)
 		if err != nil {
-			break
+			vlog.Infof("recvfrom(%d) on an AF_NETLINK socket failed: %v", sock, err)
+			return
 		}
-		rb = rb[:nr]
-		msgs, err := syscall.ParseNetlinkMessage(rb)
+		msgs, err := syscall.ParseNetlinkMessage(buf[:nr])
 		if err != nil {
 			vlog.Infof("ParseNetlinkMessage failed: %s", err)
 			continue
@@ -362,17 +309,7 @@ func (w *rtnetlinkWatcher) watcher() {
 			} else {
 				continue
 			}
-			// Changing networks usually spans many seconds and involves
-			// multiple network config changes.  We add histeresis by
-			// setting an alarm when the first change is detected and
-			// not informing the client till the alarm goes off.
-			// NOTE(p): I chose 3 seconds because that covers all the
-			// events involved in moving from one wifi network to another.
-			w.Lock()
-			if w.t == nil && !w.stopped {
-				w.t = time.AfterFunc(3*time.Second, w.ding)
-			}
-			w.Unlock()
+			n.ding()
 		}
 	}
 }

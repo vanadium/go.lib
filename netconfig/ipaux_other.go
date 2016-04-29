@@ -15,40 +15,14 @@ import (
 	"time"
 )
 
-type timerNetConfigWatcher struct {
-	c    chan struct{} // channel to signal confg changes
-	stop chan struct{} // channel to tell the watcher to stop
-}
-
-func (w *timerNetConfigWatcher) Stop() {
-	w.stop <- struct{}{}
-}
-
-func (w *timerNetConfigWatcher) Channel() <-chan struct{} {
-	return w.c
-}
-
-func (w *timerNetConfigWatcher) watcher() {
-	for {
-		select {
-		case <-w.stop:
-			close(w.c)
-			return
-		case <-time.NewTimer(2 * time.Minute).C:
-			select {
-			case w.c <- struct{}{}:
-			default:
-			}
+func (n *notifier) initLocked() error {
+	go func() {
+		ticker := time.Tick(2 * time.Minute)
+		for range ticker {
+			n.ding()
 		}
-	}
-}
-
-func NewNetConfigWatcher() (NetConfigWatcher, error) {
-	w := &timerNetConfigWatcher{}
-	w.c = make(chan struct{})
-	w.stop = make(chan struct{}, 1)
-	go w.watcher()
-	return w, nil
+	}()
+	return nil
 }
 
 func GetIPRoutes(defaultOnly bool) []*IPRoute {
