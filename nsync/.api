@@ -1,0 +1,13 @@
+pkg nsync, const Cancelled ideal-int
+pkg nsync, const Expired ideal-int
+pkg nsync, const OK ideal-int
+pkg nsync, method (*CV) Broadcast()
+pkg nsync, method (*CV) Signal()
+pkg nsync, method (*CV) Wait(sync.Locker)
+pkg nsync, method (*CV) WaitWithDeadline(sync.Locker, time.Time, <-chan struct{}) int
+pkg nsync, method (*Mu) Lock()
+pkg nsync, method (*Mu) TryLock() bool
+pkg nsync, method (*Mu) Unlock()
+pkg nsync, type CV struct
+pkg nsync, type Mu struct
+pkg nsync, var NoDeadline time.Time
