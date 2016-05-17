@@ -186,9 +186,11 @@ func TestCVDeadline(t *testing.T) {
 	var cv nsync.CV
 
 	// The following two values control how aggressively we police the timeout.
-	var tooEarly time.Duration = 1 * time.Millisecond
-	var tooLate time.Duration = 35 * time.Millisecond // longer, to accommodate scheduling delays
+	const tooEarly time.Duration = 1 * time.Millisecond
+	const tooLate time.Duration = 35 * time.Millisecond // longer, to accommodate scheduling delays
+	const tooLateAllowed int = 3                        // number of iterations permitted to violate tooLate
 
+	var tooLateViolations int
 	mu.Lock()
 	for i := 0; i != 50; i++ {
 		startTime := time.Now()
@@ -201,10 +203,13 @@ func TestCVDeadline(t *testing.T) {
 			t.Errorf("cvWait() returned %v too early", expectedEndTime.Sub(endTime))
 		}
 		if endTime.After(expectedEndTime.Add(tooLate)) {
-			t.Errorf("cvWait() returned %v too late", endTime.Sub(expectedEndTime))
+			tooLateViolations++
 		}
 	}
 	mu.Unlock()
+	if tooLateViolations > tooLateAllowed {
+		t.Errorf("cvWait() returned too late %d times", tooLateViolations)
+	}
 }
 
 // TestCVCancel() checks cancellations on a CV WaitWithDeadline().
@@ -215,11 +220,13 @@ func TestCVCancel(t *testing.T) {
 	// The loops below cancel after 87 milliseconds, like the timeout tests above.
 
 	// The following two values control how aggressively we police the timeout.
-	var tooEarly time.Duration = 1 * time.Millisecond
-	var tooLate time.Duration = 35 * time.Millisecond // longer, to accommodate scheduling delays
+	const tooEarly time.Duration = 1 * time.Millisecond
+	const tooLate time.Duration = 35 * time.Millisecond // longer, to accommodate scheduling delays
+	const tooLateAllowed int = 3                        // number of iterations permitted to violate tooLate
 
 	var futureTime time.Time = time.Now().Add(1 * time.Hour) // a future time, to test cancels with pending timeout
 
+	var tooLateViolations int
 	mu.Lock()
 	for i := 0; i != 50; i++ {
 		startTime := time.Now()
@@ -236,7 +243,7 @@ func TestCVCancel(t *testing.T) {
 			t.Errorf("cvWait() returned %v too early", expectedEndTime.Sub(endTime))
 		}
 		if endTime.After(expectedEndTime.Add(tooLate)) {
-			t.Errorf("cvWait() returned %v too late", endTime.Sub(expectedEndTime))
+			tooLateViolations++
 		}
 
 		// Check that an already cancelled wait returns immediately.
@@ -249,8 +256,11 @@ func TestCVCancel(t *testing.T) {
 			t.Errorf("cvWait() returned %v too early", endTime.Sub(startTime))
 		}
 		if endTime.After(startTime.Add(tooLate)) {
-			t.Errorf("cvWait() returned %v too late", endTime.Sub(startTime))
+			tooLateViolations++
 		}
 	}
 	mu.Unlock()
+	if tooLateViolations > tooLateAllowed {
+		t.Errorf("cvWait() returned too late %d times", tooLateViolations)
+	}
 }
