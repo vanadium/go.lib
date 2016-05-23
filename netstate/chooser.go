@@ -10,9 +10,6 @@ import (
 )
 
 var (
-	LoopbackIPv4AddressChooser = AddressChooserFunc(func(protocol string, candidates []net.Addr) ([]net.Addr, error) {
-		return ConvertToAddresses(candidates).Filter(IsLoopbackIP).Filter(IsUnicastIPv4).AsNetAddrs(), nil
-	})
 	ErrNotAnIPProtocol = errors.New("requested protocol is not from the IP family")
 )
 
@@ -36,12 +33,12 @@ func (f AddressChooserFunc) ChooseAddresses(protocol string, candidates []net.Ad
 // unspecified or not. An unspecified host can be used over any network interface
 // on the host. If the supplied address contains a port in then all of the
 // returned addresses will also contain that port.
+//
 // The returned net.Addr's need have the exact same protocol as that passed
 // in as a parameter, rather, the chooser should return net.Addr's that can
 // be used for that protocol. Using tcp as a parameter for example will generally
 // result in net.Addr's whose Network method returns "ip" or "ip6".
-// If a nil chooser is supplied then it is assumed then LoopbackIPv4AddressChooser
-// will be used.
+//
 // If the chooser fails to find any appropriate addresses then the protocol, addr
 // parameters will be returned as net.Addr (and if possible as a netstate.Address).
 //
@@ -78,12 +75,11 @@ func PossibleAddresses(protocol, addr string, chooser AddressChooser) ([]net.Add
 		}
 		return []net.Addr{WithIPHostAndPort(ipaddr, port)}, unspecified, nil
 	}
-	if chooser == nil {
-		chooser = LoopbackIPv4AddressChooser
-	}
-	chosen, err := chooser.ChooseAddresses(protocol, candidates)
-	if err != nil {
-		return nil, unspecified, err
+	chosen := candidates
+	if chooser != nil {
+		if chosen, err = chooser.ChooseAddresses(protocol, candidates); err != nil {
+			return nil, unspecified, err
+		}
 	}
 	if len(chosen) == 0 {
 		netaddr := NewNetAddr(protocol, addr)

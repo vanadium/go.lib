@@ -175,7 +175,8 @@ func TestChooserIsNilAndErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got, want := len(addrs), 1; got != want {
+	if got, want := len(addrs), 7; got != want {
+		// mockInterfacesAndRouteTable sets up with 7 IP addresses.
 		t.Fatalf("got %v, want %v", got, want)
 	}
 	if got, want := unspecified, true; got != want {

@@ -74,4 +74,3 @@ pkg netstate, var ErrFailedToParseIPAddr error
 pkg netstate, var ErrNotAnIPProtocol error
 pkg netstate, var ErrUnspecifiedIPAddr error
 pkg netstate, var ErrUnsupportedProtocol error
-pkg netstate, var LoopbackIPv4AddressChooser AddressChooserFunc
