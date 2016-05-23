@@ -213,3 +213,10 @@ func (mu *Mu) Unlock() {
 		attempts = spinDelay(attempts)
 	}
 }
+
+// AssertHeld() panics if *mu is not held.
+func (mu *Mu) AssertHeld() {
+	if (atomic.LoadUint32(&mu.word) & muLock) == 0 {
+		panic("nsync.Mu not held")
+	}
+}

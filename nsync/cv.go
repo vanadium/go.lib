@@ -303,11 +303,10 @@ func wakeWaiters(toWakeList *waiter) {
 			for !atomic.CompareAndSwapUint32(&mu.word, oldMuWord, oldMuWord&^muSpinlock) { // release CAS
 				oldMuWord = atomic.LoadUint32(&mu.word)
 			}
-		} else { // Set muDesigWaker because at least one thread is to be woken.
-			oldMuWord = atomic.LoadUint32(&mu.word)
-			for !atomic.CompareAndSwapUint32(&mu.word, oldMuWord, oldMuWord|muDesigWaker) {
-				oldMuWord = atomic.LoadUint32(&mu.word)
-			}
+		} else if (oldMuWord & (muSpinlock | muLock | muDesigWaker)) == 0 {
+			// If spinlock and lock are not held, try to set muDesigWaker because
+			// at least one thread is to be woken.
+			atomic.CompareAndSwapUint32(&mu.word, oldMuWord, oldMuWord|muDesigWaker)
 		}
 	}
 

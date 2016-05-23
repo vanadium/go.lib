@@ -5,6 +5,7 @@ pkg nsync, method (*CV) Broadcast()
 pkg nsync, method (*CV) Signal()
 pkg nsync, method (*CV) Wait(sync.Locker)
 pkg nsync, method (*CV) WaitWithDeadline(sync.Locker, time.Time, <-chan struct{}) int
+pkg nsync, method (*Mu) AssertHeld()
 pkg nsync, method (*Mu) Lock()
 pkg nsync, method (*Mu) TryLock() bool
 pkg nsync, method (*Mu) Unlock()
