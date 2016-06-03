@@ -106,8 +106,8 @@ func TestCVTimeoutStress(t *testing.T) {
 
 	// Check that approximately the right number of timeouts have occurred.
 	// The 3 below is the three classes of thread produced before the Sleep().
-	// The factor of 3/4 is to allow for randomness.
-	expectedTimeouts := uint64(threadsPerValue * 3 * sleepSeconds * cvExpectedTimeoutsPerSec * 3 / 4)
+	// The factor of 1/2 is to allow for randomness and slow test machines.
+	expectedTimeouts := uint64(threadsPerValue * 3 * sleepSeconds * cvExpectedTimeoutsPerSec / 2)
 	timeoutsSeen := s.timeouts
 	if timeoutsSeen < expectedTimeouts {
 		t.Errorf("expected more than %d timeouts, got %d", expectedTimeouts, timeoutsSeen)
