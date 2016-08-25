@@ -14,12 +14,12 @@ import (
 var allTests = []struct {
 	MD  *T
 	XML string
-	B64 string
+	B64 []string
 }{
 	{
 		MD:  FromMap(nil),
 		XML: `<metadata></metadata>`,
-		B64: `eJyyyU0tSUxJLEm0s9GHMwEBAAD//1RmB6Y=`,
+		B64: []string{`eJyyyU0tSUxJLEm0s9GHMwEBAAD//1RmB6Y=`},
 	},
 	{
 		MD: FromMap(map[string]string{
@@ -32,7 +32,7 @@ var allTests = []struct {
   <md id="B">b value</md>
   <md id="C">c value</md>
 </metadata>`,
-		B64: `eJyyyU0tSUxJLEm0s8lNUchMsVVyVLJLVChLzClNtdHPTYELOynZJWERdlayS0YW1oebBwgAAP//H2Qc4g==`,
+		B64: []string{`eJyyyU0tSUxJLEm0s8lNUchMsVVyVLJLVChLzClNtdHPTYELOynZJWERdlayS0YW1oebBwgAAP//H2Qc4g==`},
 	},
 	{
 		MD: FromMap(map[string]string{
@@ -53,7 +53,7 @@ b value
   ]]></md>
   <md id="C">c value</md>
 </metadata>`,
-		B64: `eJyyyU0tSUxJLEm0s8lNUchMsVVyVLJLVChLzClNtdHPTYELOynZ2ShGO7s4hjhGcyVBFHApKChkJBYr5KWW52TmpRZzKaQn5uQXgcRjY+1QtDsr2SUjm6oPtxcQAAD//0qVKG0=`,
+		B64: []string{`eJyyyU0tSUxJLEm0s8lNUchMsVVyVLJLVChLzClNtdHPTYELOynZ2ShGO7s4hjhGcyVBFHApKChkJBYr5KWW52TmpRZzKaQn5uQXgcRjY+1QtDsr2SUjm6oPtxcQAAD//0qVKG0=`},
 	},
 	{
 		MD: FromMap(map[string]string{
@@ -82,7 +82,10 @@ b value
   ]]></md>
   <md id="ZZZ">zzz</md>
 </metadata>`,
-		B64: `eJyskjFv2zAQhff8CpW7RVKUFNmQBaTtWqCDJwcZTuTJYUvqDJFSDf/6MojhxBkKFAjA5d0d7+HDvdZjBAMRutabzJot+zpbZ346iANNnnXgTV3O4++R/owrZ8f5tLqolntz+2tnPbKuELJaifTkTsiNUhtV7W9mf8BoBwyRde2Xx2/fH3YPj3etvxQzBz26LWPdXZa1x4l+oY7hRbzJDE/azQa3bAAXkGUj+CQmdAgB8wPlS6FYdoT4fK3yA/Ewab7klvhre6JImpLXwUaWTegppi3PMR7DhvMFRjB29mkdHRwGmieNuSbPP/pMuNhgadwyWTfNGrUQ2JdCNE25FtU9VLgWsgRRVFAoOTSqTuT8wvK/ZKfc4BKJXPgX4Im/m/oEzveub7gGRW8UVIMY1r0SlSp0KXvTC1nXUg/Y6KI0w/1H3KtIZ03BuBz+pfP01N0kZb/fs+58Pr8W+TWrfwMAAP//M7rlfg==`,
+		B64: []string{
+			`eJyskrFu2zAQhvc8hcrdIilKimxIBNJ2LdDBk4MMJ/KksCV1hkiphp++COI6cYYCBTp+/x1x+MC/DZjAQgLdBps527HPi/P2u4c00ByYhmDrcpl+TvRr2ng3LafNhVoe7O2rvQvIdCFktRHVRsi9kDuldqo63Ox+g8kNGBPT7afHL18f9g+Pd224hJmHHn3HmL7LsvY40w80Kb7AG2Z4Mn6x2LEBfESWTRCwYzN6hIj5SPlaKJYdIT1fUz4Sj7Pha+6Iv45nSmTId2x0iWUzBkrYseeUjnHH+QoTWLeEfCQaPUZaZoO5ocA/3plxddHR1DFZN80WjRDYl0I0TbkV1T1UuBWyBFFUUCg5NKpmuuUXl381O+UW10Tk498ET/zd1n/wfH/1Tdei6K2CahDDtleiUoUpZW97IetamgEbU5R2uP+oe4Wo71r+5+NfJk9P+qYph8OB6fP5/Brya1d/BwAA//8zuuV+`,
+			`eJyskjFv2zAQhff8CpW7RVKUFNmQBaTtWqCDJwcZTuTJYUvqDJFSDf/6MojhxBkKFAjA5d0d7+HDvdZjBAMRutabzJot+zpbZ346iANNnnXgTV3O4++R/owrZ8f5tLqolntz+2tnPbKuELJaifTkTsiNUhtV7W9mf8BoBwyRde2Xx2/fH3YPj3etvxQzBz26LWPdXZa1x4l+oY7hRbzJDE/azQa3bAAXkGUj+CQmdAgB8wPlS6FYdoT4fK3yA/Ewab7klvhre6JImpLXwUaWTegppi3PMR7DhvMFRjB29mkdHRwGmieNuSbPP/pMuNhgadwyWTfNGrUQ2JdCNE25FtU9VLgWsgRRVFAoOTSqTuT8wvK/ZKfc4BKJXPgX4Im/m/oEzveub7gGRW8UVIMY1r0SlSp0KXvTC1nXUg/Y6KI0w/1H3KtIZ03BuBz+pfP01N0kZb/fs+58Pr8W+TWrfwMAAP//M7rlfg==`,
+		},
 	},
 }
 
@@ -129,25 +132,35 @@ func TestFromXML(t *testing.T) {
 
 func TestToBase64(t *testing.T) {
 	for _, test := range allTests {
-		if got, want := test.MD.ToBase64(), test.B64; got != want {
-			t.Errorf("got %v, want %v", got, want)
+		got := test.MD.ToBase64()
+		found := false
+		for _, want := range test.B64 {
+			if got == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("got %q, want one of %q", got, test.B64)
 		}
 	}
 }
 
 func TestFromBase64(t *testing.T) {
 	for _, test := range allTests {
-		got, err := FromBase64([]byte(test.B64))
-		if err != nil {
-			t.Errorf("%v FromBase64 failed: %v", test.B64, err)
-		}
-		if want := test.MD; !reflect.DeepEqual(got, want) {
-			t.Errorf("got %#v, want %#v", got, want)
-		}
-		// Add some garbage and make sure it fails.
-		bad := "!@#$%^&*()_+" + test.B64
-		if got, err := FromBase64([]byte(bad)); got != nil || err == nil {
-			t.Errorf("%v FromBase64 should have failed: (%#v, %v)", bad, got, err)
+		for _, b64 := range test.B64 {
+			got, err := FromBase64([]byte(b64))
+			if err != nil {
+				t.Errorf("%v FromBase64 failed: %v", b64, err)
+			}
+			if want := test.MD; !reflect.DeepEqual(got, want) {
+				t.Errorf("got %#v, want %#v", got, want)
+			}
+			// Add some garbage and make sure it fails.
+			bad := "!@#$%^&*()_+" + b64
+			if got, err := FromBase64([]byte(bad)); got != nil || err == nil {
+				t.Errorf("%v FromBase64 should have failed: (%#v, %v)", bad, got, err)
+			}
 		}
 	}
 }
@@ -194,9 +207,17 @@ func TestInsertLookup(t *testing.T) {
 
 func TestLDFlag(t *testing.T) {
 	for _, test := range allTests {
-		got, want := LDFlag(test.MD), "-X "+thisPkgPath+".initBuiltIn="+test.B64
-		if got != want {
-			t.Errorf("got %q, want %q", got, want)
+		got := LDFlag(test.MD)
+		found := false
+		for _, b64 := range test.B64 {
+			want := "-X " + thisPkgPath + ".initBuiltIn=" + b64
+			if got == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("got %q, want one of %v", got, test.B64)
 		}
 	}
 }
