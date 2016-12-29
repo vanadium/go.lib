@@ -18,8 +18,7 @@ func Info(args ...interface{}) {
 // Infof logs to the INFO log.
 // Arguments are handled in the manner of fmt.Printf; a newline is appended if missing.
 func Infof(format string, args ...interface{}) {
-	fn := Log.log.Printf // needed to avoid go vet warning
-	fn(llog.InfoLog, format, args...)
+	Log.log.Printf(llog.InfoLog, format, args...)
 	Log.maybeFlush()
 }
 
@@ -90,8 +89,7 @@ func ErrorDepth(depth int, args ...interface{}) {
 // Errorf logs to the ERROR and INFO logs.
 // Arguments are handled in the manner of fmt.Printf; a newline is appended if missing.
 func Errorf(format string, args ...interface{}) {
-	fn := Log.log.Printf // needed to avoid go vet warning
-	fn(llog.ErrorLog, format, args...)
+	Log.log.Printf(llog.ErrorLog, format, args...)
 	Log.maybeFlush()
 }
 
@@ -112,8 +110,7 @@ func FatalDepth(depth int, args ...interface{}) {
 // including a stack trace of all running goroutines, then calls os.Exit(255).
 // Arguments are handled in the manner of fmt.Printf; a newline is appended if missing.
 func Fatalf(format string, args ...interface{}) {
-	fn := Log.log.Printf // needed to avoid go vet warning
-	fn(llog.FatalLog, format, args...)
+	Log.log.Printf(llog.FatalLog, format, args...)
 }
 
 // ConfigureLogging configures all future logging. Some options
