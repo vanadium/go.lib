@@ -111,7 +111,7 @@ func generate(args []string) error {
 // license that can be found in the LICENSE file.
 
 `
-	flag.Vist(func(f *flag.Flag) {
+	flag.Visit(func(f *flag.Flag) {
 		if f.Name == "copyright-notice" {
 			copyright = ""
 		}
@@ -119,7 +119,7 @@ func generate(args []string) error {
 
 	if len(copyright) == 0 {
 		if len(copyrightNotice) > 0 {
-			buf, err := ioutil.ReadAll(copyrightNotice)
+			buf, err := ioutil.ReadFile(copyrightNotice)
 			if err != nil {
 				return fmt.Errorf("failed to read copyright notice file: %v: %v", copyrightNotice, err)
 			}
