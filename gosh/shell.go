@@ -69,6 +69,8 @@ type Shell struct {
 	Vars map[string]string
 	// Args is the list of args to append to subsequent command invocations.
 	Args []string
+	// Set the depth to use for runtime.Caller when generating error messages.
+	ErrorDepth int
 	// Internal state.
 	calledNewShell  bool
 	tb              TB
@@ -93,12 +95,12 @@ func NewShell(tb TB) *Shell {
 // HandleError sets sh.Err. If err is not nil and sh.ContinueOnError is false,
 // it also calls TB.FailNow.
 func (sh *Shell) HandleError(err error) {
-	sh.HandleErrorWithSkip(err, 2)
+	sh.HandleErrorWithSkip(err, sh.ErrorDepth)
 }
 
 // handleError is intended for use by public Shell method implementations.
 func (sh *Shell) handleError(err error) {
-	sh.HandleErrorWithSkip(err, 3)
+	sh.HandleErrorWithSkip(err, sh.ErrorDepth+1)
 }
 
 // HandleErrorWithSkip is like HandleError, but allows clients to specify the
@@ -260,6 +262,7 @@ func newShell(tb TB) (*Shell, error) {
 		calledNewShell: true,
 		tb:             tb,
 		cleanupDone:    make(chan struct{}),
+		ErrorDepth:     2,
 	}
 	sh.cleanupOnSignal()
 	return sh, nil
