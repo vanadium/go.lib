@@ -240,7 +240,7 @@ func (*discardInfo) Infof(string, ...interface{})  {}
 func (*discardInfo) InfoDepth(int, ...interface{}) {}
 func (*discardInfo) InfoStack(bool)                {}
 
-func (l *Logger) VI(v int) interface {
+type Infoer interface {
 	// Info logs to the INFO log.
 	// Arguments are handled in the manner of fmt.Print; a newline is appended if missing.
 	Info(args ...interface{})
@@ -256,30 +256,16 @@ func (l *Logger) VI(v int) interface {
 	// InfoStack logs the current goroutine's stack if the all parameter
 	// is false, or the stacks of all goroutines if it's true.
 	InfoStack(all bool)
-} {
+}
+
+func (l *Logger) VI(v int) Infoer {
 	if l.log.VDepth(0, llog.Level(v)) {
 		return l
 	}
 	return &discardInfo{}
 }
 
-func (l *Logger) VIDepth(depth int, v int) interface {
-	// Info logs to the INFO log.
-	// Arguments are handled in the manner of fmt.Print; a newline is appended if missing.
-	Info(args ...interface{})
-
-	// Infoln logs to the INFO log.
-	// Arguments are handled in the manner of fmt.Printf; a newline is appended if missing.
-	Infof(format string, args ...interface{})
-
-	// InfoDepth acts as Info but uses depth to determine which call frame to log.
-	// A depth of 0 is equivalent to calling Info.
-	InfoDepth(depth int, args ...interface{})
-
-	// InfoStack logs the current goroutine's stack if the all parameter
-	// is false, or the stacks of all goroutines if it's true.
-	InfoStack(all bool)
-} {
+func (l *Logger) VIDepth(depth int, v int) Infoer {
 	if l.log.VDepth(depth, llog.Level(v)) {
 		return l
 	}
