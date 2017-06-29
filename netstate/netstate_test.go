@@ -91,12 +91,14 @@ func TestConversions(t *testing.T) {
 	// ConvertToAddresses as we pass in.
 	all, _, _ := netstate.GetAllAddresses()
 	lb := all.Filter(netstate.IsLoopbackIP).Filter(netstate.IsUnicastIPv4)
-	if got, want := len(lb), 1; got < want {
-		t.Fatalf("got %v, want at lest %v, all: %v, lb: %v", got, want, all, lb)
+	for i, a := range lb {
+		if !netstate.IsUnicastIPv4(a) {
+			t.Fatalf("%v: %v is not a unicast IPv4 address", i, a)
+		}
 	}
 	al = netstate.ConvertToAddresses(lb.AsNetAddrs())
-	if got, want := len(al), 1; got < want {
-		t.Fatalf("got %v, want at least %v, al: %v", got, want, al)
+	if got, want := len(al), len(lb); got != want {
+		t.Fatalf("got %v, want %v, al: %v", got, want, al)
 	}
 	found := false
 	for _, a := range all {
