@@ -266,7 +266,7 @@ func (n *notifier) initLocked() error {
 	lsa := &syscall.SockaddrNetlink{Family: syscall.AF_NETLINK, Groups: GROUPS}
 	if err := syscall.Bind(s, lsa); err != nil {
 		syscall.Close(s)
-		return fmt.Errorf("bind(%d, {AF_NETLINK, 0x%x}) failed: %v", s, lsa.Groups)
+		return fmt.Errorf("bind(%d, {AF_NETLINK, 0x%x}) failed: %v", s, syscall.AF_NETLINK, lsa.Groups)
 	}
 	go watcher(n, s)
 	return nil
