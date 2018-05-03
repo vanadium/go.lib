@@ -12,6 +12,14 @@ import (
 )
 
 var (
+	// Reexport the logging severity levels from the underlying llog package.
+	InfoLog    = llog.InfoLog
+	WarningLog = llog.WarningLog
+	ErrorLog   = llog.ErrorLog
+	FatalLog   = llog.FatalLog
+)
+
+var (
 	toStderr        bool
 	alsoToStderr    bool
 	logDir          string
@@ -82,8 +90,7 @@ func (l *Logger) String() string {
 	return l.log.String()
 }
 
-// ConfigureFromFlags will configure the logger using
-// command line flags.
+// ConfigureFromFlags will configure the logger using command line flags.
 func (l *Logger) ConfigureFromFlags() error {
 	return l.Configure(
 		LogToStderr(toStderr),
@@ -96,6 +103,11 @@ func (l *Logger) ConfigureFromFlags() error {
 		TraceLocation(traceLocation),
 		MaxStackBufSize(maxStackBufSize),
 	)
+}
+
+// ConfigureFromArgs will configure the logger using the supplied args.
+func (l *Logger) ConfigureFromArgs(opts ...LoggingOpts) error {
+  return l.Configure(opts...)
 }
 
 // ExplicitlySetFlags returns a map of the logging command line flags and their
