@@ -367,6 +367,10 @@ func (cmd *Command) parse(path []*Command, env *Env, args []string, setFlags map
 	for key, val := range setF {
 		setFlags[key] = val
 	}
+	if err := cmd.checkFlags(setF); err != nil {
+		return nil, nil, env.UsageErrorf("%s: %v", cmdPath, err)
+	}
+
 	// First handle the no-args case.
 	if len(args) == 0 {
 		if cmd.Runner != nil {
@@ -411,6 +415,26 @@ func (cmd *Command) parse(path []*Command, env *Env, args []string, setFlags map
 	// cmd.Runner != nil && len(args) > 0 &&
 	// cmd.ArgsName != "" && args != []string{"help", "..."}
 	return cmd.Runner, args, nil
+}
+
+// checkFlags checks if any unset flags have values that are not the same as
+// their default.  This can happen when the same var is bound to multiple
+// flags, in which case, the set value will be based on the default of the last
+// initialized flag.
+func (cmd *Command) checkFlags(setFlags map[string]string) error {
+	flags := make([]string, 0)
+	cmd.Flags.VisitAll(func(f *flag.Flag) {
+		if _, found := setFlags[f.Name]; !found {
+			if f.DefValue != f.Value.String() {
+				flags = append(flags, f.Name)
+			}
+		}
+	})
+	if len(flags) > 0 {
+		return fmt.Errorf("Values for these unset flags do not match their set defaults: %v\n"+
+			"This can happen when multiple flags bind the same var.", flags)
+	}
+	return nil
 }
 
 // parseFlags parses the flags from args for the command with the given path and
