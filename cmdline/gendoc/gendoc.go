@@ -17,10 +17,7 @@
 // its idiomatic use via "go run".
 //
 // The gendoc command itself is not based on the cmdline library to avoid
-// non-trivial bootstrapping.  In particular, if the compilation of gendoc
-// requires GOPATH to contain the vanadium Go workspaces, then running the
-// gendoc command requires the jiri tool, which in turn may depend on the gendoc
-// command.
+// non-trivial bootstrapping.
 package main
 
 import (
@@ -84,7 +81,7 @@ func generate(args []string) error {
 		pkgs = append(pkgs, strings.Split(flagInstall, ",")...)
 	}
 
-	installCmd := append([]string{}, "jiri", "go", "install")
+	installCmd := append([]string{}, "go", "install")
 	if len(goInstallCommand) > 0 {
 		installCmd = strings.Split(goInstallCommand, " ")
 	}
@@ -114,7 +111,7 @@ func generate(args []string) error {
 		tagsConstraint = fmt.Sprintf("// +build %s\n\n", flagTags)
 	}
 
-	copyright := `// Copyright 2017 The Vanadium Authors. All rights reserved.
+	copyright := `// Copyright 2018 The Vanadium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
