@@ -2,6 +2,7 @@ sudo: required
 dist: trusty
 before_install: GIMME_OUTPUT=$(gimme 1.11.1) && eval "$GIMME_OUTPUT"
 install: make get-deps
+go_import_path:	v.io/x/lib
 script:
   - make go
   - make test
