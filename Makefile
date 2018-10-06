@@ -14,7 +14,7 @@ go: get-deps
 .PHONY: get-deps
 get-deps: src
 
-pkgs := $(find * -type d)
+pkgs := $(find ./* -type d)
 src:
 	mkdir -p src/v.io/x
 	rsync -a ${pkgs} src/v.io/x
