@@ -14,10 +14,11 @@ go: get-deps
 .PHONY: get-deps
 get-deps: src
 
+pkgs := $(find * -type d)
 src:
-	mkdir -p src/v.io
-	rsync -a x src/v.io
-	go get -t v.io/...
+	mkdir -p src/v.io/x
+	rsync -a ${pkgs} src/v.io/x
+	go get -t v.io/x/lib/...
 
 test-all: test test-integration
 
