@@ -3,9 +3,6 @@ SHELL := /bin/bash -euo pipefail
 GOPATH ?= $(shell pwd)
 export GOPATH
 
-.PHONY: all
-all: go
-
 .PHONY: go
 go: get-deps
 	go build ./...
