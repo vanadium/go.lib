@@ -10,6 +10,7 @@ go: get-deps
 
 .PHONY: get-deps
 get-deps:
+	find . -type d
 	go get -t ./...
 
 .PHONY: test
