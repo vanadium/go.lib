@@ -6,3 +6,9 @@ install:
   - go get -t v.io/...
 script:
   - go test ./...
+notifications:
+  email:
+    receipients:
+      - vanadium-ci@v.io
+    on_success: never
+    on_failure: always
