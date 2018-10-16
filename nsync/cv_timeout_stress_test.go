@@ -145,9 +145,9 @@ func TestCVTimeoutStress(t *testing.T) {
 
 	// Some timeouts shoud have happened while the counts were being incremented.
 	expectedTimeouts = timeoutsSeen + 1000
-	if timeTaken > 5*time.Second {
-		overTime := timeTaken - (5 * time.Second)
-		expectedTimeouts -= 250 * uint64(overTime/time.Second)
+	if timeTaken > 4*time.Second {
+		overTime := timeTaken - (4 * time.Second)
+		expectedTimeouts -= 1000 * uint64(overTime/time.Second)
 		t.Logf("%v of overtime, adjusting expeting timeouts accordingly", overTime)
 	}
 	if s.timeouts < expectedTimeouts {
