@@ -10,7 +10,6 @@ package nsync_test
 import (
 	"fmt"
 	"math/rand"
-	"os"
 	"testing"
 	"time"
 
@@ -146,8 +145,13 @@ func TestCVTimeoutStress(t *testing.T) {
 
 	// Some timeouts shoud have happened while the counts were being incremented.
 	expectedTimeouts = timeoutsSeen + 1000
+	if timeTaken > 5*time.Minute {
+		overTime := timeTaken - (5 * time.Minute)
+		expectedTimeouts -= 250 * uint64(overTime/time.Minute)
+		t.Logf("%v minutes of overtime, adjusting expeting timeouts accordingly", overTime)
+	}
 	if s.timeouts < expectedTimeouts {
 		t.Errorf("expected more than %d timeouts, got %d", expectedTimeouts, s.timeouts)
 	}
-	fmt.Fprintf(os.Stderr, "timeouts: %v, expected: %v, time taken: %v\n", s.timeouts, expectedTimeouts, timeTaken)
+	t.Logf("timeouts: %v, expected: %v, time taken: %v", s.timeouts, expectedTimeouts, timeTaken)
 }
