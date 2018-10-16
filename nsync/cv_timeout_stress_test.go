@@ -7,12 +7,14 @@
 
 package nsync_test
 
-import "fmt"
-import "math/rand"
-import "testing"
-import "time"
+import (
+	"fmt"
+	"math/rand"
+	"testing"
+	"time"
 
-import "v.io/x/lib/nsync"
+	"v.io/x/lib/nsync"
+)
 
 // ---------------------------
 
@@ -98,6 +100,7 @@ func TestCVTimeoutStress(t *testing.T) {
 	s.mu.Unlock()
 
 	// Sleep a few seconds to cause many timeouts.
+	start := time.Now()
 	const sleepSeconds = 3
 	time.Sleep(sleepSeconds * time.Second)
 
@@ -132,6 +135,7 @@ func TestCVTimeoutStress(t *testing.T) {
 
 	s.mu.AssertHeld()
 	s.mu.Unlock()
+	timeTaken := time.Now().Sub(start)
 
 	// Check that s.count has the right value.
 	expectedCount := uint64(loopCount * threadsPerValue * 4)
@@ -141,7 +145,13 @@ func TestCVTimeoutStress(t *testing.T) {
 
 	// Some timeouts shoud have happened while the counts were being incremented.
 	expectedTimeouts = timeoutsSeen + 1000
+	if timeTaken > 4*time.Second {
+		overTime := timeTaken - (4 * time.Second)
+		expectedTimeouts -= 1000 * uint64(overTime/time.Second)
+		t.Logf("%v of overtime, adjusting expeting timeouts accordingly", overTime)
+	}
 	if s.timeouts < expectedTimeouts {
 		t.Errorf("expected more than %d timeouts, got %d", expectedTimeouts, s.timeouts)
 	}
+	t.Logf("timeouts: %v, expected: %v, time taken: %v", s.timeouts, expectedTimeouts, timeTaken)
 }
