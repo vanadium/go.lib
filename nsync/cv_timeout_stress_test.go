@@ -120,8 +120,8 @@ func TestCVTimeoutStress(t *testing.T) {
 	for i := 0; i != threadsPerValue; i++ {
 		s.mu.AssertHeld()
 		s.refs++
+		go cvStressIncLoop(&s, 0, loopCount)
 	}
-	go cvStressIncLoop(&s, 0, loopCount)
 
 	// Wait for threads to exit.
 	s.mu.AssertHeld()
@@ -155,7 +155,6 @@ func TestCVTimeoutStress(t *testing.T) {
 	}
 	if s.timeouts == 0 {
 		t.Errorf("expected a non-zero number of timeouts")
-
 	}
 	t.Logf("timeouts: %v, expected: %v, time taken: %v", s.timeouts, expectedTimeouts, timeTaken)
 }
