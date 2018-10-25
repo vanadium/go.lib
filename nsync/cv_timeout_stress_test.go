@@ -115,6 +115,8 @@ func TestCVTimeoutStress(t *testing.T) {
 	expectedTimeouts := uint64(threadsPerValue * 3 * sleepSeconds * cvExpectedTimeoutsPerSec / 4)
 	timeoutsSeen := s.timeouts
 	if timeoutsSeen < expectedTimeouts {
+		// Note, that this can potentially fail if the test is run on a
+		// very loaded machine.
 		t.Errorf("expected more than %d timeouts, got %d", expectedTimeouts, timeoutsSeen)
 	}
 
