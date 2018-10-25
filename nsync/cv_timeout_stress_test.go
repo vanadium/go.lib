@@ -100,9 +100,11 @@ func TestCVTimeoutStress(t *testing.T) {
 	s.mu.Unlock()
 
 	// Sleep a few seconds to cause many timeouts.
-	start := time.Now()
 	const sleepSeconds = 3
 	time.Sleep(sleepSeconds * time.Second)
+
+	// Start the clock after the sleep above.
+	start := time.Now()
 
 	s.mu.Lock()
 	s.mu.AssertHeld()
@@ -145,10 +147,12 @@ func TestCVTimeoutStress(t *testing.T) {
 
 	// Some timeouts shoud have happened while the counts were being incremented.
 	expectedTimeouts = timeoutsSeen + 1000
+	t.Logf("timeouts: %v, expected: %v, time taken: %v, seen: %v", s.timeouts, expectedTimeouts, timeTaken, timeoutsSeen)
 	if timeTaken > 4*time.Second {
-		overTime := timeTaken - (4 * time.Second)
-		expectedTimeouts -= 2000 * uint64(overTime/time.Second)
-		t.Logf("%v of overtime, adjusting expeting timeouts accordingly", overTime)
+		// Looks like a slow test, let's just be content
+		// with a small number of timeouts.
+		expectedTimeouts = 1000
+		t.Logf("slow test, adjusting expected timeouts accordingly: %v", expectedTimeouts)
 	}
 	if s.timeouts < expectedTimeouts {
 		t.Errorf("expected more than %d timeouts, got %d", expectedTimeouts, s.timeouts)
@@ -156,5 +160,4 @@ func TestCVTimeoutStress(t *testing.T) {
 	if s.timeouts == 0 {
 		t.Errorf("expected a non-zero number of timeouts")
 	}
-	t.Logf("timeouts: %v, expected: %v, time taken: %v", s.timeouts, expectedTimeouts, timeTaken)
 }
