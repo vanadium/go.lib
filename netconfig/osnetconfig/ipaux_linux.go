@@ -4,7 +4,7 @@
 
 // +build linux
 
-package netconfig
+package osnetconfig
 
 // We connect to the Netlink Route socket and parse messages to
 // look for network configuration changes.  This is very Linux
@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"v.io/x/lib/netconfig"
 	"v.io/x/lib/vlog"
 )
 
@@ -266,7 +267,7 @@ func (n *notifier) initLocked() error {
 	lsa := &syscall.SockaddrNetlink{Family: syscall.AF_NETLINK, Groups: GROUPS}
 	if err := syscall.Bind(s, lsa); err != nil {
 		syscall.Close(s)
-		return fmt.Errorf("bind(%d, {AF_NETLINK, 0x%x}) failed: %v", s, syscall.AF_NETLINK, lsa.Groups)
+		return fmt.Errorf("bind(%d, {AF_NETLINK, 0x%x}) failed: %v", s, lsa.Groups)
 	}
 	go watcher(n, s)
 	return nil
@@ -326,8 +327,8 @@ func toIP(a []byte) (net.IP, error) {
 
 // IPRoutes returns all kernel known routes.  If defaultOnly is set, only default routes
 // are returned.
-func GetIPRoutes(defaultOnly bool) []*IPRoute {
-	var iproutes []*IPRoute
+func GetIPRoutes(defaultOnly bool) []*netconfig.IPRoute {
+	var iproutes []*netconfig.IPRoute
 	rib, err := syscall.NetlinkRIB(syscall.RTM_GETROUTE, syscall.AF_UNSPEC)
 	if err != nil {
 		vlog.Infof("Couldn't read: %s", err)
@@ -347,7 +348,7 @@ L:
 		if err != nil {
 			continue
 		}
-		r := new(IPRoute)
+		r := new(netconfig.IPRoute)
 		for _, a := range attrs {
 			switch a.Attr.Type {
 			case syscall.RTA_DST:
@@ -391,7 +392,7 @@ L:
 			continue
 		}
 		r.Net.Mask = net.CIDRMask(int(a.Dst_len), addrLen)
-		if !defaultOnly || IsDefaultIPRoute(r) {
+		if !defaultOnly || netconfig.IsDefaultIPRoute(r) {
 			iproutes = append(iproutes, r)
 		}
 	}

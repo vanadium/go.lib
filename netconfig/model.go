@@ -11,20 +11,12 @@ package netconfig
 import (
 	"net"
 	"sync"
-	"time"
 )
 
-var globalNotifier notifier
-
-// NotifyChange returns a channel that will be closed when the network
-// configuration changes from the time this function was invoked.
-//
-// This may provide false positivies, i.e., a network change
-// will cause the channel to be closed but a channel closure
-// may not imply a network change.
-func NotifyChange() (<-chan struct{}, error) {
-	return globalNotifier.add()
-}
+var (
+	mu             sync.Mutex
+	globalNotifier OSNotifier
+)
 
 // IPRoute represents a route in the kernel's routing table.
 // Any route with a nil Gateway is a directly connected network.
@@ -35,47 +27,51 @@ type IPRoute struct {
 	IfcIndex        int
 }
 
-type notifier struct {
-	sync.Mutex
-	ch    chan struct{}
-	timer *time.Timer
-
-	initErr error
-	inited  bool
+// NotifyChange returns a channel that will be closed when the network
+// configuration changes from the time this function was invoked. If
+// SetOSNotifier has not been called then the channel returned will never
+// be closed since no network changes will ever be detected.
+func NotifyChange() (<-chan struct{}, error) {
+	if globalNotifier == nil {
+		// this channel will never be closed.
+		return make(chan struct{}), nil
+	}
+	return globalNotifier.NotifyChange()
 }
 
-func (n *notifier) add() (<-chan struct{}, error) {
-	n.Lock()
-	defer n.Unlock()
-	if !n.inited {
-		n.ch = make(chan struct{})
-		n.initErr = n.initLocked()
-		n.inited = true
+// GetIPRoutes returns all kernel known routes. If defaultOnly is set, only
+// default routes are returned. If SetOSNotifier has not been called then
+// then an empty set of routes will be returned.
+func GetIPRoutes(defaultOnly bool) []*IPRoute {
+	if globalNotifier == nil {
+		return []*IPRoute{}
 	}
-	if n.initErr != nil {
-		return nil, n.initErr
-	}
-	return n.ch, nil
+	return globalNotifier.GetIPRoutes(defaultOnly)
 }
 
-func (n *notifier) ding() {
-	// Changing networks usually spans many seconds and involves
-	// multiple network config changes.  We add histeresis by
-	// setting an alarm when the first change is detected and
-	// not informing the client till the alarm goes off.
-	// NOTE(p): I chose 3 seconds because that covers all the
-	// events involved in moving from one wifi network to another.
-	n.Lock()
-	if n.timer == nil {
-		n.timer = time.AfterFunc(3*time.Second, n.resetChan)
-	}
-	n.Unlock()
+// OSNotifier represents an os specific notifier of network configuration
+// changes and for obtaining current network state.
+type OSNotifier interface {
+	// NotifyChange returns a channel that will be closed when the network
+	// configuration changes from the time this function was invoked.
+	//
+	// This may provide false positivies, i.e., a network change
+	// will cause the channel to be closed but a channel closure
+	// may not imply a network change.
+	NotifyChange() (<-chan struct{}, error)
+
+	// GetIPRoutes returns all kernel known routes. If defaultOnly is set,
+	// only default routes are returned.
+	GetIPRoutes(defaultOnly bool) []*IPRoute
 }
 
-func (n *notifier) resetChan() {
-	n.Lock()
-	close(n.ch)
-	n.ch = make(chan struct{})
-	n.timer = nil
-	n.Unlock()
+// SetOSNotifier sets the global OS specific notifier and route table accessor.
+// This function may only be called once.
+func SetOSNotifier(osn OSNotifier) {
+	mu.Lock()
+	defer mu.Unlock()
+	if globalNotifier != nil {
+		panic("The global OS notifier for network state changes has already been set")
+	}
+	globalNotifier = osn
 }
