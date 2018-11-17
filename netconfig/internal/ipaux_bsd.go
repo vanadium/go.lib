@@ -4,7 +4,7 @@
 
 // +build darwin dragonfly freebsd netbsd openbsd
 
-package netconfig
+package internal
 
 // We connect to the Route socket and parse messages to
 // look for network configuration changes.  This is generic
@@ -26,7 +26,7 @@ import (
 */
 import "C"
 
-func (n *notifier) initLocked() error {
+func (n *Notifier) initLocked() error {
 	s, err := syscall.Socket(C.PF_ROUTE, syscall.SOCK_RAW, syscall.AF_UNSPEC)
 	if err != nil {
 		return fmt.Errorf("socket(PF_ROUTE, SOCK_RAW, AF_UNSPEC) failed: %v", err)
@@ -35,7 +35,7 @@ func (n *notifier) initLocked() error {
 	return nil
 }
 
-func watcher(n *notifier, sock int) {
+func watcher(n *Notifier, sock int) {
 	defer syscall.Close(sock)
 	buf := make([]byte, 4096)
 	for {
@@ -123,7 +123,7 @@ func GetIPRoutes(defaultOnly bool) []*IPRoute {
 				continue
 			}
 			r.IfcIndex = int(v.Header.Index)
-			if !defaultOnly || IsDefaultIPRoute(r) {
+			if !defaultOnly || isDefaultIPRoute(r) {
 				x = append(x, r)
 			}
 		}

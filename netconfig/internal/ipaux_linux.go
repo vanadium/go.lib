@@ -4,7 +4,7 @@
 
 // +build linux
 
-package netconfig
+package internal
 
 // We connect to the Netlink Route socket and parse messages to
 // look for network configuration changes.  This is very Linux
@@ -257,7 +257,7 @@ const (
 	GROUPS = C.RTMGRP_LINK | C.RTMGRP_IPV4_IFADDR | C.RTMGRP_IPV4_MROUTE | C.RTMGRP_IPV4_ROUTE | C.RTMGRP_IPV6_IFADDR | C.RTMGRP_IPV6_MROUTE | C.RTMGRP_IPV6_ROUTE | C.RTMGRP_NOTIFY
 )
 
-func (n *notifier) initLocked() error {
+func (n *Notifier) initLocked() error {
 	s, err := syscall.Socket(syscall.AF_NETLINK, syscall.SOCK_RAW, syscall.NETLINK_ROUTE)
 	if err != nil {
 		return fmt.Errorf("socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE) failed: %v", err)
@@ -266,13 +266,13 @@ func (n *notifier) initLocked() error {
 	lsa := &syscall.SockaddrNetlink{Family: syscall.AF_NETLINK, Groups: GROUPS}
 	if err := syscall.Bind(s, lsa); err != nil {
 		syscall.Close(s)
-		return fmt.Errorf("bind(%d, {AF_NETLINK, 0x%x}) failed: %v", s, syscall.AF_NETLINK, lsa.Groups)
+		return fmt.Errorf("bind(%d, {AF_NETLINK, 0x%x}) failed: %v", s, lsa.Groups, err)
 	}
 	go watcher(n, s)
 	return nil
 }
 
-func watcher(n *notifier, sock int) {
+func watcher(n *Notifier, sock int) {
 	defer syscall.Close(sock)
 	var newAddrs []net.IP
 	buf := make([]byte, 4096)
@@ -391,7 +391,7 @@ L:
 			continue
 		}
 		r.Net.Mask = net.CIDRMask(int(a.Dst_len), addrLen)
-		if !defaultOnly || IsDefaultIPRoute(r) {
+		if !defaultOnly || isDefaultIPRoute(r) {
 			iproutes = append(iproutes, r)
 		}
 	}
