@@ -4,7 +4,7 @@
 
 // +build linux
 
-package osnetconfig
+package internal
 
 // We connect to the Netlink Route socket and parse messages to
 // look for network configuration changes.  This is very Linux
@@ -17,7 +17,6 @@ import (
 	"syscall"
 	"unsafe"
 
-	"v.io/x/lib/netconfig"
 	"v.io/x/lib/vlog"
 )
 
@@ -258,7 +257,7 @@ const (
 	GROUPS = C.RTMGRP_LINK | C.RTMGRP_IPV4_IFADDR | C.RTMGRP_IPV4_MROUTE | C.RTMGRP_IPV4_ROUTE | C.RTMGRP_IPV6_IFADDR | C.RTMGRP_IPV6_MROUTE | C.RTMGRP_IPV6_ROUTE | C.RTMGRP_NOTIFY
 )
 
-func (n *notifier) initLocked() error {
+func (n *Notifier) initLocked() error {
 	s, err := syscall.Socket(syscall.AF_NETLINK, syscall.SOCK_RAW, syscall.NETLINK_ROUTE)
 	if err != nil {
 		return fmt.Errorf("socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE) failed: %v", err)
@@ -273,7 +272,7 @@ func (n *notifier) initLocked() error {
 	return nil
 }
 
-func watcher(n *notifier, sock int) {
+func watcher(n *Notifier, sock int) {
 	defer syscall.Close(sock)
 	var newAddrs []net.IP
 	buf := make([]byte, 4096)
@@ -327,8 +326,8 @@ func toIP(a []byte) (net.IP, error) {
 
 // IPRoutes returns all kernel known routes.  If defaultOnly is set, only default routes
 // are returned.
-func GetIPRoutes(defaultOnly bool) []*netconfig.IPRoute {
-	var iproutes []*netconfig.IPRoute
+func GetIPRoutes(defaultOnly bool) []*IPRoute {
+	var iproutes []*IPRoute
 	rib, err := syscall.NetlinkRIB(syscall.RTM_GETROUTE, syscall.AF_UNSPEC)
 	if err != nil {
 		vlog.Infof("Couldn't read: %s", err)
@@ -348,7 +347,7 @@ L:
 		if err != nil {
 			continue
 		}
-		r := new(netconfig.IPRoute)
+		r := new(IPRoute)
 		for _, a := range attrs {
 			switch a.Attr.Type {
 			case syscall.RTA_DST:
@@ -392,7 +391,7 @@ L:
 			continue
 		}
 		r.Net.Mask = net.CIDRMask(int(a.Dst_len), addrLen)
-		if !defaultOnly || netconfig.IsDefaultIPRoute(r) {
+		if !defaultOnly || isDefaultIPRoute(r) {
 			iproutes = append(iproutes, r)
 		}
 	}

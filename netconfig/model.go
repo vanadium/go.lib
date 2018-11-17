@@ -11,11 +11,13 @@ package netconfig
 import (
 	"net"
 	"sync"
+
+	"v.io/x/lib/netconfig/internal"
 )
 
 var (
 	mu             sync.Mutex
-	globalNotifier OSNotifier
+	globalNotifier *internal.Notifier
 )
 
 // IPRoute represents a route in the kernel's routing table.
@@ -27,16 +29,19 @@ type IPRoute struct {
 	IfcIndex        int
 }
 
+func init() {
+	globalNotifier = internal.NewNotifier(0)
+}
+
 // NotifyChange returns a channel that will be closed when the network
 // configuration changes from the time this function was invoked. If
 // SetOSNotifier has not been called then the channel returned will never
 // be closed since no network changes will ever be detected.
 func NotifyChange() (<-chan struct{}, error) {
 	if globalNotifier == nil {
-		// this channel will never be closed.
-		return make(chan struct{}), nil
+		panic("globalNotifier is not set")
 	}
-	return globalNotifier.NotifyChange()
+	return globalNotifier.Add()
 }
 
 // GetIPRoutes returns all kernel known routes. If defaultOnly is set, only
@@ -44,34 +49,17 @@ func NotifyChange() (<-chan struct{}, error) {
 // then an empty set of routes will be returned.
 func GetIPRoutes(defaultOnly bool) []*IPRoute {
 	if globalNotifier == nil {
-		return []*IPRoute{}
+		panic("globalNotifier is not set")
 	}
-	return globalNotifier.GetIPRoutes(defaultOnly)
-}
-
-// OSNotifier represents an os specific notifier of network configuration
-// changes and for obtaining current network state.
-type OSNotifier interface {
-	// NotifyChange returns a channel that will be closed when the network
-	// configuration changes from the time this function was invoked.
-	//
-	// This may provide false positivies, i.e., a network change
-	// will cause the channel to be closed but a channel closure
-	// may not imply a network change.
-	NotifyChange() (<-chan struct{}, error)
-
-	// GetIPRoutes returns all kernel known routes. If defaultOnly is set,
-	// only default routes are returned.
-	GetIPRoutes(defaultOnly bool) []*IPRoute
-}
-
-// SetOSNotifier sets the global OS specific notifier and route table accessor.
-// This function may only be called once.
-func SetOSNotifier(osn OSNotifier) {
-	mu.Lock()
-	defer mu.Unlock()
-	if globalNotifier != nil {
-		panic("The global OS notifier for network state changes has already been set")
+	ir := globalNotifier.GetIPRoutes(defaultOnly)
+	r := make([]*IPRoute, len(ir))
+	for i, c := range ir {
+		n := new(IPRoute)
+		n.Net = c.Net
+		n.Gateway = c.Gateway
+		n.PreferredSource = c.PreferredSource
+		n.IfcIndex = c.IfcIndex
+		r[i] = n
 	}
-	globalNotifier = osn
+	return r
 }

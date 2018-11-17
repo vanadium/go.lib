@@ -4,7 +4,7 @@
 
 // +build darwin dragonfly freebsd netbsd openbsd
 
-package osnetconfig
+package internal
 
 // We connect to the Route socket and parse messages to
 // look for network configuration changes.  This is generic
@@ -18,7 +18,6 @@ import (
 	"net"
 	"syscall"
 
-	"v.io/x/lib/netconfig"
 	"v.io/x/lib/vlog"
 )
 
@@ -27,7 +26,7 @@ import (
 */
 import "C"
 
-func (n *notifier) initLocked() error {
+func (n *Notifier) initLocked() error {
 	s, err := syscall.Socket(C.PF_ROUTE, syscall.SOCK_RAW, syscall.AF_UNSPEC)
 	if err != nil {
 		return fmt.Errorf("socket(PF_ROUTE, SOCK_RAW, AF_UNSPEC) failed: %v", err)
@@ -36,7 +35,7 @@ func (n *notifier) initLocked() error {
 	return nil
 }
 
-func watcher(n *notifier, sock int) {
+func watcher(n *Notifier, sock int) {
 	defer syscall.Close(sock)
 	buf := make([]byte, 4096)
 	for {
@@ -94,8 +93,8 @@ func toIPNet(sa syscall.Sockaddr, msa syscall.Sockaddr) (net.IPNet, error) {
 
 // IPRoutes returns all kernel known routes.  If defaultOnly is set, only default routes
 // are returned.
-func (n *notifier) GetIPRoutes(defaultOnly bool) []*netconfig.IPRoute {
-	var x []*netconfig.IPRoute
+func (n *Notifier) GetIPRoutes(defaultOnly bool) []*IPRoute {
+	var x []*IPRoute
 	rib, err := syscall.RouteRIB(syscall.NET_RT_DUMP, 0)
 	if err != nil {
 		vlog.Infof("Couldn't read: %s", err)
@@ -116,7 +115,7 @@ func (n *notifier) GetIPRoutes(defaultOnly bool) []*netconfig.IPRoute {
 			if addrs[0] == nil || addrs[1] == nil || addrs[2] == nil {
 				continue
 			}
-			r := new(netconfig.IPRoute)
+			r := new(IPRoute)
 			if r.Gateway, err = toIP(addrs[1]); err != nil {
 				continue
 			}
@@ -124,7 +123,7 @@ func (n *notifier) GetIPRoutes(defaultOnly bool) []*netconfig.IPRoute {
 				continue
 			}
 			r.IfcIndex = int(v.Header.Index)
-			if !defaultOnly || netconfig.IsDefaultIPRoute(r) {
+			if !defaultOnly || isDefaultIPRoute(r) {
 				x = append(x, r)
 			}
 		}
