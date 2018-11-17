@@ -30,7 +30,7 @@ func (n *Notifier) initLocked() error {
 	return nil
 }
 
-func (n *Notifier) GetIPRoutes(defaultOnly bool) []*IPRoute {
+func GetIPRoutes(defaultOnly bool) []*IPRoute {
 	// TODO(nlacasse,bprosnitz): Consider implementing? For now return
 	// empty array, since that seems to keep things working.
 	return nil

@@ -48,10 +48,7 @@ func NotifyChange() (<-chan struct{}, error) {
 // default routes are returned. If SetOSNotifier has not been called then
 // then an empty set of routes will be returned.
 func GetIPRoutes(defaultOnly bool) []*IPRoute {
-	if globalNotifier == nil {
-		panic("globalNotifier is not set")
-	}
-	ir := globalNotifier.GetIPRoutes(defaultOnly)
+	ir := internal.GetIPRoutes(defaultOnly)
 	r := make([]*IPRoute, len(ir))
 	for i, c := range ir {
 		n := new(IPRoute)

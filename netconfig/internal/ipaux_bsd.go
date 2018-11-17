@@ -93,7 +93,7 @@ func toIPNet(sa syscall.Sockaddr, msa syscall.Sockaddr) (net.IPNet, error) {
 
 // IPRoutes returns all kernel known routes.  If defaultOnly is set, only default routes
 // are returned.
-func (n *Notifier) GetIPRoutes(defaultOnly bool) []*IPRoute {
+func GetIPRoutes(defaultOnly bool) []*IPRoute {
 	var x []*IPRoute
 	rib, err := syscall.RouteRIB(syscall.NET_RT_DUMP, 0)
 	if err != nil {
