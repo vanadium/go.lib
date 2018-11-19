@@ -9,9 +9,11 @@ import (
 	"log"
 
 	"v.io/x/lib/netconfig"
+	"v.io/x/lib/netconfig/osnetconfig"
 )
 
 func ExampleNetConfigWatcher() {
+	netconfig.SetOSNotifier(osnetconfig.NewNotifier(0))
 	for {
 		ch, err := netconfig.NotifyChange()
 		if err != nil {

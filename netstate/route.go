@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"strings"
 
-	"v.io/x/lib/netconfig"
+	"v.io/x/lib/netconfig/route"
 )
 
 // IPRouteList is a slice of IPRoutes as returned by the netconfig package.
-type IPRouteList []*netconfig.IPRoute
+type IPRouteList []route.IPRoute
 
 func (rl IPRouteList) String() string {
 	r := ""
@@ -28,14 +28,14 @@ func (rl IPRouteList) String() string {
 
 // RoutePredicate defines the function signature for predicate functions
 // to be used with RouteList
-type RoutePredicate func(r *netconfig.IPRoute) bool
+type RoutePredicate func(r *route.IPRoute) bool
 
 // Filter returns all of the routes for which the predicate
 // function is true.
 func (rl IPRouteList) Filter(predicate RoutePredicate) IPRouteList {
 	r := IPRouteList{}
 	for _, rt := range rl {
-		if predicate(rt) {
+		if predicate(&rt) {
 			r = append(r, rt)
 		}
 	}
@@ -43,8 +43,8 @@ func (rl IPRouteList) Filter(predicate RoutePredicate) IPRouteList {
 }
 
 // IsDefaultRoute returns true if the supplied IPRoute is a default route.
-func IsDefaultRoute(r *netconfig.IPRoute) bool {
-	return netconfig.IsDefaultIPRoute(r)
+func IsDefaultRoute(r *route.IPRoute) bool {
+	return route.IsDefaultIPRoute(r)
 }
 
 // IsOnDefaultRoute returns true for addresses that are on an interface that
@@ -54,6 +54,7 @@ func IsOnDefaultRoute(a Address) bool {
 	if !ok || len(ipifc.IPRoutes()) == 0 {
 		return false
 	}
+
 	ipv4 := IsUnicastIPv4(a)
 	for _, r := range ipifc.IPRoutes() {
 		// Ignore entries with a nil gateway.
@@ -62,10 +63,10 @@ func IsOnDefaultRoute(a Address) bool {
 		}
 		// We have a default route, so we check the gateway to make sure
 		// it matches the format of the default route.
-		if ipv4 && netconfig.IsDefaultIPv4Route(r) && r.Gateway.To4() != nil {
+		if ipv4 && route.IsDefaultIPv4Route(&r) && r.Gateway.To4() != nil {
 			return true
 		}
-		if netconfig.IsDefaultIPv6Route(r) {
+		if route.IsDefaultIPv6Route(&r) {
 			return true
 		}
 	}

@@ -89,6 +89,7 @@ func (hp *netAddr) String() string {
 	return hp.addr
 }
 
+// NewNetAddr creates a net.Addr from the supplied network and protocol.
 func NewNetAddr(network, protocol string) net.Addr {
 	return &netAddr{network, protocol}
 }

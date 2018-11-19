@@ -5,10 +5,10 @@
 package netstate
 
 import (
-	"v.io/x/lib/netconfig"
-)
+	"net"
 
-import "net"
+	"v.io/x/lib/netconfig/route"
+)
 
 type ma struct {
 	n, a string
@@ -41,13 +41,28 @@ func NewAddr(n, a string) Address {
 	}
 }
 
-func NewInterface(name string, index int, addrs []net.Addr, routes []*netconfig.IPRoute) NetworkInterface {
+func NewInterface(name string, index int, addrs []net.Addr, routes []route.IPRoute) NetworkInterface {
 	return &ipifc{
 		name:     name,
 		index:    index,
 		addrs:    addrs,
 		ipRoutes: routes,
 	}
+}
+
+func AddRoute(ifc NetworkInterface, rt route.IPRoute) {
+	ii := ifc.(*ipifc)
+	ii.ipRoutes = append(ii.ipRoutes, rt)
+}
+
+func RemoveLastRoute(ifc NetworkInterface) {
+	ii := ifc.(*ipifc)
+	ii.ipRoutes = ii.ipRoutes[:len(ii.ipRoutes)-1]
+}
+
+func SetRoutes(ifc NetworkInterface, rt ...route.IPRoute) {
+	ii := ifc.(*ipifc)
+	ii.ipRoutes = rt
 }
 
 func CreateAndUseMockCache(ifcs []NetworkInterface, routetable RouteTable) func() {

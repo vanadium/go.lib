@@ -1,4 +1,12 @@
-package internal
+// Copyright 2015 The Vanadium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+// Package osnetconfig provides OS specific routines for detecting network
+// changes and reading the route table; it uses cgo to to do so. Unfortunately
+// some applications prefer to avoid the use of cgo entirely and this leads to
+// a convoluted
+package osnetconfig
 
 // Force this file to compile as cgo, to work around bazel/rules_go
 // limitations. See also https://github.com/bazelbuild/rules_go/issues/255
@@ -36,12 +44,14 @@ type Notifier struct {
 	ch    chan struct{}
 	timer *time.Timer
 	delay time.Duration
+	stop  bool
 
 	initErr error
 	inited  bool
 }
 
-func (n *Notifier) Add() (<-chan struct{}, error) {
+// NotifyChange implements netconfig.Notifier.
+func (n *Notifier) NotifyChange() (<-chan struct{}, error) {
 	n.Lock()
 	defer n.Unlock()
 	if !n.inited {
@@ -55,16 +65,33 @@ func (n *Notifier) Add() (<-chan struct{}, error) {
 	return n.ch, nil
 }
 
-func (n *Notifier) ding() {
+// Shutdown implements netconfig.Notifier.
+func (n *Notifier) Shutdown() {
+	n.Lock()
+	defer n.Unlock()
+
+	n.stop = true
+	if n.ch != nil {
+		close(n.ch)
+	}
+}
+
+// ding returns true when the nofitifer is being shutdown.
+func (n *Notifier) ding() bool {
 	// Changing networks usually spans many seconds and involves
 	// multiple network config changes.  We add histeresis by
 	// setting an alarm when the first change is detected and
 	// not informing the client till the alarm goes off.
 	n.Lock()
+	defer n.Unlock()
+	if n.stop {
+		close(n.ch)
+		return true
+	}
 	if n.timer == nil {
 		n.timer = time.AfterFunc(n.delay, n.resetChan)
 	}
-	n.Unlock()
+	return false
 }
 
 func (n *Notifier) resetChan() {
@@ -73,20 +100,4 @@ func (n *Notifier) resetChan() {
 	n.ch = make(chan struct{})
 	n.timer = nil
 	n.Unlock()
-}
-
-func isZeroSlice(a []byte) bool {
-	for _, i := range a {
-		if i != 0 {
-			return false
-		}
-	}
-	return true
-}
-
-func isDefaultIPRoute(r *IPRoute) bool {
-	if !r.Net.IP.Equal(net.IPv4zero) && !r.Net.IP.Equal(net.IPv6zero) {
-		return false
-	}
-	return isZeroSlice(r.Net.Mask[:])
 }

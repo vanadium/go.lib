@@ -4,7 +4,7 @@
 
 // +build linux
 
-package internal
+package osnetconfig
 
 // We connect to the Netlink Route socket and parse messages to
 // look for network configuration changes.  This is very Linux
@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"v.io/x/lib/netconfig/route"
 	"v.io/x/lib/vlog"
 )
 
@@ -309,7 +310,9 @@ func watcher(n *Notifier, sock int) {
 			} else {
 				continue
 			}
-			n.ding()
+			if n.ding() {
+				return
+			}
 		}
 	}
 }
@@ -324,10 +327,11 @@ func toIP(a []byte) (net.IP, error) {
 	return net.IPv6unspecified, errors.New("unknown ip address len")
 }
 
-// IPRoutes returns all kernel known routes.  If defaultOnly is set, only default routes
-// are returned.
-func GetIPRoutes(defaultOnly bool) []*IPRoute {
-	var iproutes []*IPRoute
+func (n *Notifier) shutdown() {}
+
+// GetIPRoutes implements netconfig.Notifier.
+func (n *Notifier) GetIPRoutes(defaultOnly bool) []route.IPRoute {
+	var iproutes []route.IPRoute
 	rib, err := syscall.NetlinkRIB(syscall.RTM_GETROUTE, syscall.AF_UNSPEC)
 	if err != nil {
 		vlog.Infof("Couldn't read: %s", err)
@@ -347,7 +351,7 @@ L:
 		if err != nil {
 			continue
 		}
-		r := new(IPRoute)
+		r := route.IPRoute{}
 		for _, a := range attrs {
 			switch a.Attr.Type {
 			case syscall.RTA_DST:
@@ -391,7 +395,7 @@ L:
 			continue
 		}
 		r.Net.Mask = net.CIDRMask(int(a.Dst_len), addrLen)
-		if !defaultOnly || isDefaultIPRoute(r) {
+		if !defaultOnly || route.IsDefaultIPRoute(&r) {
 			iproutes = append(iproutes, r)
 		}
 	}

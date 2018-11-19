@@ -14,7 +14,8 @@ var privateCIDRs = []net.IPNet{
 	net.IPNet{IP: net.IPv4(192, 168, 0, 0), Mask: net.IPv4Mask(0xff, 0xff, 0, 0)},
 }
 
-// IsGloballyRoutable returns true if the argument is a globally routable IP address.
+// IsGloballyRoutableIP returns true if the argument is a globally
+// routable IP address.
 func IsGloballyRoutableIP(ip net.IP) bool {
 	if !ip.IsGlobalUnicast() {
 		return false
