@@ -10,6 +10,8 @@ import (
 )
 
 var (
+	// ErrNotAnIPProtocol is returned when the requested protocol is not from
+	// theIP family.
 	ErrNotAnIPProtocol = errors.New("requested protocol is not from the IP family")
 )
 
@@ -23,6 +25,7 @@ type AddressChooser interface {
 // a function literal implementation of AddressChooser.
 type AddressChooserFunc func(protocol string, candidates []net.Addr) ([]net.Addr, error)
 
+// ChooseAddresses applies AddressChooserFunc.
 func (f AddressChooserFunc) ChooseAddresses(protocol string, candidates []net.Addr) ([]net.Addr, error) {
 	return f(protocol, candidates)
 }
@@ -83,11 +86,11 @@ func PossibleAddresses(protocol, addr string, chooser AddressChooser) ([]net.Add
 	}
 	if len(chosen) == 0 {
 		netaddr := NewNetAddr(protocol, addr)
-		if address, err := AddressFromAddr(netaddr); err != nil {
+		address, err := AddressFromAddr(netaddr)
+		if err != nil {
 			return []net.Addr{netaddr}, unspecified, nil
-		} else {
-			return []net.Addr{address}, unspecified, nil
 		}
+		return []net.Addr{address}, unspecified, nil
 	}
 	if len(port) > 0 {
 		addPort := func(a Address) Address {

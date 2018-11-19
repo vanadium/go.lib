@@ -5,7 +5,7 @@
 // +build !linux,!darwin,!dragonfly,!freebsd,!netbsd,!openbsd
 // TODO(bprosnitz) Should change for nacl?
 
-package internal
+package osnetconfig
 
 // Force this file to compile as cgo, to work around bazel/rules_go
 // limitations. See also https://github.com/bazelbuild/rules_go/issues/255
@@ -18,6 +18,8 @@ import "C"
 
 import (
 	"time"
+
+	"v.io/x/lib/netconfig/route"
 )
 
 func (n *Notifier) initLocked() error {
@@ -30,7 +32,8 @@ func (n *Notifier) initLocked() error {
 	return nil
 }
 
-func GetIPRoutes(defaultOnly bool) []*IPRoute {
+// GetIPRoutes implements netconfig.Notifier.
+func (n *Notifier) GetIPRoutes(defaultOnly bool) []route.IPRoute {
 	// TODO(nlacasse,bprosnitz): Consider implementing? For now return
 	// empty array, since that seems to keep things working.
 	return nil

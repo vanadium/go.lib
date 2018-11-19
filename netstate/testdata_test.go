@@ -7,7 +7,7 @@ package netstate_test
 import (
 	"net"
 
-	"v.io/x/lib/netconfig"
+	"v.io/x/lib/netconfig/route"
 	"v.io/x/lib/netstate"
 )
 
@@ -39,53 +39,53 @@ func mockInterfacesAndRouteTable() ([]net.IP, []netstate.NetworkInterface, netst
 	lb_ip, lb_net, _ := net.ParseCIDR(lb_a)
 
 	_, defaultDest, _ := net.ParseCIDR("0.0.0.0/0")
-	def := netconfig.IPRoute{
+	def := route.IPRoute{
 		Net:             *defaultDest,
 		Gateway:         def_gw0,
 		PreferredSource: def_gw1,
 		IfcIndex:        3,
 	}
-	rt1 := []*netconfig.IPRoute{{
+	rt1 := []route.IPRoute{{
 		Net:             *net1,
 		Gateway:         net1_gw,
 		PreferredSource: nil,
 		IfcIndex:        1,
 	}}
-	rt2 := []*netconfig.IPRoute{{
+	rt2 := []route.IPRoute{{
 		Net:             *net2,
 		Gateway:         net2_gw,
 		PreferredSource: nil,
 		IfcIndex:        2,
 	}}
-	rt3 := []*netconfig.IPRoute{{
+	rt3 := []route.IPRoute{{
 		Net:             *net3,
 		Gateway:         net3_gw,
 		PreferredSource: nil,
 		IfcIndex:        3,
-	}, &def}
+	}, def}
 	// Nets 4 and 5 are on the same interface
-	rt4_0 := &netconfig.IPRoute{
+	rt4_0 := route.IPRoute{
 		Net:             *net4,
 		Gateway:         net4_gw,
 		PreferredSource: nil,
 		IfcIndex:        6,
 	}
-	rt4_1 := &netconfig.IPRoute{
+	rt4_1 := route.IPRoute{
 		Net:             *net5,
 		Gateway:         net5_gw,
 		PreferredSource: nil,
 		IfcIndex:        6,
 	}
-	rt4 := []*netconfig.IPRoute{rt4_0, rt4_1}
-	lb := []*netconfig.IPRoute{{
+	rt4 := []route.IPRoute{rt4_0, rt4_1}
+	lb := []route.IPRoute{{
 		Net:             *lb_net,
 		Gateway:         lb_ip,
 		PreferredSource: nil,
 		IfcIndex:        7,
-	}, &def}
+	}, def}
 
 	rt := make(netstate.RouteTable)
-	for _, r := range [][]*netconfig.IPRoute{rt1, rt2, rt3, rt4} {
+	for _, r := range [][]route.IPRoute{rt1, rt2, rt3, rt4} {
 		rt[r[0].IfcIndex] = r
 	}
 
@@ -99,7 +99,7 @@ func mockInterfacesAndRouteTable() ([]net.IP, []netstate.NetworkInterface, netst
 		name   string
 		index  int
 		addrs  []net.Addr
-		routes []*netconfig.IPRoute
+		routes []route.IPRoute
 	}{
 		{"eth0", 1, []net.Addr{ipa("ip", net1_a0), ipa("ip6", net1_a1)}, rt1},
 		{"eth1", 2, []net.Addr{ipa("ip", net2_a)}, rt2},

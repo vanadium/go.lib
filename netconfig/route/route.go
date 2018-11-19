@@ -1,14 +1,18 @@
-// Copyright 2015 The Vanadium Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
-// package netconfig implements a network configuration watcher.
-// NOTE(p): This is also where we should put any code that changes
-//          network configuration.
-
-package netconfig
+// Package route defines the types of the values returned by
+// netconfig.GetIPRoutes. It's kept in a separate package to avoid dependency
+// cycles.
+package route
 
 import "net"
+
+// IPRoute represents a route in the kernel's routing table.
+// Any route with a nil Gateway is a directly connected network.
+type IPRoute struct {
+	Net             net.IPNet
+	Gateway         net.IP
+	PreferredSource net.IP
+	IfcIndex        int
+}
 
 func isZeroSlice(a []byte) bool {
 	for _, i := range a {
