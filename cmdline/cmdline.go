@@ -51,6 +51,7 @@ import (
 	"strings"
 	"syscall"
 
+	"v.io/x/lib/cmd/flagvar"
 	"v.io/x/lib/envvar"
 	_ "v.io/x/lib/metadata" // for the -metadata flag
 	"v.io/x/lib/timing"
@@ -76,7 +77,7 @@ type Command struct {
 	Flags flag.FlagSet
 	// FlagsDefs represents flags that are to be associated with this
 	// command. The flags variables are defined as tagged (`cmdline:""`)
-	// fields in a struct as per RegisterFlagsInStruct.
+	// fields in a struct as per the v.io/x/lib/cmd/flagvar package.
 	FlagDefs FlagDefinitions
 	// ParsedFlags contains the FlagSet created by the Command
 	// implementation and that has had its Parse method called. It
@@ -430,7 +431,7 @@ func (cmd *Command) parse(path []*Command, env *Env, args []string, setFlags map
 
 func (cmd *Command) registerFlagDefs() error {
 	if fs := cmd.FlagDefs.StructWithFlags; fs != nil {
-		err := RegisterFlagsInStruct(&cmd.Flags, "cmdline", fs, cmd.FlagDefs.ValueDefaults, cmd.FlagDefs.UsageDefaults)
+		err := flagvar.RegisterFlagsInStruct(&cmd.Flags, "cmdline", fs, cmd.FlagDefs.ValueDefaults, cmd.FlagDefs.UsageDefaults)
 		if err != nil {
 			return fmt.Errorf("command: %v: %v", cmd.Name, err)
 		}

@@ -1,4 +1,4 @@
-package cmdline_test
+package flagvar_test
 
 import (
 	"flag"
@@ -12,19 +12,19 @@ import (
 	"testing"
 	"time"
 
-	"v.io/x/lib/cmdline"
+	"v.io/x/lib/cmd/flagvar"
 )
 
 func ExampleRegisterFlagsInStruct() {
 	eg := struct {
-		A int    `cmdline:"int-flag::-1,intVar flag"`
-		B string `cmdline:"string-flag::'some,value,with,a,comma',stringVar flag"`
+		A int    `flag:"int-flag::-1,intVar flag"`
+		B string `flag:"string-flag::'some,value,with,a,comma',stringVar flag"`
 		O int
 	}{
 		O: 23,
 	}
 	flagSet := &flag.FlagSet{}
-	err := cmdline.RegisterFlagsInStruct(flagSet, "cmdline", &eg, nil, nil)
+	err := flagvar.RegisterFlagsInStruct(flagSet, "flag", &eg, nil, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -52,7 +52,7 @@ func (mf *myFlagVar) String() string {
 	return fmt.Sprintf("%v", *mf)
 }
 
-func TestReflectTags(t *testing.T) {
+func TestTags(t *testing.T) {
 	for _, tc := range []struct {
 		tag              string
 		name, val, usage string
@@ -71,7 +71,7 @@ func TestReflectTags(t *testing.T) {
 		{"n::'xx,yy',aa,bb", "n", "xx,yy", "aa,bb", ""},
 		{"n::xx,yy,zz", "n", "xx", "yy,zz", ""},
 	} {
-		n, v, d, err := cmdline.ParseFlagTag(tc.tag)
+		n, v, d, err := flagvar.ParseFlagTag(tc.tag)
 		if err != nil {
 			if got, want := err.Error(), tc.err; got != want {
 				t.Errorf("tag %v: got %v, want %v", tc.tag, got, want)
@@ -92,7 +92,7 @@ func TestReflectTags(t *testing.T) {
 
 type dummy struct{}
 
-func TestReflect(t *testing.T) {
+func TestRegister(t *testing.T) {
 	assert := func(got, want interface{}) {
 		_, file, line, _ := runtime.Caller(1)
 		if !reflect.DeepEqual(got, want) {
@@ -148,7 +148,7 @@ func TestReflect(t *testing.T) {
 	sort.Strings(expectedUsage)
 
 	fs := &flag.FlagSet{}
-	err := cmdline.RegisterFlagsInStruct(fs, "cmdline", &s0, nil, nil)
+	err := flagvar.RegisterFlagsInStruct(fs, "cmdline", &s0, nil, nil)
 	if err != nil {
 		t.Errorf("%v", err)
 	}
@@ -213,7 +213,7 @@ func TestReflect(t *testing.T) {
 	sort.Strings(expectedUsage)
 
 	fs = &flag.FlagSet{}
-	err = cmdline.RegisterFlagsInStruct(fs, "cmdline", &s1, nil, usageDefaults)
+	err = flagvar.RegisterFlagsInStruct(fs, "cmdline", &s1, nil, usageDefaults)
 	if err != nil {
 		t.Errorf("%v", err)
 	}
@@ -235,7 +235,7 @@ func TestReflect(t *testing.T) {
 	assert(s1.X, myFlagVar(33))
 
 	fs = &flag.FlagSet{}
-	err = cmdline.RegisterFlagsInStruct(fs, "cmdline", &s1, values, usageDefaults)
+	err = flagvar.RegisterFlagsInStruct(fs, "cmdline", &s1, values, usageDefaults)
 	if err != nil {
 		t.Errorf("%v", err)
 	}
@@ -284,7 +284,7 @@ func TestReflect(t *testing.T) {
 
 }
 
-func TestReflectErrors(t *testing.T) {
+func TestErrors(t *testing.T) {
 
 	expected := func(err error, msg string) {
 		_, file, line, _ := runtime.Caller(1)
@@ -298,86 +298,41 @@ func TestReflectErrors(t *testing.T) {
 	}
 
 	fs := &flag.FlagSet{}
-	err := cmdline.RegisterFlagsInStruct(fs, "cmdline", 23, nil, nil)
+	err := flagvar.RegisterFlagsInStruct(fs, "cmdline", 23, nil, nil)
 	expected(err, "int is not addressable")
 	dummy := 0
-	err = cmdline.RegisterFlagsInStruct(fs, "cmdline", &dummy, nil, nil)
+	err = flagvar.RegisterFlagsInStruct(fs, "cmdline", &dummy, nil, nil)
 	expected(err, "*int is not a pointer to a struct")
 	t1 := struct {
 		A int `cmdline:"xxx"`
 	}{}
-	err = cmdline.RegisterFlagsInStruct(fs, "cmdline", &t1, nil, nil)
+	err = flagvar.RegisterFlagsInStruct(fs, "cmdline", &t1, nil, nil)
 	expected(err, "field A: failed to parse tag: xxx")
 
 	t2 := struct {
 		A interface{} `cmdline:"xx::,usage"`
 	}{}
-	err = cmdline.RegisterFlagsInStruct(fs, "cmdline", &t2, nil, nil)
+	err = flagvar.RegisterFlagsInStruct(fs, "cmdline", &t2, nil, nil)
 	expected(err, "field: A of type interface {} for flag xx: does not implement flag.Value")
 
 	t3 := struct {
 		A myFlagVar `cmdline:"zzz::bad-number,usage"`
 	}{}
-	err = cmdline.RegisterFlagsInStruct(fs, "cmdline", &t3, nil, nil)
-	expected(err, `field: A of type cmdline_test.myFlagVar for flag zzz: failed to set initial default value for flag.Value: strconv.ParseInt: parsing "bad-number": invalid syntax`)
+	err = flagvar.RegisterFlagsInStruct(fs, "cmdline", &t3, nil, nil)
+	expected(err, `field: A of type flagvar_test.myFlagVar for flag zzz: failed to set initial default value for flag.Value: strconv.ParseInt: parsing "bad-number": invalid syntax`)
 
 	t4 := struct {
 		A int `cmdline:"zzz::bad-number,usage"`
 	}{}
-	err = cmdline.RegisterFlagsInStruct(fs, "cmdline", &t4, nil, nil)
+	err = flagvar.RegisterFlagsInStruct(fs, "cmdline", &t4, nil, nil)
 	expected(err, `field: A of type int for flag zzz: failed to set initial default value: strconv.ParseInt: parsing "bad-number": invalid syntax`)
 
 	t5 := struct {
 		A int `cmdline:"xxx::,zz"`
 	}{}
-	err = cmdline.RegisterFlagsInStruct(fs, "cmdline", &t5, nil, map[string]string{"xx": "yy"})
+	err = flagvar.RegisterFlagsInStruct(fs, "cmdline", &t5, nil, map[string]string{"xx": "yy"})
 	fs = &flag.FlagSet{}
 	expected(err, "flag xx does not exist but specified as a usage default")
-	err = cmdline.RegisterFlagsInStruct(fs, "cmdline", &t5, map[string]interface{}{"xx": "yy"}, nil)
+	err = flagvar.RegisterFlagsInStruct(fs, "cmdline", &t5, map[string]interface{}{"xx": "yy"}, nil)
 	expected(err, "flag xx does not exist but specified as a value default")
-}
-
-type runner struct{}
-
-func (r *runner) Run(env *cmdline.Env, args []string) error {
-	return nil
-}
-func TestReflectIntegration(t *testing.T) {
-	s1 := struct {
-		A int `cmdline:"int-var::32,some-arg"`
-	}{}
-	cmd := &cmdline.Command{
-		Name:     "test",
-		FlagDefs: cmdline.FlagDefinitions{StructWithFlags: &s1},
-		Runner:   &runner{},
-	}
-	_, _, err := cmdline.Parse(cmd, cmdline.EnvFromOS(), []string{"--int-var=33"})
-	if err != nil {
-		t.Errorf("%v", err)
-	}
-	if got, want := s1.A, 33; got != want {
-		t.Errorf("got %v, want %v", got, want)
-	}
-
-	cmd = &cmdline.Command{
-		Name:     "test",
-		FlagDefs: cmdline.FlagDefinitions{StructWithFlags: &s1},
-	}
-	cmd.Children = append(cmd.Children, &cmdline.Command{
-		Name:     "child1",
-		FlagDefs: cmdline.FlagDefinitions{StructWithFlags: &s1},
-		Runner:   &runner{},
-	})
-
-	_, _, err = cmdline.Parse(cmd, cmdline.EnvFromOS(), []string{
-		"child1",
-		"--int-var=44",
-	})
-	if err != nil {
-		t.Errorf("%v", err)
-	}
-	if got, want := s1.A, 44; got != want {
-		t.Errorf("got %v, want %v", got, want)
-	}
-
 }

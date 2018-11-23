@@ -1,4 +1,9 @@
-package cmdline
+// Package flagvar provides support for managing flag variables by embedding
+// them in structs. A field in a struc can annotated with a tag that is
+// used to identify it as a variable to be registered with a flag that
+// contains the name of the flag, an initial literal default value and the
+// usage message.
+package flagvar
 
 import (
 	"flag"
