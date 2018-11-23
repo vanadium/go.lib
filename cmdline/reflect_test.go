@@ -24,7 +24,7 @@ func ExampleRegisterFlagsInStruct() {
 		O: 23,
 	}
 	flagSet := &flag.FlagSet{}
-	err := cmdline.RegisterFlagsInStruct(flagSet, &eg, nil, nil)
+	err := cmdline.RegisterFlagsInStruct(flagSet, "cmdline", &eg, nil, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -148,7 +148,7 @@ func TestReflect(t *testing.T) {
 	sort.Strings(expectedUsage)
 
 	fs := &flag.FlagSet{}
-	err := cmdline.RegisterFlagsInStruct(fs, &s0, nil, nil)
+	err := cmdline.RegisterFlagsInStruct(fs, "cmdline", &s0, nil, nil)
 	if err != nil {
 		t.Errorf("%v", err)
 	}
@@ -213,7 +213,7 @@ func TestReflect(t *testing.T) {
 	sort.Strings(expectedUsage)
 
 	fs = &flag.FlagSet{}
-	err = cmdline.RegisterFlagsInStruct(fs, &s1, nil, usageDefaults)
+	err = cmdline.RegisterFlagsInStruct(fs, "cmdline", &s1, nil, usageDefaults)
 	if err != nil {
 		t.Errorf("%v", err)
 	}
@@ -235,7 +235,7 @@ func TestReflect(t *testing.T) {
 	assert(s1.X, myFlagVar(33))
 
 	fs = &flag.FlagSet{}
-	err = cmdline.RegisterFlagsInStruct(fs, &s1, values, usageDefaults)
+	err = cmdline.RegisterFlagsInStruct(fs, "cmdline", &s1, values, usageDefaults)
 	if err != nil {
 		t.Errorf("%v", err)
 	}
@@ -298,41 +298,41 @@ func TestReflectErrors(t *testing.T) {
 	}
 
 	fs := &flag.FlagSet{}
-	err := cmdline.RegisterFlagsInStruct(fs, 23, nil, nil)
+	err := cmdline.RegisterFlagsInStruct(fs, "cmdline", 23, nil, nil)
 	expected(err, "int is not addressable")
 	dummy := 0
-	err = cmdline.RegisterFlagsInStruct(fs, &dummy, nil, nil)
+	err = cmdline.RegisterFlagsInStruct(fs, "cmdline", &dummy, nil, nil)
 	expected(err, "*int is not a pointer to a struct")
 	t1 := struct {
 		A int `cmdline:"xxx"`
 	}{}
-	err = cmdline.RegisterFlagsInStruct(fs, &t1, nil, nil)
+	err = cmdline.RegisterFlagsInStruct(fs, "cmdline", &t1, nil, nil)
 	expected(err, "field A: failed to parse tag: xxx")
 
 	t2 := struct {
 		A interface{} `cmdline:"xx::,usage"`
 	}{}
-	err = cmdline.RegisterFlagsInStruct(fs, &t2, nil, nil)
+	err = cmdline.RegisterFlagsInStruct(fs, "cmdline", &t2, nil, nil)
 	expected(err, "field: A of type interface {} for flag xx: does not implement flag.Value")
 
 	t3 := struct {
 		A myFlagVar `cmdline:"zzz::bad-number,usage"`
 	}{}
-	err = cmdline.RegisterFlagsInStruct(fs, &t3, nil, nil)
+	err = cmdline.RegisterFlagsInStruct(fs, "cmdline", &t3, nil, nil)
 	expected(err, `field: A of type cmdline_test.myFlagVar for flag zzz: failed to set initial default value for flag.Value: strconv.ParseInt: parsing "bad-number": invalid syntax`)
 
 	t4 := struct {
 		A int `cmdline:"zzz::bad-number,usage"`
 	}{}
-	err = cmdline.RegisterFlagsInStruct(fs, &t4, nil, nil)
+	err = cmdline.RegisterFlagsInStruct(fs, "cmdline", &t4, nil, nil)
 	expected(err, `field: A of type int for flag zzz: failed to set initial default value: strconv.ParseInt: parsing "bad-number": invalid syntax`)
 
 	t5 := struct {
 		A int `cmdline:"xxx::,zz"`
 	}{}
-	err = cmdline.RegisterFlagsInStruct(fs, &t5, nil, map[string]string{"xx": "yy"})
+	err = cmdline.RegisterFlagsInStruct(fs, "cmdline", &t5, nil, map[string]string{"xx": "yy"})
 	fs = &flag.FlagSet{}
 	expected(err, "flag xx does not exist but specified as a usage default")
-	err = cmdline.RegisterFlagsInStruct(fs, &t5, map[string]interface{}{"xx": "yy"}, nil)
+	err = cmdline.RegisterFlagsInStruct(fs, "cmdline", &t5, map[string]interface{}{"xx": "yy"}, nil)
 	expected(err, "flag xx does not exist but specified as a value default")
 }

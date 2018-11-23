@@ -138,7 +138,7 @@ func literalDefault(typeName, literal string, initialValue interface{}) (value i
 // statement. For example --home-dir which should default to /home/user but the
 // usage message would more usefully say --home-dir=$HOME.
 // Both maps are keyed by the name of the flag, not the field.
-func RegisterFlagsInStruct(fs *flag.FlagSet, structWithFlags interface{}, valueDefaults map[string]interface{}, usageDefaults map[string]string) error {
+func RegisterFlagsInStruct(fs *flag.FlagSet, tag string, structWithFlags interface{}, valueDefaults map[string]interface{}, usageDefaults map[string]string) error {
 	typ := reflect.TypeOf(structWithFlags)
 	val := reflect.ValueOf(structWithFlags)
 	if typ.Kind() == reflect.Ptr {
@@ -155,7 +155,7 @@ func RegisterFlagsInStruct(fs *flag.FlagSet, structWithFlags interface{}, valueD
 
 	for i := 0; i < typ.NumField(); i++ {
 		fieldType := typ.Field(i)
-		tags, ok := fieldType.Tag.Lookup("cmdline")
+		tags, ok := fieldType.Tag.Lookup(tag)
 		if !ok {
 			continue
 		}
