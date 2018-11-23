@@ -74,6 +74,10 @@ type Command struct {
 	// methods on FlagSet that are generally used after parsing cannot be
 	// used on Flags. ParsedFlags should be used instead.
 	Flags flag.FlagSet
+	// FlagsDefs represents flags that are to be associated with this
+	// command. The flags variables are defined as tagged (`cmdline:""`)
+	// fields in a struct as per RegisterFlagsInStruct.
+	FlagDefs FlagDefinitions
 	// ParsedFlags contains the FlagSet created by the Command
 	// implementation and that has had its Parse method called. It
 	// should be used instead of the Flags field for handling methods
@@ -112,6 +116,14 @@ type Command struct {
 
 	// Topics that provide additional info via the default help command.
 	Topics []Topic
+}
+
+// FlagDefinitions represents a struct containing flag variables and their
+// associated default values as per RegisterFlagsInStruct.
+type FlagDefinitions struct {
+	StructWithFlags interface{}
+	ValueDefaults   map[string]interface{}
+	UsageDefaults   map[string]string
 }
 
 // Runner is the interface for running commands.  Return ErrExitCode to indicate
@@ -203,6 +215,9 @@ var flagTime = flag.Bool("time", false, "Dump timing information to stderr befor
 // that subsequent calls to flag.Parsed return true.
 func Parse(root *Command, env *Env, args []string) (Runner, []string, error) {
 	env.TimerPush("cmdline parse")
+	if err := root.registerFlagDefs(); err != nil {
+		return nil, nil, err
+	}
 	defer env.TimerPop()
 	if globalFlags == nil {
 		// Initialize our global flags to a cleaned copy.  We don't want the merging
@@ -411,6 +426,21 @@ func (cmd *Command) parse(path []*Command, env *Env, args []string, setFlags map
 	// cmd.Runner != nil && len(args) > 0 &&
 	// cmd.ArgsName != "" && args != []string{"help", "..."}
 	return cmd.Runner, args, nil
+}
+
+func (cmd *Command) registerFlagDefs() error {
+	if fs := cmd.FlagDefs.StructWithFlags; fs != nil {
+		err := RegisterFlagsInStruct(&cmd.Flags, "cmdline", fs, cmd.FlagDefs.ValueDefaults, cmd.FlagDefs.UsageDefaults)
+		if err != nil {
+			return fmt.Errorf("command: %v: %v", cmd.Name, err)
+		}
+	}
+	for _, child := range cmd.Children {
+		if err := child.registerFlagDefs(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // parseFlags parses the flags from args for the command with the given path and
