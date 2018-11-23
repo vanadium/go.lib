@@ -325,8 +325,8 @@ Saw %q multiple times.`, cmdPath, name)
 
 At least one of Children or Runner must be specified.`, cmdPath)
 	case hasC && hasR && (cmd.ArgsName != "" || cmd.ArgsLong != ""):
-
 		return fmt.Errorf(`%v: CODE INVARIANT BROKEN; FIX YOUR CODE
+
 Since both Children and Runner are specified, the Runner cannot take args.
 Otherwise a conflict between child names and runner args is possible.`, cmdPath)
 	}
