@@ -230,7 +230,7 @@ func Parse(root *Command, env *Env, args []string) (Runner, []string, error) {
 	case helpRunner, binaryRunner:
 		// The help and binary runners need the envvars to be set.
 	default:
-		for key, _ := range env.Vars {
+		for key := range env.Vars {
 			if strings.HasPrefix(key, "CMDLINE_") {
 				delete(env.Vars, key)
 				if err := os.Unsetenv(key); err != nil {
@@ -325,8 +325,8 @@ Saw %q multiple times.`, cmdPath, name)
 
 At least one of Children or Runner must be specified.`, cmdPath)
 	case hasC && hasR && (cmd.ArgsName != "" || cmd.ArgsLong != ""):
-		return fmt.Errorf(`%v: CODE INVARIANT BROKEN; FIX YOUR CODE
 
+		return fmt.Errorf(`%v: CODE INVARIANT BROKEN; FIX YOUR CODE
 Since both Children and Runner are specified, the Runner cannot take args.
 Otherwise a conflict between child names and runner args is possible.`, cmdPath)
 	}
