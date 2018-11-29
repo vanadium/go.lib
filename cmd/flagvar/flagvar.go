@@ -3,10 +3,12 @@
 // license that can be found in the LICENSE file.
 
 // Package flagvar provides support for managing flag variables by embedding
-// them in structs. A field in a struc can annotated with a tag that is
+// them in structs. A field in a struct can be annotated with a tag that is
 // used to identify it as a variable to be registered with a flag that
-// contains the name of the flag, an initial literal default value and the
-// usage message.
+// contains the name of the flag, an initial default value and the usage message.
+// This makes it convenient to colocate flags with related data structures and
+// to avoid large numbers of global variables as are often encountered with
+// complex, multi-level command structures.
 package flagvar
 
 import (
@@ -41,11 +43,10 @@ func parseField(t, field string, allowEmpty, expectMore bool) (value, remaining 
 				remaining = remaining[1:]
 			}
 			return
-		} else {
-			if len(remaining) > 0 {
-				err = fmt.Errorf("spurious text after %v", field)
-				return
-			}
+		}
+		if len(remaining) > 0 {
+			err = fmt.Errorf("spurious text after %v", field)
+			return
 		}
 	}()
 	// Read quoted or unquoted field up to the next , or end of string,
@@ -81,12 +82,12 @@ func parseField(t, field string, allowEmpty, expectMore bool) (value, remaining 
 //
 // The tag format is:
 //
-// <name>,<literal-default-value>,<usage>
+// <name>,<default-value>,<usage>
 //
 // where <name> is the name of the flag, <default-value> is an optional
 // literal default value for the flag and <usage> the detailed
 // description for the flag.
-// <literal-default-value> may be left empty, but <name> and <usage> must
+// <default-value> may be left empty, but <name> and <usage> must
 // be supplied. All fields can be quoted if they need to contain a comma.
 func ParseFlagTag(t string) (name, value, usage string, err error) {
 	if len(t) == 0 {
@@ -97,7 +98,7 @@ func ParseFlagTag(t string) (name, value, usage string, err error) {
 	if err != nil {
 		return
 	}
-	value, remaining, err = parseField(remaining, "<literal-default-value>", true, true)
+	value, remaining, err = parseField(remaining, "<default-value>", true, true)
 	if err != nil {
 		return
 	}
@@ -105,6 +106,7 @@ func ParseFlagTag(t string) (name, value, usage string, err error) {
 	if err != nil {
 		return
 	}
+
 	return
 }
 
@@ -174,6 +176,22 @@ func literalDefault(typeName, literal string, initialValue interface{}) (value i
 // statement. For example --home-dir which should default to /home/user but the
 // usage message would more usefully say --home-dir=$HOME.
 // Both maps are keyed by the name of the flag, not the field.
+//
+// Embedded (anonymous) structs may be used provided that they are not themselves
+// tagged. For example:
+//
+// type CommonFlags struct {
+//   A int `cmdline:"a,,use a"`
+//   B int `cmdline:"b,,use b"`
+// }
+//
+// flagSet := struct{
+//   CommonFlags
+//   C bool `cmdline:"c,,use c"`
+// }
+//
+// will result in three flags, --a, --b and --c.
+// Note that embedding as a pointer is not supported.
 func RegisterFlagsInStruct(fs *flag.FlagSet, tag string, structWithFlags interface{}, valueDefaults map[string]interface{}, usageDefaults map[string]string) error {
 	typ := reflect.TypeOf(structWithFlags)
 	val := reflect.ValueOf(structWithFlags)
@@ -193,18 +211,32 @@ func RegisterFlagsInStruct(fs *flag.FlagSet, tag string, structWithFlags interfa
 		fieldType := typ.Field(i)
 		tags, ok := fieldType.Tag.Lookup(tag)
 		if !ok {
+			if fieldType.Type.Kind() == reflect.Struct && fieldType.Anonymous {
+				addr := val.Field(i).Addr()
+				if err := RegisterFlagsInStruct(fs, tag, addr.Interface(), valueDefaults, usageDefaults); err != nil {
+					return err
+				}
+			}
 			continue
 		}
+
 		name, value, description, err := ParseFlagTag(tags)
 		if err != nil {
 			return fmt.Errorf("field %v: failed to parse tag: %v", fieldType.Name, tags)
 		}
+
+		if fs.Lookup(name) != nil {
+			return fmt.Errorf("flag %v already defined for this flag.FlagSet", name)
+		}
 		fieldValue := val.Field(i)
 		fieldName := fieldType.Name
 		fieldTypeName := fieldType.Type.String()
-
 		errPrefix := func() string {
 			return fmt.Sprintf("field: %v of type %v for flag %v", fieldName, fieldTypeName, name)
+		}
+
+		if fieldType.Type.Kind() == reflect.Ptr {
+			return fmt.Errorf("%v: field can't be a pointer", errPrefix())
 		}
 
 		initialValue, err := literalDefault(fieldTypeName, value, valueDefaults[name])

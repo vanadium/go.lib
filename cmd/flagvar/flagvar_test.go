@@ -65,11 +65,11 @@ func TestTags(t *testing.T) {
 		{"", "", "", "", "empty or missing tag"},
 		{",", "", "", "", "empty field for <name>"},
 		{",,", "", "", "", "empty field for <name>"},
-		{"n,", "", "", "", "more fields expected after <literal-default-value>"},
+		{"n,", "", "", "", "more fields expected after <default-value>"},
 		{"n,,", "", "", "", "empty field for <usage>"},
-		{"nn,xx", "", "", "", "more fields expected after <literal-default-value>"},
+		{"nn,xx", "", "", "", "more fields expected after <default-value>"},
 		{"'xxxx,", "", "", "", "missing close quote (') for <name>"},
-		{"xxxx,'xx,", "", "", "", "missing close quote (') for <literal-default-value>"},
+		{"xxxx,'xx,", "", "", "", "missing close quote (') for <default-value>"},
 		{"xxxx,'xx','xx", "", "", "", "missing close quote (') for <usage>"},
 		{"nn,,u", "nn", "", "u", ""},
 		{"'n,n',,u", "n,n", "", "u", ""},
@@ -99,30 +99,30 @@ func TestTags(t *testing.T) {
 
 type dummy struct{}
 
+func allFlags(fs *flag.FlagSet) string {
+	out := []string{}
+	fs.VisitAll(func(f *flag.Flag) {
+		rest := ""
+		if len(f.DefValue) == 0 {
+			rest = "," + f.Usage
+		} else {
+			rest = f.DefValue + "," + f.Usage
+			if strings.Contains(f.DefValue, ",") {
+				rest = "'" + f.DefValue + "'," + f.Usage
+			}
+		}
+		out = append(out, fmt.Sprintf(`cmdline:"%v,%v"`, f.Name, rest))
+	})
+	sort.Strings(out)
+	return strings.Join(out, "\n")
+}
+
 func TestRegister(t *testing.T) {
 	assert := func(got, want interface{}) {
 		_, file, line, _ := runtime.Caller(1)
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("%v:%v:got %v, want %v", filepath.Base(file), line, got, want)
 		}
-	}
-
-	allFlags := func(fs *flag.FlagSet) string {
-		out := []string{}
-		fs.VisitAll(func(f *flag.Flag) {
-			rest := ""
-			if len(f.DefValue) == 0 {
-				rest = "," + f.Usage
-			} else {
-				rest = f.DefValue + "," + f.Usage
-				if strings.Contains(f.DefValue, ",") {
-					rest = "'" + f.DefValue + "'," + f.Usage
-				}
-			}
-			out = append(out, fmt.Sprintf(`cmdline:"%v,%v"`, f.Name, rest))
-		})
-		sort.Strings(out)
-		return strings.Join(out, "\n")
 	}
 
 	// Test all 'empty' defaults.
@@ -317,29 +317,112 @@ func TestErrors(t *testing.T) {
 	expected(err, "field A: failed to parse tag: xxx")
 
 	t2 := struct {
-		A interface{} `cmdline:"xx,,usage"`
+		A interface{} `cmdline:"zzz,,usage"`
 	}{}
+	fs = &flag.FlagSet{}
 	err = flagvar.RegisterFlagsInStruct(fs, "cmdline", &t2, nil, nil)
-	expected(err, "field: A of type interface {} for flag xx: does not implement flag.Value")
+	expected(err, "field: A of type interface {} for flag zzz: does not implement flag.Value")
 
 	t3 := struct {
 		A myFlagVar `cmdline:"zzz,bad-number,usage"`
 	}{}
+	fs = &flag.FlagSet{}
 	err = flagvar.RegisterFlagsInStruct(fs, "cmdline", &t3, nil, nil)
 	expected(err, `field: A of type flagvar_test.myFlagVar for flag zzz: failed to set initial default value for flag.Value: strconv.ParseInt: parsing "bad-number": invalid syntax`)
 
 	t4 := struct {
 		A int `cmdline:"zzz,bad-number,usage"`
 	}{}
+	fs = &flag.FlagSet{}
 	err = flagvar.RegisterFlagsInStruct(fs, "cmdline", &t4, nil, nil)
 	expected(err, `field: A of type int for flag zzz: failed to set initial default value: strconv.ParseInt: parsing "bad-number": invalid syntax`)
 
 	t5 := struct {
-		A int `cmdline:"xxx,,zz"`
+		A int `cmdline:"zzz,,zz"`
 	}{}
-	err = flagvar.RegisterFlagsInStruct(fs, "cmdline", &t5, nil, map[string]string{"xx": "yy"})
 	fs = &flag.FlagSet{}
+	err = flagvar.RegisterFlagsInStruct(fs, "cmdline", &t5, nil, map[string]string{"xx": "yy"})
 	expected(err, "flag xx does not exist but specified as a usage default")
+
+	fs = &flag.FlagSet{}
 	err = flagvar.RegisterFlagsInStruct(fs, "cmdline", &t5, map[string]interface{}{"xx": "yy"}, nil)
 	expected(err, "flag xx does not exist but specified as a value default")
+
+	t6 := struct {
+		A int `cmdline:"b,1,use a"`
+		B int `cmdline:"b,1,use a"`
+	}{}
+	fs = &flag.FlagSet{}
+	err = flagvar.RegisterFlagsInStruct(fs, "cmdline", &t6, map[string]interface{}{"xx": "yy"}, nil)
+	expected(err, "flag b already defined for this flag.FlagSet")
+
+	t7 := struct {
+		A *int `cmdline:"a,1,use a"`
+	}{}
+	fs = &flag.FlagSet{}
+	err = flagvar.RegisterFlagsInStruct(fs, "cmdline", &t7, nil, nil)
+	expected(err, "field: A of type *int for flag a: field can't be a pointer")
+
+}
+
+func TestEmbedding(t *testing.T) {
+	assert := func(got, want interface{}) {
+		_, file, line, _ := runtime.Caller(1)
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("%v:%v:got %v, want %v", filepath.Base(file), line, got, want)
+		}
+	}
+
+	type CommonFlags struct {
+		A int `cmdline:"a,1,use a"`
+		B int `cmdline:"b,2,use b"`
+	}
+
+	var s1 = struct {
+		CommonFlags
+		C int `cmdline:"c,3,use c"`
+	}{}
+
+	fs := &flag.FlagSet{}
+	err := flagvar.RegisterFlagsInStruct(fs, "cmdline", &s1, nil, nil)
+	if err != nil {
+		t.Errorf("%v", err)
+	}
+
+	expectedUsage := []string{`cmdline:"a,1,use a"`,
+		`cmdline:"b,2,use b"`,
+		`cmdline:"c,3,use c"`,
+	}
+
+	if got, want := allFlags(fs), strings.Join(expectedUsage, "\n"); got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	if err := fs.Parse([]string{
+		"-a=41",
+		"-b=42",
+		"-c=43",
+	}); err != nil {
+		t.Errorf("%v", err)
+	}
+
+	assert(s1.A, 41)
+	assert(s1.B, 42)
+	assert(s1.C, 43)
+
+	type E struct {
+		A int `cmdline:"a,1,use a"`
+	}
+	s2 := struct {
+		*E     // will be ignored.
+		B  int `cmdline:"b,1,use a"`
+	}{}
+	fs = &flag.FlagSet{}
+	flagvar.RegisterFlagsInStruct(fs, "cmdline", &s2, nil, nil)
+	if err != nil {
+		t.Errorf("%v", err)
+	}
+	if got, want := allFlags(fs), `cmdline:"b,1,use a"`; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
 }
