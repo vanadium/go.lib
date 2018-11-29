@@ -13,7 +13,7 @@ func (r *runner) Run(env *cmdline.Env, args []string) error {
 }
 func TestFlagVarIntegration(t *testing.T) {
 	s1 := struct {
-		A int `cmdline:"int-var::32,some-arg"`
+		A int `cmdline:"int-var,32,some-arg"`
 	}{}
 	cmd := &cmdline.Command{
 		Name:     "test",

@@ -1,3 +1,7 @@
+// Copyright 2018 The Vanadium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 // Package flagvar provides support for managing flag variables by embedding
 // them in structs. A field in a struc can annotated with a tag that is
 // used to identify it as a variable to be registered with a flag that
@@ -10,7 +14,6 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
-	"strings"
 	"time"
 	"unsafe"
 )
@@ -19,61 +22,89 @@ var (
 	flagValueType = reflect.TypeOf((*flag.Value)(nil)).Elem()
 )
 
+func parseField(t, field string, allowEmpty, expectMore bool) (value, remaining string, err error) {
+	defer func() {
+		if err != nil {
+			return
+		}
+		if !allowEmpty && len(value) == 0 {
+			err = fmt.Errorf("empty field for %v", field)
+			return
+		}
+		// are we expecting any more data after this field.
+		if expectMore {
+			if len(remaining) == 0 {
+				err = fmt.Errorf("more fields expected after %v", field)
+				return
+			}
+			if remaining[0] == ',' {
+				remaining = remaining[1:]
+			}
+			return
+		} else {
+			if len(remaining) > 0 {
+				err = fmt.Errorf("spurious text after %v", field)
+				return
+			}
+		}
+	}()
+	// Read quoted or unquoted field up to the next , or end of string,
+	// leaving the comma in the remainder.
+	if len(t) == 0 {
+		return
+	}
+	if t[0] == '\'' {
+		for i, r := range t[1:] {
+			if r == '\'' {
+				value = t[1 : i+1]
+				remaining = t[i+2:]
+				return
+			}
+		}
+		err = fmt.Errorf("missing close quote (') for %v", field)
+		return
+	}
+	for i, r := range t {
+		if r == ',' {
+			value = t[:i]
+			remaining = t[i:]
+			return
+		}
+	}
+	value = t
+	return
+}
+
 // ParseFlagTag parses the supplied string into a flag name, default literal
 // value and description components. It is used by
 // CreatenAndRegisterFlagsInStruct to parse the field tags.
 //
 // The tag format is:
 //
-// <name>::<literal-default-value>,<usage>
+// <name>,<literal-default-value>,<usage>
 //
 // where <name> is the name of the flag, <default-value> is an optional
 // literal default value for the flag and <usage> the detailed
-// description for the flag. <name> must be supplied.
-// <default-value> may be placed in single quotes (') if the default
-// value needs to contain a comma. E.g 'some default, with comma',description.
-// The <usage> field may contain commas since the parsing stops after
-// the first comma is encountered.
+// description for the flag.
+// <literal-default-value> may be left empty, but <name> and <usage> must
+// be supplied. All fields can be quoted if they need to contain a comma.
 func ParseFlagTag(t string) (name, value, usage string, err error) {
 	if len(t) == 0 {
 		err = fmt.Errorf("empty or missing tag")
 		return
 	}
-	// Parse the flag name component.
-	idx := strings.Index(t, "::")
-	if idx <= 0 {
-		err = fmt.Errorf("empty or missing flag name")
+	name, remaining, err := parseField(t, "<name>", false, true)
+	if err != nil {
 		return
 	}
-	name = t[:idx]
-	t = t[idx+2:]
-	// Parse the optionally quoted literal default value.
-	if t[0] == '\'' {
-		for i, r := range t[1:] {
-			if r == '\'' {
-				value = t[1 : i+1]
-				t = t[i+2:]
-				if len(t) > 0 && t[0] != ',' {
-					err = fmt.Errorf("has spurious text starting at pos %v, %q", i+1, t)
-					return
-				}
-				break
-			}
-		}
+	value, remaining, err = parseField(remaining, "<literal-default-value>", true, true)
+	if err != nil {
+		return
 	}
-	// Parse the usage.
-	for i, r := range t {
-		if r == ',' {
-			if len(value) == 0 {
-				if i > 0 {
-					value = t[:i]
-				}
-			}
-			usage = t[i+1:]
-			return
-		}
+	usage, remaining, err = parseField(remaining, "<usage>", false, false)
+	if err != nil {
+		return
 	}
-	usage = t
 	return
 }
 

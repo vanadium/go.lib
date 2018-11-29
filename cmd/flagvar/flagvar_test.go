@@ -1,3 +1,7 @@
+// Copyright 2018 The Vanadium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 package flagvar_test
 
 import (
@@ -17,8 +21,8 @@ import (
 
 func ExampleRegisterFlagsInStruct() {
 	eg := struct {
-		A int    `flag:"int-flag::-1,intVar flag"`
-		B string `flag:"string-flag::'some,value,with,a,comma',stringVar flag"`
+		A int    `flag:"int-flag,-1,intVar flag"`
+		B string `flag:"string-flag,'some,value,with,a,comma',stringVar flag"`
 		O int
 	}{
 		O: 23,
@@ -59,17 +63,20 @@ func TestTags(t *testing.T) {
 		err              string
 	}{
 		{"", "", "", "", "empty or missing tag"},
-		{"::", "", "", "", "empty or missing flag name"},
-		{"nn::,", "nn", "", "", ""},
-		{"n::xx", "n", "", "xx", ""},
-		{"n::,yy", "n", "", "yy", ""},
-		{"n::'xx,yy'", "n", "xx,yy", "", ""},
-		{"n::'xx,yy',", "n", "xx,yy", "", ""},
-		{"n::'xx,yy',zz", "n", "xx,yy", "zz", ""},
-		{"n::'xx,yy'zz", "n", "xx,yy", "zz", `has spurious text starting at pos 6, "zz"`},
-		{"n::'xx,yy'zz,aa", "n", "xx,yy", "aa", `has spurious text starting at pos 6, "zz,aa"`},
-		{"n::'xx,yy',aa,bb", "n", "xx,yy", "aa,bb", ""},
-		{"n::xx,yy,zz", "n", "xx", "yy,zz", ""},
+		{",", "", "", "", "empty field for <name>"},
+		{",,", "", "", "", "empty field for <name>"},
+		{"n,", "", "", "", "more fields expected after <literal-default-value>"},
+		{"n,,", "", "", "", "empty field for <usage>"},
+		{"nn,xx", "", "", "", "more fields expected after <literal-default-value>"},
+		{"'xxxx,", "", "", "", "missing close quote (') for <name>"},
+		{"xxxx,'xx,", "", "", "", "missing close quote (') for <literal-default-value>"},
+		{"xxxx,'xx','xx", "", "", "", "missing close quote (') for <usage>"},
+		{"nn,,u", "nn", "", "u", ""},
+		{"'n,n',,u", "n,n", "", "u", ""},
+		{"n,,yy", "n", "", "yy", ""},
+		{"n,'xx,yy',usage", "n", "xx,yy", "usage", ""},
+		{"n,'xx,yy',aa,bb", "n", "xx,yy", "aa,bb", "spurious text after <usage>"},
+		{"n,xx,aa,bb", "n", "xx", "yy,zz", "spurious text after <usage>"},
 	} {
 		n, v, d, err := flagvar.ParseFlagTag(tc.tag)
 		if err != nil {
@@ -112,7 +119,7 @@ func TestRegister(t *testing.T) {
 					rest = "'" + f.DefValue + "'," + f.Usage
 				}
 			}
-			out = append(out, fmt.Sprintf(`cmdline:"%v::%v"`, f.Name, rest))
+			out = append(out, fmt.Sprintf(`cmdline:"%v,%v"`, f.Name, rest))
 		})
 		sort.Strings(out)
 		return strings.Join(out, "\n")
@@ -120,30 +127,30 @@ func TestRegister(t *testing.T) {
 
 	// Test all 'empty' defaults.
 	s0 := struct {
-		A   int           `cmdline:"iv::,intVar flag"`
-		AND int           `cmdline:"iv-nd::,intVar no default flag"`
-		B   int64         `cmdline:"iv64::,int64var flag"`
-		C   uint          `cmdline:"u::,uintVar flag"`
-		D   uint64        `cmdline:"u64::,uint64Var flag"`
-		E   float64       `cmdline:"f64::,float64Var flag"`
-		F   bool          `cmdline:"doit::,boolVar flag"`
-		G   time.Duration `cmdline:"wait::,durationVar flag"`
-		HQ  string        `cmdline:"str::,stringVar flag"`
-		HNQ string        `cmdline:"str-nq::,stringVar no default flag"`
-		V   myFlagVar     `cmdline:"some-var::,user defined var flag"`
+		A   int           `cmdline:"iv,,intVar flag"`
+		AND int           `cmdline:"iv-nd,,intVar no default flag"`
+		B   int64         `cmdline:"iv64,,int64var flag"`
+		C   uint          `cmdline:"u,,uintVar flag"`
+		D   uint64        `cmdline:"u64,,uint64Var flag"`
+		E   float64       `cmdline:"f64,,float64Var flag"`
+		F   bool          `cmdline:"doit,,boolVar flag"`
+		G   time.Duration `cmdline:"wait,,durationVar flag"`
+		HQ  string        `cmdline:"str,,stringVar flag"`
+		HNQ string        `cmdline:"str-nq,,stringVar no default flag"`
+		V   myFlagVar     `cmdline:"some-var,,user defined var flag"`
 	}{}
 
-	expectedUsage := []string{`cmdline:"iv::0,intVar flag"`,
-		`cmdline:"iv-nd::0,intVar no default flag"`,
-		`cmdline:"iv64::0,int64var flag"`,
-		`cmdline:"u::0,uintVar flag"`,
-		`cmdline:"u64::0,uint64Var flag"`,
-		`cmdline:"f64::0,float64Var flag"`,
-		`cmdline:"doit::false,boolVar flag"`,
-		`cmdline:"wait::0,durationVar flag"`,
-		`cmdline:"str::,stringVar flag"`,
-		`cmdline:"str-nq::,stringVar no default flag"`,
-		`cmdline:"some-var::,user defined var flag"`,
+	expectedUsage := []string{`cmdline:"iv,0,intVar flag"`,
+		`cmdline:"iv-nd,0,intVar no default flag"`,
+		`cmdline:"iv64,0,int64var flag"`,
+		`cmdline:"u,0,uintVar flag"`,
+		`cmdline:"u64,0,uint64Var flag"`,
+		`cmdline:"f64,0,float64Var flag"`,
+		`cmdline:"doit,false,boolVar flag"`,
+		`cmdline:"wait,0,durationVar flag"`,
+		`cmdline:"str,,stringVar flag"`,
+		`cmdline:"str-nq,,stringVar no default flag"`,
+		`cmdline:"some-var,,user defined var flag"`,
 	}
 	sort.Strings(expectedUsage)
 
@@ -171,18 +178,18 @@ func TestRegister(t *testing.T) {
 	// Test with some explicit literal defaults, some value and usage
 	// defaults also.
 	s1 := struct {
-		A   int           `cmdline:"iv::-1,intVar flag"`
-		AND int           `cmdline:"iv-nd::,intVar no default flag"`
-		B   int64         `cmdline:"iv64::-2,int64var flag"`
-		C   uint          `cmdline:"u::3,uintVar flag"`
-		D   uint64        `cmdline:"u64::3,uint64Var flag"`
-		E   float64       `cmdline:"f64::2.03,float64Var flag"`
-		F   bool          `cmdline:"doit::true,boolVar flag"`
-		G   time.Duration `cmdline:"wait::2s,durationVar flag"`
-		HQ  string        `cmdline:"str::'xx,yy',stringVar flag"`
-		HNQ string        `cmdline:"str-nq::xxyy,stringVar no default flag"`
-		V   myFlagVar     `cmdline:"some-var::22,user defined var flag"`
-		X   myFlagVar     `cmdline:"env-var::33,user defined var flag"`
+		A   int           `cmdline:"iv,-1,intVar flag"`
+		AND int           `cmdline:"iv-nd,,intVar no default flag"`
+		B   int64         `cmdline:"iv64,-2,int64var flag"`
+		C   uint          `cmdline:"u,3,uintVar flag"`
+		D   uint64        `cmdline:"u64,3,uint64Var flag"`
+		E   float64       `cmdline:"f64,2.03,float64Var flag"`
+		F   bool          `cmdline:"doit,true,boolVar flag"`
+		G   time.Duration `cmdline:"wait,2s,durationVar flag"`
+		HQ  string        `cmdline:"str,'xx,yy',stringVar flag"`
+		HNQ string        `cmdline:"str-nq,xxyy,stringVar no default flag"`
+		V   myFlagVar     `cmdline:"some-var,22,user defined var flag"`
+		X   myFlagVar     `cmdline:"env-var,33,user defined var flag"`
 		ZZ  string        // ignored
 		zz  string        // ignored
 	}{}
@@ -197,18 +204,18 @@ func TestRegister(t *testing.T) {
 		"env-var": "$ENVVAR",
 	}
 
-	expectedUsage = []string{`cmdline:"iv::-1,intVar flag"`,
-		`cmdline:"iv-nd::0,intVar no default flag"`,
-		`cmdline:"iv64::-2,int64var flag"`,
-		`cmdline:"u::<num-cores>,uintVar flag"`,
-		`cmdline:"u64::3,uint64Var flag"`,
-		`cmdline:"f64::2.03,float64Var flag"`,
-		`cmdline:"doit::true,boolVar flag"`,
-		`cmdline:"wait::2s,durationVar flag"`,
-		`cmdline:"str::'xx,yy',stringVar flag"`,
-		`cmdline:"str-nq::xxyy,stringVar no default flag"`,
-		`cmdline:"some-var::22,user defined var flag"`,
-		`cmdline:"env-var::$ENVVAR,user defined var flag"`,
+	expectedUsage = []string{`cmdline:"iv,-1,intVar flag"`,
+		`cmdline:"iv-nd,0,intVar no default flag"`,
+		`cmdline:"iv64,-2,int64var flag"`,
+		`cmdline:"u,<num-cores>,uintVar flag"`,
+		`cmdline:"u64,3,uint64Var flag"`,
+		`cmdline:"f64,2.03,float64Var flag"`,
+		`cmdline:"doit,true,boolVar flag"`,
+		`cmdline:"wait,2s,durationVar flag"`,
+		`cmdline:"str,'xx,yy',stringVar flag"`,
+		`cmdline:"str-nq,xxyy,stringVar no default flag"`,
+		`cmdline:"some-var,22,user defined var flag"`,
+		`cmdline:"env-var,$ENVVAR,user defined var flag"`,
 	}
 	sort.Strings(expectedUsage)
 
@@ -310,25 +317,25 @@ func TestErrors(t *testing.T) {
 	expected(err, "field A: failed to parse tag: xxx")
 
 	t2 := struct {
-		A interface{} `cmdline:"xx::,usage"`
+		A interface{} `cmdline:"xx,,usage"`
 	}{}
 	err = flagvar.RegisterFlagsInStruct(fs, "cmdline", &t2, nil, nil)
 	expected(err, "field: A of type interface {} for flag xx: does not implement flag.Value")
 
 	t3 := struct {
-		A myFlagVar `cmdline:"zzz::bad-number,usage"`
+		A myFlagVar `cmdline:"zzz,bad-number,usage"`
 	}{}
 	err = flagvar.RegisterFlagsInStruct(fs, "cmdline", &t3, nil, nil)
 	expected(err, `field: A of type flagvar_test.myFlagVar for flag zzz: failed to set initial default value for flag.Value: strconv.ParseInt: parsing "bad-number": invalid syntax`)
 
 	t4 := struct {
-		A int `cmdline:"zzz::bad-number,usage"`
+		A int `cmdline:"zzz,bad-number,usage"`
 	}{}
 	err = flagvar.RegisterFlagsInStruct(fs, "cmdline", &t4, nil, nil)
 	expected(err, `field: A of type int for flag zzz: failed to set initial default value: strconv.ParseInt: parsing "bad-number": invalid syntax`)
 
 	t5 := struct {
-		A int `cmdline:"xxx::,zz"`
+		A int `cmdline:"xxx,,zz"`
 	}{}
 	err = flagvar.RegisterFlagsInStruct(fs, "cmdline", &t5, nil, map[string]string{"xx": "yy"})
 	fs = &flag.FlagSet{}
