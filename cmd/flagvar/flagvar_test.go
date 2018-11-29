@@ -195,8 +195,9 @@ func TestRegister(t *testing.T) {
 	}{}
 
 	values := map[string]interface{}{
-		"iv": 33,
-		"u":  runtime.NumCPU(),
+		"iv":     33,
+		"u":      runtime.NumCPU(),
+		"str-nq": "oh my",
 	}
 
 	usageDefaults := map[string]string{
@@ -256,7 +257,7 @@ func TestRegister(t *testing.T) {
 	assert(s1.F, true)
 	assert(s1.G, 2*time.Second)
 	assert(s1.HQ, "xx,yy")
-	assert(s1.HNQ, "xxyy")
+	assert(s1.HNQ, "oh my")
 	assert(s1.V, myFlagVar(22))
 	assert(s1.X, myFlagVar(33))
 

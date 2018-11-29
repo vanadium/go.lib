@@ -113,7 +113,7 @@ func ParseFlagTag(t string) (name, value, usage string, err error) {
 func literalDefault(typeName, literal string, initialValue interface{}) (value interface{}, err error) {
 	if initialValue != nil {
 		switch v := initialValue.(type) {
-		case int, int64, uint, uint64, bool, float64, time.Duration:
+		case int, int64, uint, uint64, bool, float64, string, time.Duration:
 			value = v
 			return
 		}
