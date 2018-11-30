@@ -205,6 +205,26 @@ func literalDefault(typeName, literal string, initialValue interface{}) (value i
 // will result in three flags, --a, --b and --c.
 // Note that embedding as a pointer is not supported.
 func RegisterFlagsInStruct(fs *flag.FlagSet, tag string, structWithFlags interface{}, valueDefaults map[string]interface{}, usageDefaults map[string]string) error {
+	err := registerFlagsInStruct(fs, tag, structWithFlags, valueDefaults, usageDefaults)
+	if err != nil {
+		return err
+	}
+	for k := range valueDefaults {
+		if fs.Lookup(k) == nil {
+			return fmt.Errorf("flag %v does not exist but specified as a value default", k)
+		}
+	}
+	for k, v := range usageDefaults {
+		if fs.Lookup(k) == nil {
+			return fmt.Errorf("flag %v does not exist but specified as a usage default", k)
+		}
+		fs.Lookup(k).DefValue = v
+	}
+
+	return nil
+}
+
+func registerFlagsInStruct(fs *flag.FlagSet, tag string, structWithFlags interface{}, valueDefaults map[string]interface{}, usageDefaults map[string]string) error {
 	typ := reflect.TypeOf(structWithFlags)
 	val := reflect.ValueOf(structWithFlags)
 	if typ.Kind() == reflect.Ptr {
@@ -225,7 +245,7 @@ func RegisterFlagsInStruct(fs *flag.FlagSet, tag string, structWithFlags interfa
 		if !ok {
 			if fieldType.Type.Kind() == reflect.Struct && fieldType.Anonymous {
 				addr := val.Field(i).Addr()
-				if err := RegisterFlagsInStruct(fs, tag, addr.Interface(), nil, nil); err != nil {
+				if err := registerFlagsInStruct(fs, tag, addr.Interface(), valueDefaults, usageDefaults); err != nil {
 					return err
 				}
 			}
@@ -306,19 +326,6 @@ func RegisterFlagsInStruct(fs *flag.FlagSet, tag string, structWithFlags interfa
 			// should never reach here.
 			panic(fmt.Sprintf("%v flag: field %v, flag %v: unsupported type %T", fieldTypeName, fieldName, name, initialValue))
 		}
-	}
-
-	for k := range valueDefaults {
-		if fs.Lookup(k) == nil {
-			return fmt.Errorf("flag %v does not exist but specified as a value default", k)
-		}
-	}
-
-	for k, v := range usageDefaults {
-		if fs.Lookup(k) == nil {
-			return fmt.Errorf("flag %v does not exist but specified as a usage default", k)
-		}
-		fs.Lookup(k).DefValue = v
 	}
 
 	return nil

@@ -385,15 +385,25 @@ func TestEmbedding(t *testing.T) {
 		CommonFlags
 		C int `cmdline:"c,3,use c"`
 	}{}
+	valueDefaults := map[string]interface{}{
+		"a": 11,
+	}
+	usageDefaults := map[string]string{
+		"b": "12",
+	}
 
 	fs := &flag.FlagSet{}
-	err := flagvar.RegisterFlagsInStruct(fs, "cmdline", &s1, nil, nil)
+	err := flagvar.RegisterFlagsInStruct(fs, "cmdline", &s1, valueDefaults, usageDefaults)
 	if err != nil {
 		t.Errorf("%v", err)
 	}
 
-	expectedUsage := []string{`cmdline:"a,1,use a"`,
-		`cmdline:"b,2,use b"`,
+	assert(s1.A, 11)
+	assert(s1.B, 2)
+	assert(s1.C, 3)
+
+	expectedUsage := []string{`cmdline:"a,11,use a"`,
+		`cmdline:"b,12,use b"`,
 		`cmdline:"c,3,use c"`,
 	}
 
