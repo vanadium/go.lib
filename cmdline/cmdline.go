@@ -122,9 +122,9 @@ type Command struct {
 // FlagDefinitions represents a struct containing flag variables and their
 // associated default values as per RegisterFlagsInStruct.
 type FlagDefinitions struct {
-	StructWithFlags interface{}
-	ValueDefaults   map[string]interface{}
-	UsageDefaults   map[string]string
+	Flags         interface{}
+	ValueDefaults map[string]interface{}
+	UsageDefaults map[string]string
 }
 
 // Runner is the interface for running commands.  Return ErrExitCode to indicate
@@ -430,7 +430,7 @@ func (cmd *Command) parse(path []*Command, env *Env, args []string, setFlags map
 }
 
 func (cmd *Command) registerFlagDefs() error {
-	if fs := cmd.FlagDefs.StructWithFlags; fs != nil {
+	if fs := cmd.FlagDefs.Flags; fs != nil {
 		err := flagvar.RegisterFlagsInStruct(&cmd.Flags, "cmdline", fs, cmd.FlagDefs.ValueDefaults, cmd.FlagDefs.UsageDefaults)
 		if err != nil {
 			return fmt.Errorf("command: %v: %v", cmd.Name, err)

@@ -17,7 +17,7 @@ func TestFlagVarIntegration(t *testing.T) {
 	}{}
 	cmd := &cmdline.Command{
 		Name:     "test",
-		FlagDefs: cmdline.FlagDefinitions{StructWithFlags: &s1},
+		FlagDefs: cmdline.FlagDefinitions{Flags: &s1},
 		Runner:   &runner{},
 	}
 	_, _, err := cmdline.Parse(cmd, cmdline.EnvFromOS(), []string{"--int-var=33"})
@@ -30,11 +30,11 @@ func TestFlagVarIntegration(t *testing.T) {
 
 	cmd = &cmdline.Command{
 		Name:     "test",
-		FlagDefs: cmdline.FlagDefinitions{StructWithFlags: &s1},
+		FlagDefs: cmdline.FlagDefinitions{Flags: &s1},
 	}
 	cmd.Children = append(cmd.Children, &cmdline.Command{
 		Name:     "child1",
-		FlagDefs: cmdline.FlagDefinitions{StructWithFlags: &s1},
+		FlagDefs: cmdline.FlagDefinitions{Flags: &s1},
 		Runner:   &runner{},
 	})
 
