@@ -74,7 +74,9 @@ func TestTags(t *testing.T) {
 		{"nn,,u", "nn", "", "u", ""},
 		{"'n,n',,u", "n,n", "", "u", ""},
 		{"n,,yy", "n", "", "yy", ""},
+		{"n,,yy\\'s", "n", "", "yy's", ""},
 		{"n,'xx,yy',usage", "n", "xx,yy", "usage", ""},
+		{"n,'xx,yy','usage, more'", "n", "xx,yy", "usage, more", ""},
 		{"n,'xx,yy',aa,bb", "n", "xx,yy", "aa,bb", "spurious text after <usage>"},
 		{"n,xx,aa,bb", "n", "xx", "yy,zz", "spurious text after <usage>"},
 	} {

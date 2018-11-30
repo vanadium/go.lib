@@ -24,6 +24,28 @@ var (
 	flagValueType = reflect.TypeOf((*flag.Value)(nil)).Elem()
 )
 
+// consume up to the separator or end of data, allowing for escaping using \.
+func consume(t string, sep rune) (value, remaining string) {
+	val := make([]rune, 0, len(t))
+	escaped := false
+	for i, r := range t {
+		if r == '\\' {
+			escaped = true
+			continue
+		}
+		if !escaped && r == sep {
+			value = string(val)
+			remaining = t[i:] // include sep
+			return
+		}
+		escaped = false
+		val = append(val, r)
+	}
+	value = string(val)
+	remaining = ""
+	return
+}
+
 func parseField(t, field string, allowEmpty, expectMore bool) (value, remaining string, err error) {
 	defer func() {
 		if err != nil {
@@ -49,30 +71,20 @@ func parseField(t, field string, allowEmpty, expectMore bool) (value, remaining 
 			return
 		}
 	}()
-	// Read quoted or unquoted field up to the next , or end of string,
-	// leaving the comma in the remainder.
 	if len(t) == 0 {
 		return
 	}
 	if t[0] == '\'' {
-		for i, r := range t[1:] {
-			if r == '\'' {
-				value = t[1 : i+1]
-				remaining = t[i+2:]
-				return
-			}
-		}
-		err = fmt.Errorf("missing close quote (') for %v", field)
-		return
-	}
-	for i, r := range t {
-		if r == ',' {
-			value = t[:i]
-			remaining = t[i:]
+		value, remaining = consume(t[1:], '\'')
+		if len(remaining) == 0 {
+			err = fmt.Errorf("missing close quote (') for %v", field)
 			return
 		}
+		remaining = remaining[1:]
+		return
 	}
-	value = t
+	value, remaining = consume(t, ',')
+
 	return
 }
 
@@ -213,7 +225,7 @@ func RegisterFlagsInStruct(fs *flag.FlagSet, tag string, structWithFlags interfa
 		if !ok {
 			if fieldType.Type.Kind() == reflect.Struct && fieldType.Anonymous {
 				addr := val.Field(i).Addr()
-				if err := RegisterFlagsInStruct(fs, tag, addr.Interface(), valueDefaults, usageDefaults); err != nil {
+				if err := RegisterFlagsInStruct(fs, tag, addr.Interface(), nil, nil); err != nil {
 					return err
 				}
 			}
@@ -228,6 +240,7 @@ func RegisterFlagsInStruct(fs *flag.FlagSet, tag string, structWithFlags interfa
 		if fs.Lookup(name) != nil {
 			return fmt.Errorf("flag %v already defined for this flag.FlagSet", name)
 		}
+
 		fieldValue := val.Field(i)
 		fieldName := fieldType.Name
 		fieldTypeName := fieldType.Type.String()
