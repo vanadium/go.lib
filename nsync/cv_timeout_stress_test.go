@@ -148,7 +148,7 @@ func TestCVTimeoutStress(t *testing.T) {
 	}
 
 	// Some timeouts shoud have happened while the counts were being incremented.
-	expectedTimeouts = timeoutsSeen + 1000
+	expectedTimeouts = timeoutsSeen + 300
 	t.Logf("timeouts: %v, expected: %v, time taken: %v, seen: %v", s.timeouts, expectedTimeouts, timeTaken, timeoutsSeen)
 	if timeTaken > 4*time.Second {
 		// Looks like a slow test, let's just be content
