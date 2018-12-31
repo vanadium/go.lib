@@ -4,6 +4,8 @@
 
 // This test runs too slowly under the race detector.
 // +build !race
+// This test is flaky on Travis CI.
+// +build !travis
 
 package nsync_test
 
