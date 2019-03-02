@@ -7,7 +7,7 @@ package vlog
 import (
 	"flag"
 
-	"github.com/cosnicolaou/llog"
+	"v.io/x/lib/llog"
 )
 
 var (

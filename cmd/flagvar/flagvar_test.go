@@ -34,7 +34,7 @@ func ExampleRegisterFlagsInStruct() {
 	}
 	fmt.Println(eg.A)
 	fmt.Println(eg.B)
-	flagSet.Parse([]string{"-int-flag=42"})
+	flagSet.Parse([]string{"--int-flag=42"})
 	fmt.Println(eg.A)
 	fmt.Println(eg.B)
 	// Output:
