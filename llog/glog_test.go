@@ -315,14 +315,14 @@ var vRegexps = map[string]bool{
 	"glog_test=2": true,
 	"glog_test=3": true, // If -vfilepath sets V to 1, V(3) will succeed.
 	// These all use 2 and check the patterns. All are true.
-	".*=2":            true,
-	".l.*=2":          true,
-	"...._.*=2":       true,
-	"..[mno]?_.*t=2":  true,
-	"m.*=2":           true, // needs github.com in the path
-	"github.com/.*=2": true,
-	"llog.*=2":        true, // llog is not always llog/ with go modules
-	".._.*=2":         true,
+	".*=2":           true,
+	".l.*=2":         true,
+	"...._.*=2":      true,
+	"..[mno]?_.*t=2": true,
+	"m.*=2":          true, // needs v.io in the path
+	"v.io/.*=2":      true,
+	"llog.*=2":       true, // llog is not always llog/ with go modules
+	".._.*=2":        true,
 	// These all use 2 and check the patterns. All are false.
 	".*x$=2":           false,
 	".\\[abc\\]._.*=2": false,
