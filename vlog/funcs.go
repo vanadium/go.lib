@@ -5,7 +5,7 @@
 package vlog
 
 import (
-	"github.com/cosnicolaou/llog"
+	"v.io/x/lib/llog"
 )
 
 // Info logs to the INFO log.
