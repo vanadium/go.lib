@@ -6,10 +6,13 @@ package vlog_test
 
 import (
 	"bufio"
+	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"v.io/x/lib/vlog"
@@ -86,6 +89,31 @@ func TestHeaders(t *testing.T) {
 	}
 	if want, got := 3, len(contents); want != got {
 		t.Errorf("Expected %d info lines, got %d instead", want, got)
+	}
+}
+
+func TestCopyStandardLogTo(t *testing.T) {
+	fmt.Println("TEST STANDARD LOGS")
+	dir, err := ioutil.TempDir("", "logtest")
+	defer os.RemoveAll(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	logger := vlog.NewLogger("testStandardLogTo")
+	logger.CopyStandardLogTo("INFO")
+	logger.Configure(vlog.LogDir(dir))
+	log.Print("wombats")
+	logger.Info("foo bar")
+	logger.FlushLog()
+	contents, err := readLogFiles(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if want, got := 2, len(contents); want != got {
+		t.Errorf("Expected %d info lines, got %d instead", want, got)
+	}
+	if !strings.Contains(contents[0], "wombats") {
+		t.Errorf("Expected log.Print(\"wombats\") output in INFO:%q", contents)
 	}
 }
 
