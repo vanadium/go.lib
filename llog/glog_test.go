@@ -451,10 +451,10 @@ func TestCopyStandardLogTo(t *testing.T) {
 	l.CopyStandardLogTo("INFO")
 	log.Print("hello world")
 	log.Print("foo bar")
-	if !l.contains(InfoLog, "hello", t) {
-		t.Errorf("Failed to write standard logs to info:%q", l.contents(InfoLog))
-	}
-	if !l.contains(InfoLog, "foo bar", t) {
-		t.Errorf("Failed to write standard logs to info:%q", l.contents(InfoLog))
+	l.Print(InfoLog, "wombats")
+	for _, line := range []string{"hello world", "foo bar", "wombats"} {
+		if !l.contains(InfoLog, line, t) {
+			t.Errorf("Failed to find line %q in contents:%q", line, l.contents(InfoLog))
+		}
 	}
 }
