@@ -6,7 +6,6 @@ package vlog_test
 
 import (
 	"bufio"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -93,7 +92,6 @@ func TestHeaders(t *testing.T) {
 }
 
 func TestCopyStandardLogTo(t *testing.T) {
-	fmt.Println("TEST STANDARD LOGS")
 	dir, err := ioutil.TempDir("", "logtest")
 	defer os.RemoveAll(dir)
 	if err != nil {
@@ -105,7 +103,7 @@ func TestCopyStandardLogTo(t *testing.T) {
 	log.Print("hello world")
 	log.Print("foo bar")
 	logger.Info("wombats")
-
+	logger.FlushLog()
 	expectedLines := []string{"hello world", "foo bar", "wombats"}
 	contents, err := readLogFiles(dir)
 	if err != nil {
