@@ -102,18 +102,23 @@ func TestCopyStandardLogTo(t *testing.T) {
 	logger := vlog.NewLogger("testStandardLogTo")
 	logger.CopyStandardLogTo("INFO")
 	logger.Configure(vlog.LogDir(dir))
-	log.Print("wombats")
-	logger.Info("foo bar")
-	logger.FlushLog()
+	log.Print("hello world")
+	log.Print("foo bar")
+	logger.Info("wombats")
+
+	expectedLines := []string{"hello world", "foo bar", "wombats"}
 	contents, err := readLogFiles(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-	if want, got := 2, len(contents); want != got {
+	if want, got := len(expectedLines), len(contents); want != got {
 		t.Errorf("Expected %d info lines, got %d instead", want, got)
-	}
-	if !strings.Contains(contents[0], "wombats") {
-		t.Errorf("Expected log.Print(\"wombats\") output in INFO:%q", contents)
+	} else {
+		for i, line := range expectedLines {
+			if !strings.Contains(contents[i], line) {
+				t.Errorf("Failed to find line %q in contents:%q", line, contents)
+			}
+		}
 	}
 }
 
