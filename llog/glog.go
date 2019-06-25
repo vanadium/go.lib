@@ -97,6 +97,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	stdLog "log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -108,7 +109,7 @@ import (
 	"time"
 )
 
-// severity identifies the sort of log: info, warning etc. It also implements
+// Severity identifies the sort of log: info, warning etc. It also implements
 // the flag.Value interface. The -stderrthreshold flag is of type severity and
 // should be modified only through the flag.Value interface. The values match
 // the corresponding constants in C++.
@@ -552,7 +553,7 @@ func (l *Log) String() string {
 		l.name, l.logDirs, l.toStderr, l.alsoToStderr, l.maxStackBufSize, l.verbosity, &l.stderrThreshold, &l.vmodule, &l.vfilepath, &l.traceLocation)
 }
 
-// logDir if non-empty, write log files to this directory.
+// SetLogDir sets logDir if non-empty, write log files to this directory.
 func (l *Log) SetLogDir(logDir string) {
 	if logDir != "" {
 		l.mu.Lock()
@@ -587,7 +588,7 @@ func (l *Log) SetStderrThreshold(s Severity) {
 	l.stderrThreshold.set(s)
 }
 
-// SetModuleSpec sets the comma-separated list of pattern=N settings for
+// SetVModule sets the comma-separated list of pattern=N settings for
 // file-filtered logging
 func (l *Log) SetVModule(spec ModuleSpec) {
 	l.mu.Lock()
@@ -595,7 +596,7 @@ func (l *Log) SetVModule(spec ModuleSpec) {
 	l.setVState(l.verbosity, spec.filter, nil, true)
 }
 
-// SetModuleSpec sets the comma-separated list of pattern=N settings for
+// SetVFilepath sets the comma-separated list of pattern=N settings for
 // file-filtered logging
 func (l *Log) SetVFilepath(spec FilepathSpec) {
 	l.mu.Lock()
@@ -603,7 +604,7 @@ func (l *Log) SetVFilepath(spec FilepathSpec) {
 	l.setVState(l.verbosity, nil, spec.filter, true)
 }
 
-// SetTaceLocation sets the location, file:N, which when encountered will cause logging to emit a stack trace
+// SetTraceLocation sets the location, file:N, which when encountered will cause logging to emit a stack trace
 func (l *Log) SetTraceLocation(location TraceLocation) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -1158,4 +1159,49 @@ func (l *Log) V(level Level) bool {
 
 func (l *Log) Stats() Stats {
 	return *l.stats
+}
+
+// CopyStandardLogTo arranges for messages written to the Go "log" package's
+// default logs to also appear in the Google logs for the named and lower
+// severities.
+func (l *Log) CopyStandardLogTo(name string) {
+	sev, ok := severityByName(name)
+	if !ok {
+		panic(fmt.Sprintf("log.CopyStandardLogTo(%q): unrecognized severity name", name))
+	}
+	// Set a log format that captures the user's file and line:
+	//   d.go:23: message
+	stdLog.SetFlags(stdLog.Lshortfile)
+	stdLog.SetOutput(logBridge{severity: sev, log: l})
+}
+
+// logBridge provides the Write method that enables CopyStandardLogTo to connect
+// Go's standard logs to the logs provided by this package.
+type logBridge struct {
+	severity Severity
+	log      *Log
+}
+
+// Write parses the standard logging line and passes its components to the
+// logger for severity(lb).
+func (lb logBridge) Write(b []byte) (n int, err error) {
+	var (
+		file = "???"
+		line = 1
+	)
+	buf := lb.log.getBuffer()
+	// Split "d.go:23: message" into "d.go", "23", and "message".
+	if parts := bytes.SplitN(b, []byte{':'}, 3); len(parts) != 3 || len(parts[0]) < 1 || len(parts[2]) < 1 {
+		fmt.Fprint(buf, fmt.Sprintf("bad log format: %s", b))
+	} else {
+		file = string(parts[0])
+		line, err = strconv.Atoi(string(parts[1]))
+		fmt.Fprint(buf, string(b))
+		if err != nil {
+			fmt.Fprint(buf, fmt.Sprintf("bad line number: %s", b))
+			line = 1
+		}
+	}
+	lb.log.output(Severity(lb.severity), buf, file, line)
+	return len(b), nil
 }
