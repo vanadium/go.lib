@@ -454,4 +454,7 @@ func TestCopyStandardLogTo(t *testing.T) {
 	if !l.contains(InfoLog, "hello", t) {
 		t.Errorf("Failed to write standard logs to info:%q", l.contents(InfoLog))
 	}
+	if !l.contains(InfoLog, "foo bar", t) {
+		t.Errorf("Failed to write standard logs to info:%q", l.contents(InfoLog))
+	}
 }
