@@ -174,7 +174,7 @@ func (l *Logger) Configure(opts ...LoggingOpts) error {
 // Valid names are "INFO", "WARNING", "ERROR", and "FATAL".  If the name is not
 // recognized, CopyStandardLogTo panics.
 func (l *Logger) CopyStandardLogTo(name string) {
-	l.log.CopyStandardLogsTo(name)
+	l.log.CopyStandardLogTo(name)
 }
 
 // LogDir returns the directory where the log files are written.
