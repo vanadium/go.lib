@@ -447,7 +447,6 @@ func TestHeader1(t *testing.T) {
 }
 
 func TestCopyStandardLogTo(t *testing.T) {
-	fmt.Println("TEST")
 	l := newLogger(t)
 	l.CopyStandardLogTo("INFO")
 	log.Print("hello world")
