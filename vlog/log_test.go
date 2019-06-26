@@ -34,6 +34,9 @@ func ExampleError() {
 }
 
 func readLogFiles(dir string) ([]string, error) {
+	return readLogLines(dir, false /* do not include header lines */)
+}
+func readLogLines(dir string, includeHeader bool) ([]string, error) {
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		return nil, err
@@ -50,7 +53,7 @@ func readLogFiles(dir string) ([]string, error) {
 		}
 		scanner := bufio.NewScanner(file)
 		for scanner.Scan() {
-			if line := scanner.Text(); len(line) > 0 && line[0] == 'I' {
+			if line := scanner.Text(); len(line) > 0 && (includeHeader || line[0] == 'I') {
 				contents = append(contents, line)
 			}
 		}
@@ -98,20 +101,22 @@ func TestCopyStandardLogTo(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 	logger := vlog.NewLogger("testStandardLogTo")
-	logger.CopyStandardLogTo("INFO")
 	logger.Configure(vlog.LogDir(dir))
+	logger.CopyStandardLogTo("INFO")
 	log.Print("hello world")
 	log.Print("foo bar")
 	logger.Info("wombats")
 	logger.FlushLog()
 	expectedLines := []string{"hello world", "foo bar", "wombats"}
-	contents, err := readLogFiles(dir)
+	contents, err := readLogLines(dir, true /* include header */)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-	if want, got := len(expectedLines), len(contents); want != got {
+	headerNum := 4 /* number of header lines */
+	if want, got := len(expectedLines), len(contents)-headerNum; want != got {
 		t.Errorf("Expected %d info lines, got %d instead", want, got)
 	} else {
+		contents = contents[headerNum:]
 		for i, line := range expectedLines {
 			if !strings.Contains(contents[i], line) {
 				t.Errorf("Failed to find line %q in contents:%q", line, contents)
