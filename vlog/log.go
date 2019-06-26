@@ -166,6 +166,17 @@ func (l *Logger) Configure(opts ...LoggingOpts) error {
 	return nil
 }
 
+// CopyStandardLogTo arranges for messages written to the Go "log" package's
+// default logs to also appear in the Google logs for the named and lower
+// severities.  Subsequent changes to the standard log's default output location
+// or format may break this behavior.
+//
+// Valid names are "INFO", "WARNING", "ERROR", and "FATAL".  If the name is not
+// recognized, CopyStandardLogTo panics.
+func (l *Logger) CopyStandardLogTo(name string) {
+	l.log.CopyStandardLogTo(name)
+}
+
 // LogDir returns the directory where the log files are written.
 func (l *Logger) LogDir() string {
 	if len(l.logDir) != 0 {

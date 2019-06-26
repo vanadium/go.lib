@@ -19,6 +19,7 @@ package llog
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -443,4 +444,17 @@ func TestHeader1(t *testing.T) {
 	l := newLogger(t)
 	l.Print(InfoLog, "hello")
 	fmt.Println(l.contents(InfoLog))
+}
+
+func TestCopyStandardLogTo(t *testing.T) {
+	l := newLogger(t)
+	l.CopyStandardLogTo("INFO")
+	log.Print("hello world")
+	log.Print("foo bar")
+	l.Print(InfoLog, "wombats")
+	for _, line := range []string{"hello world", "foo bar", "wombats"} {
+		if !l.contains(InfoLog, line, t) {
+			t.Errorf("Failed to find line %q in contents:%q", line, l.contents(InfoLog))
+		}
+	}
 }
