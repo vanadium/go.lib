@@ -703,21 +703,25 @@ where the fields are defined as follows:
 	msg              The user-supplied message
 */
 func (l *Log) header(s Severity, depth int) (*buffer, string, int) {
-	// Lmmdd hh:mm:ss.uuuuuu threadid file:line]
-	now := timeNow()
 	_, file, line, ok := runtime.Caller(l.skip + depth)
 	if !ok {
 		file = "???"
 		line = 1
-	} else {
-		slash := strings.LastIndex(file, "/")
-		if slash >= 0 {
-			file = file[slash+1:]
-		}
+	}
+	return l.headerFileLine(s, file, line)
+}
+
+func (l *Log) headerFileLine(s Severity, file string, line int) (*buffer, string, int) {
+	// Lmmdd hh:mm:ss.uuuuuu threadid file:line]
+	now := timeNow()
+	slash := strings.LastIndex(file, "/")
+	if slash >= 0 {
+		file = file[slash+1:]
 	}
 	if line < 0 {
 		line = 0 // not a real line number, but acceptable to someDigits
 	}
+
 	if s > FatalLog {
 		s = InfoLog // for safety.
 	}
@@ -822,6 +826,15 @@ func (l *Log) PrintDepth(s Severity, depth int, args ...interface{}) {
 func (l *Log) PrintfDepth(s Severity, depth int, format string, args ...interface{}) {
 	buf, file, line := l.header(s, depth)
 	fmt.Fprintf(buf, format, args...)
+	if buf.Bytes()[buf.Len()-1] != '\n' {
+		buf.WriteByte('\n')
+	}
+	l.output(s, buf, file, line)
+}
+
+func (l *Log) PrintFileLine(s Severity, file string, line int, args ...interface{}) {
+	buf, file, line := l.headerFileLine(s, file, line)
+	fmt.Fprint(buf, args...)
 	if buf.Bytes()[buf.Len()-1] != '\n' {
 		buf.WriteByte('\n')
 	}
