@@ -29,6 +29,12 @@ func InfoDepth(depth int, args ...interface{}) {
 	Log.maybeFlush()
 }
 
+// InfoFileLine acts as Info but uses file and line as the call frame to log.
+func InfoFileLine(file string, line int, args ...interface{}) {
+	Log.log.PrintFileLine(llog.InfoLog, file, line, args...)
+	Log.maybeFlush()
+}
+
 // InfoStack logs the current goroutine's stack if the all parameter
 // is false, or the stacks of all goroutines if it's true.
 func InfoStack(all bool) {
@@ -37,6 +43,12 @@ func InfoStack(all bool) {
 
 // V returns true if the configured logging level is greater than or equal to its parameter
 func V(level Level) bool {
+	return Log.log.VDepth(0, llog.Level(level))
+}
+
+// VDepth acts as V but uses depth to determine which call frame to check V.
+// A depth of 0 is equivalent to calling V.
+func VDepth(depth int, level Level) bool {
 	return Log.log.VDepth(0, llog.Level(level))
 }
 
