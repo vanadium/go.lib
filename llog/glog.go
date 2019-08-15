@@ -721,7 +721,6 @@ func (l *Log) headerFileLine(s Severity, file string, line int) (*buffer, string
 	if line < 0 {
 		line = 0 // not a real line number, but acceptable to someDigits
 	}
-
 	if s > FatalLog {
 		s = InfoLog // for safety.
 	}
