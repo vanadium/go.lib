@@ -14,6 +14,7 @@ package flagvar
 import (
 	"flag"
 	"fmt"
+	"os"
 	"reflect"
 	"strconv"
 	"time"
@@ -100,7 +101,11 @@ func parseField(t, field string, allowEmpty, expectMore bool) (value, remaining 
 // literal default value for the flag and <usage> the detailed
 // description for the flag.
 // <default-value> may be left empty, but <name> and <usage> must
-// be supplied. All fields can be quoted if they need to contain a comma.
+// be supplied. All fields can be quoted (with ') if they need to contain
+// a comma.
+//
+// Default values may contain shell variables as per os.ExpandEnv.
+// So $HOME/.configdir may be used for example.
 func ParseFlagTag(t string) (name, value, usage string, err error) {
 	if len(t) == 0 {
 		err = fmt.Errorf("empty or missing tag")
@@ -122,7 +127,7 @@ func ParseFlagTag(t string) (name, value, usage string, err error) {
 	return
 }
 
-func literalDefault(typeName, literal string, initialValue interface{}) (value interface{}, err error) {
+func literalDefault(typeName, literal string, initialValue interface{}) (value interface{}, usage string, err error) {
 	if initialValue != nil {
 		switch v := initialValue.(type) {
 		case int, int64, uint, uint64, bool, float64, string, time.Duration:
@@ -148,6 +153,10 @@ func literalDefault(typeName, literal string, initialValue interface{}) (value i
 			value = ""
 		}
 		return
+	}
+	if tmp := os.ExpandEnv(literal); tmp != literal {
+		usage = literal
+		literal = tmp
 	}
 	var tmp int64
 	var utmp uint64
@@ -220,7 +229,6 @@ func RegisterFlagsInStruct(fs *flag.FlagSet, tag string, structWithFlags interfa
 		}
 		fs.Lookup(k).DefValue = v
 	}
-
 	return nil
 }
 
@@ -272,7 +280,7 @@ func registerFlagsInStruct(fs *flag.FlagSet, tag string, structWithFlags interfa
 			return fmt.Errorf("%v: field can't be a pointer", errPrefix())
 		}
 
-		initialValue, err := literalDefault(fieldTypeName, value, valueDefaults[name])
+		initialValue, defaultUsageValue, err := literalDefault(fieldTypeName, value, valueDefaults[name])
 		if err != nil {
 			return fmt.Errorf("%v: failed to set initial default value: %v", errPrefix(), err)
 		}
@@ -326,7 +334,9 @@ func registerFlagsInStruct(fs *flag.FlagSet, tag string, structWithFlags interfa
 			// should never reach here.
 			panic(fmt.Sprintf("%v flag: field %v, flag %v: unsupported type %T", fieldTypeName, fieldName, name, initialValue))
 		}
+		if len(defaultUsageValue) > 0 {
+			fs.Lookup(name).DefValue = defaultUsageValue
+		}
 	}
-
 	return nil
 }
