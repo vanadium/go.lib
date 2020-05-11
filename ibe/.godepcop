@@ -1,6 +1,0 @@
-<godepcop>
-  <pkg allow="golang.org/x/crypto/bn256"/>
-  <pkg allow="golang.org/x/crypto/nacl/secretbox"/>
-  <pkg allow="golang.org/x/crypto/poly1305"/>
-  <pkg allow="golang.org/x/crypto/salsa20/salsa"/>
-</godepcop>

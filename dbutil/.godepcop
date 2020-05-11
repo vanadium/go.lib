@@ -1,3 +1,0 @@
-<godepcop>
-  <pkg allow="github.com/go-sql-driver/mysql"/>
-</godepcop>
