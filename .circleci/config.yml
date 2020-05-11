@@ -1,0 +1,13 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/golang:1.14
+    steps:
+      - checkout
+      - run:
+          name: build
+          command: |
+            set -eux -o pipefail 
+            go get -v -t -d ./...
+            go test -v ./...

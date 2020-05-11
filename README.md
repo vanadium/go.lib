@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.org/vanadium/go.lib.svg?branch=master)](https://travis-ci.org/vanadium/go.lib)
+[![CircleCI](https://circleci.com/gh/vanadium/go.lib.svg?style=svg)](https://circleci.com/gh/vanadium/go.lib)
 
 This repository contains general purpose libraries created by and used by the
 [github.com/vanadium](Vanadium project). They do not depend on Vanadium and
@@ -17,7 +18,6 @@ are more broadly useful.
   * netstate - a comprehensive set of IPv4 and v6 aware functions for comparing a prior network state with the current one. This approach is the only way to reliably determine how a host's network configuration has changed.
 
 * Miscelleneous 
-  * dbutil - create and manage connections to MySQL-like databases.
   * metadata - provides a mechanism for setting and retrieving
     metadata stored in program binaries
   * nsync - mutex and condition variables that support cancelation.
