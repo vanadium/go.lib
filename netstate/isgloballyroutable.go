@@ -9,9 +9,9 @@ import (
 )
 
 var privateCIDRs = []net.IPNet{
-	net.IPNet{IP: net.IPv4(10, 0, 0, 0), Mask: net.IPv4Mask(0xff, 0, 0, 0)},
-	net.IPNet{IP: net.IPv4(172, 16, 0, 0), Mask: net.IPv4Mask(0xff, 0xf0, 0, 0)},
-	net.IPNet{IP: net.IPv4(192, 168, 0, 0), Mask: net.IPv4Mask(0xff, 0xff, 0, 0)},
+	{IP: net.IPv4(10, 0, 0, 0), Mask: net.IPv4Mask(0xff, 0, 0, 0)},
+	{IP: net.IPv4(172, 16, 0, 0), Mask: net.IPv4Mask(0xff, 0xf0, 0, 0)},
+	{IP: net.IPv4(192, 168, 0, 0), Mask: net.IPv4Mask(0xff, 0xff, 0, 0)},
 }
 
 // IsGloballyRoutableIP returns true if the argument is a globally

@@ -157,7 +157,7 @@ func (x *T) ToXML() string {
 func (x *T) toXML(indent bool) string {
 	// Write each XML <md> entry ordered by id.
 	var ids []string
-	for id, _ := range x.entries {
+	for id := range x.entries {
 		ids = append(ids, id)
 	}
 	sort.Strings(ids)

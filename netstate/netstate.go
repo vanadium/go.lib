@@ -165,48 +165,48 @@ func (ifc ipifc) String() string {
 }
 
 // Implements NetworkInterface
-func (a ipifc) Addrs() []net.Addr {
-	return a.addrs
+func (ifc ipifc) Addrs() []net.Addr {
+	return ifc.addrs
 }
 
 // Implements NetworkInterface
-func (a ipifc) Index() int {
-	return a.index
+func (ifc ipifc) Index() int {
+	return ifc.index
 }
 
 // Implements NetworkInterface
-func (a ipifc) Name() string {
-	return a.name
+func (ifc ipifc) Name() string {
+	return ifc.name
 }
 
 // Implements NetworkInterface
-func (a ipifc) MTU() int {
-	return a.mtu
+func (ifc ipifc) MTU() int {
+	return ifc.mtu
 }
 
 // Implements NetworkInterface
-func (a ipifc) HardwareAddr() net.HardwareAddr {
-	return a.hardwareAddr
+func (ifc ipifc) HardwareAddr() net.HardwareAddr {
+	return ifc.hardwareAddr
 }
 
 // Implements NetworkInterface
-func (a ipifc) Flags() net.Flags {
-	return a.flags
+func (ifc ipifc) Flags() net.Flags {
+	return ifc.flags
 }
 
 // Implements NetworkInterface
-func (a ipifc) Networks() []net.Addr {
+func (ifc ipifc) Networks() []net.Addr {
 	nets := []net.Addr{}
-	for _, r := range a.ipRoutes {
+	for _, r := range ifc.ipRoutes {
 		nets = append(nets, &r.Net)
 	}
 	return nets
 }
 
 // Implements IPNetworkInterface
-func (a ipifc) IPRoutes() IPRouteList {
-	routes := make(IPRouteList, len(a.ipRoutes))
-	copy(routes, a.ipRoutes)
+func (ifc ipifc) IPRoutes() IPRouteList {
+	routes := make(IPRouteList, len(ifc.ipRoutes))
+	copy(routes, ifc.ipRoutes)
 	return routes
 }
 

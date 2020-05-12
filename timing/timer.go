@@ -194,6 +194,7 @@ func (p *printer) print() error {
 	return p.walkIntervals(p.printRow)
 }
 
+// nolint: gocyclo
 func (p *printer) walkIntervals(fn func(name string, start, end time.Duration, depth int) error) error {
 	stack := p.stack[:1]
 	stack[0] = 0
