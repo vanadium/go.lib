@@ -39,6 +39,7 @@
 package cmdline
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -297,27 +298,31 @@ func cleanFlags(flags *flag.FlagSet) {
 	})
 }
 
+// nolint: gocyclo
 func checkTreeInvariants(path []*Command, env *Env) error {
 	cmd, cmdPath := path[len(path)-1], pathName(env.prefix(), path)
 	// Check that the root name is non-empty.
 	if cmdPath == "" {
-		return fmt.Errorf(`CODE INVARIANT BROKEN; FIX YOUR CODE
+		msg := `CODE INVARIANT BROKEN; FIX YOUR CODE
 
-Root command name cannot be empty.`)
+Root command name cannot be empty.`
+		return errors.New(msg)
 	}
 	// Check that the children and topic names are non-empty and unique.
 	seen := make(map[string]bool)
 	checkName := func(name string) error {
 		if name == "" {
-			return fmt.Errorf(`%v: CODE INVARIANT BROKEN; FIX YOUR CODE
+			msg := fmt.Sprintf(`%v: CODE INVARIANT BROKEN; FIX YOUR CODE
 
 Command and topic names cannot be empty.`, cmdPath)
+			return errors.New(msg)
 		}
 		if seen[name] {
-			return fmt.Errorf(`%v: CODE INVARIANT BROKEN; FIX YOUR CODE
+			msg := fmt.Sprintf(`%v: CODE INVARIANT BROKEN; FIX YOUR CODE
 
 Each command must have unique children and topic names.
 Saw %q multiple times.`, cmdPath, name)
+			return errors.New(msg)
 		}
 		seen[name] = true
 		return nil
@@ -337,14 +342,16 @@ Saw %q multiple times.`, cmdPath, name)
 	// empty, meaning the Runner doesn't take any args.
 	switch hasC, hasR := len(cmd.Children) > 0, cmd.Runner != nil; {
 	case !hasC && !hasR:
-		return fmt.Errorf(`%v: CODE INVARIANT BROKEN; FIX YOUR CODE
+		msg := fmt.Sprintf(`%v: CODE INVARIANT BROKEN; FIX YOUR CODE
 
 At least one of Children or Runner must be specified.`, cmdPath)
+		return errors.New(msg)
 	case hasC && hasR && (cmd.ArgsName != "" || cmd.ArgsLong != ""):
-		return fmt.Errorf(`%v: CODE INVARIANT BROKEN; FIX YOUR CODE
+		msg := fmt.Sprintf(`%v: CODE INVARIANT BROKEN; FIX YOUR CODE
 
 Since both Children and Runner are specified, the Runner cannot take args.
 Otherwise a conflict between child names and runner args is possible.`, cmdPath)
+		return errors.New(msg)
 	}
 	// Check recursively for all children
 	for _, child := range cmd.Children {
@@ -366,6 +373,7 @@ func pathName(prefix string, path []*Command) string {
 	return name
 }
 
+// nolint: gocyclo
 func (cmd *Command) parse(path []*Command, env *Env, args []string, setFlags map[string]string) (Runner, []string, error) {
 	path = append(path, cmd)
 	cmdPath := pathName(env.prefix(), path)
@@ -546,9 +554,9 @@ func flagsAsArgs(x map[string]string) []string {
 
 // subNames returns the sub names of c which should be ignored when using look
 // path to find external binaries.
-func (c *Command) subNames(prefix string) map[string]bool {
+func (cmd *Command) subNames(prefix string) map[string]bool {
 	m := map[string]bool{prefix + "help": true}
-	for _, child := range c.Children {
+	for _, child := range cmd.Children {
 		m[prefix+child.Name] = true
 	}
 	return m

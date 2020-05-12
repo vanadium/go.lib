@@ -21,7 +21,7 @@ func Get(addr string) {
 		log.Fatal(err)
 	}
 	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	body, _ := ioutil.ReadAll(resp.Body)
 	fmt.Print(string(body))
 }
 

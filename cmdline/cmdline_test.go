@@ -2518,13 +2518,13 @@ func TestExternalSubcommand(t *testing.T) {
 		Long:     "Long description of command unlikely.",
 		LookPath: true,
 		Children: []*Command{
-			&Command{
+			{
 				Runner: RunnerFunc(runDumpEnv),
 				Name:   "dumpenv",
 				Short:  "Short description of command dumpenv",
 				Long:   "Long description of command dumpenv.",
 			},
-			&Command{
+			{
 				Runner: RunnerFunc(runHello),
 				Name:   "repeated",
 				Short:  "Repeated appears as both a child and as a binary",
@@ -3048,42 +3048,42 @@ func TestFlagPropagation(t *testing.T) {
 		want        []string
 	}{
 		{
-			[]fc{fc{false, false}, fc{false, false}, fc{false, false}},
+			[]fc{{false, false}, {false, false}, {false, false}},
 			[]string{"cmd1", "cmd2"},
 			[]string{"flag0", "flag1", "flag2"},
 		},
 		{
-			[]fc{fc{true, false}, fc{false, false}, fc{false, false}},
+			[]fc{{true, false}, {false, false}, {false, false}},
 			[]string{"cmd1", "cmd2"},
 			[]string{"flag1", "flag2"},
 		},
 		{
-			[]fc{fc{false, false}, fc{true, false}, fc{false, false}},
+			[]fc{{false, false}, {true, false}, {false, false}},
 			[]string{"cmd1", "cmd2"},
 			[]string{"flag2"},
 		},
 		{
-			[]fc{fc{false, false}, fc{false, true}, fc{false, false}},
+			[]fc{{false, false}, {false, true}, {false, false}},
 			[]string{"cmd1", "cmd2"},
 			[]string{"flag1", "flag2"},
 		},
 		{
-			[]fc{fc{false, false}, fc{true, true}, fc{false, false}},
+			[]fc{{false, false}, {true, true}, {false, false}},
 			[]string{"cmd1", "cmd2"},
 			[]string{"flag2"},
 		},
 		{
-			[]fc{fc{false, false}, fc{false, false}, fc{true, false}},
+			[]fc{{false, false}, {false, false}, {true, false}},
 			[]string{"cmd1", "cmd2"},
 			[]string{"flag0", "flag1", "flag2"},
 		},
 		{
-			[]fc{fc{false, false}, fc{false, false}, fc{false, true}},
+			[]fc{{false, false}, {false, false}, {false, true}},
 			[]string{"cmd1", "cmd2"},
 			[]string{"flag2"},
 		},
 		{
-			[]fc{fc{false, false}, fc{false, false}, fc{true, true}},
+			[]fc{{false, false}, {false, false}, {true, true}},
 			[]string{"cmd1", "cmd2"},
 			[]string{"flag2"},
 		},

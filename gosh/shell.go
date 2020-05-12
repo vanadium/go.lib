@@ -326,7 +326,7 @@ func (sh *Shell) funcCmd(f *Func, args ...interface{}) (*Cmd, error) {
 	if err != nil {
 		return nil, err
 	}
-	vars := map[string]string{envInvocation: string(buf)}
+	vars := map[string]string{envInvocation: buf}
 	return sh.cmd(vars, executablePath)
 }
 
@@ -590,11 +590,12 @@ func buildGoPkg(sh *Shell, binDir, pkg string, flags ...string) (string, error) 
 		return "", err
 	}
 	var binPath string
-	if outputFlag == "" {
+	switch {
+	case outputFlag == "":
 		binPath = filepath.Join(binDir, path.Base(pkg))
-	} else if filepath.IsAbs(outputFlag) {
+	case filepath.IsAbs(outputFlag):
 		binPath = outputFlag
-	} else {
+	default:
 		binPath = filepath.Join(binDir, outputFlag)
 	}
 	// If the binary already exists at the target location, don't rebuild it.
