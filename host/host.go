@@ -20,13 +20,14 @@ func Arch() (string, error) {
 	}
 	machine := string(out)
 	arch := ""
-	if strings.Contains(machine, "x86_64") || strings.Contains(machine, "amd64") {
+	switch {
+	case strings.Contains(machine, "x86_64") || strings.Contains(machine, "amd64"):
 		arch = "amd64"
-	} else if strings.HasSuffix(machine, "86") {
+	case strings.HasSuffix(machine, "86"):
 		arch = "386"
-	} else if strings.Contains(machine, "arm") {
+	case strings.Contains(machine, "arm"):
 		arch = "arm"
-	} else {
+	default:
 		return "", fmt.Errorf("unknown architecture: %s", machine)
 	}
 	return arch, nil

@@ -297,7 +297,7 @@ func (x *Vars) Delete(keys ...string) {
 // Mutating the returned map does not affect x.
 func (x *Vars) ToMap() map[string]string {
 	snapshot := MergeMaps(x.base, x.deltaInsert)
-	for key, _ := range x.deltaRemove {
+	for key := range x.deltaRemove {
 		delete(snapshot, key)
 	}
 	return snapshot
@@ -331,7 +331,7 @@ func (x *Vars) Deltas() map[string]*string {
 		cp := value
 		deltas[key] = &cp
 	}
-	for key, _ := range x.deltaRemove {
+	for key := range x.deltaRemove {
 		deltas[key] = nil
 	}
 	return deltas
