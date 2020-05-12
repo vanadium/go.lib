@@ -7,11 +7,13 @@
 
 package nsync_test
 
-import "container/heap"
-import "fmt"
-import "time"
+import (
+	"container/heap"
+	"fmt"
+	"time"
 
-import "v.io/x/lib/nsync"
+	"v.io/x/lib/nsync"
+)
 
 // ---------------------------------------
 
@@ -87,7 +89,7 @@ func removeAndPrint(q *StringPriorityQueue, delay time.Duration) {
 
 // ExampleMuWait() demonstrates the use of nsync.Mu's Wait() via a priority queue of strings.
 // See the routine RemoveWithDeadline(), above.
-func ExampleCVWait() {
+func ExampleCV_Wait() {
 	var q StringPriorityQueue
 
 	go addAndWait(&q, 500*time.Millisecond, "one", "two", "three", "four", "five")
