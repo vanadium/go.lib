@@ -5,7 +5,6 @@
 package simplemr_test
 
 import (
-	"errors"
 	"fmt"
 	"math/rand"
 	"runtime"
@@ -207,11 +206,6 @@ func TestChainedMR(t *testing.T) {
 }
 
 type cancelMR struct{ cancelMapper bool }
-
-var (
-	errMapperCancelled  = errors.New("mapper cancelled")
-	errReducerCancelled = errors.New("reducer cancelled")
-)
 
 func cancelEg(mr *simplemr.MR) error {
 	delay := rand.Int63n(1000) * int64(time.Millisecond)

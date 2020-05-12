@@ -104,8 +104,6 @@ func TestTags(t *testing.T) {
 	}
 }
 
-type dummy struct{}
-
 func allFlags(fs *flag.FlagSet) string {
 	out := []string{}
 	fs.VisitAll(func(f *flag.Flag) {
@@ -122,19 +120,6 @@ func allFlags(fs *flag.FlagSet) string {
 	})
 	sort.Strings(out)
 	return strings.Join(out, "\n")
-}
-
-func MaxProcs() int {
-	return runtime.GOMAXPROCS(-1)
-}
-
-func CurrentDirectory() string {
-	d, _ := os.Getwd()
-	return d
-}
-
-func OneHour() time.Duration {
-	return time.Hour
 }
 
 func TestRegister(t *testing.T) {

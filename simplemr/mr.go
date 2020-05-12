@@ -56,7 +56,7 @@ func (s *store) sortedKeys() []string {
 	s.Lock()
 	defer s.Unlock()
 	keys := make([]string, 0, len(s.data))
-	for k, _ := range s.data {
+	for k := range s.data {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
@@ -77,14 +77,14 @@ func (s *store) lookup(k string) []interface{} {
 
 // MR represents the Map Reduction.
 type MR struct {
-	input        <-chan *Record
-	output       chan<- *Record
-	cancel       chan struct{}
-	cancelled    bool
-	cancelled_mu sync.RWMutex // guards cancelled
-	err          error
-	err_mu       sync.RWMutex // guards err
-	data         *store
+	input       <-chan *Record
+	output      chan<- *Record
+	cancel      chan struct{}
+	cancelled   bool
+	cancelledMu sync.RWMutex // guards cancelled
+	err         error
+	errMu       sync.RWMutex // guards err
+	data        *store
 
 	// The number of conccurent mappers to use. A value of 0 instructs
 	// the implementation to use an appropriate number, such as the number
@@ -99,8 +99,8 @@ type MR struct {
 // safe to read its value once the output channel passed to Run has been
 // closed.
 func (mr *MR) Error() error {
-	mr.err_mu.RLock()
-	defer mr.err_mu.RUnlock()
+	mr.errMu.RLock()
+	defer mr.errMu.RUnlock()
 	return mr.err
 }
 
@@ -127,8 +127,8 @@ func (mr *MR) CancelCh() <-chan struct{} {
 // have been run then no reducers will be run. It can only be called
 // after mr.Run has been called, generally by a mapper or a reducer.
 func (mr *MR) Cancel() {
-	mr.cancelled_mu.Lock()
-	defer mr.cancelled_mu.Unlock()
+	mr.cancelledMu.Lock()
+	defer mr.cancelledMu.Unlock()
 	if mr.cancelled {
 		return
 	}
@@ -138,8 +138,8 @@ func (mr *MR) Cancel() {
 
 // IsCancelled returns true if this MR has been cancelled.
 func (mr *MR) IsCancelled() bool {
-	mr.cancelled_mu.RLock()
-	defer mr.cancelled_mu.RUnlock()
+	mr.cancelledMu.RLock()
+	defer mr.cancelledMu.RUnlock()
 	return mr.cancelled
 }
 
@@ -225,18 +225,18 @@ func (mr *MR) Run(input <-chan *Record, output chan<- *Record, mapper Mapper, re
 	}
 	defer close(mr.output)
 	if err := mr.runMappers(mapper, timeout); err != nil {
-		mr.err_mu.Lock()
+		mr.errMu.Lock()
 		mr.err = err
-		mr.err_mu.Unlock()
+		mr.errMu.Unlock()
 		return err
 	}
 	if mr.IsCancelled() {
 		return ErrMRCancelled
 	}
 	err := mr.runReducers(reducer, timeout)
-	mr.err_mu.Lock()
+	mr.errMu.Lock()
 	mr.err = err
-	mr.err_mu.Unlock()
+	mr.errMu.Unlock()
 	if mr.IsCancelled() {
 		return ErrMRCancelled
 	}
