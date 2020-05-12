@@ -26,7 +26,7 @@ func (Complex128T) FromSlice(els []complex128) map[complex128]struct{} {
 // ToSlice transforms the given set to a slice.
 func (Complex128T) ToSlice(s map[complex128]struct{}) []complex128 {
 	var result []complex128
-	for el, _ := range s {
+	for el := range s {
 		result = append(result, el)
 	}
 	return result
@@ -34,7 +34,7 @@ func (Complex128T) ToSlice(s map[complex128]struct{}) []complex128 {
 
 // Difference subtracts s2 from s1, storing the result in s1.
 func (Complex128T) Difference(s1, s2 map[complex128]struct{}) {
-	for el, _ := range s1 {
+	for el := range s1 {
 		if _, ok := s2[el]; ok {
 			delete(s1, el)
 		}
@@ -43,7 +43,7 @@ func (Complex128T) Difference(s1, s2 map[complex128]struct{}) {
 
 // Intersection intersects s1 and s2, storing the result in s1.
 func (Complex128T) Intersection(s1, s2 map[complex128]struct{}) {
-	for el, _ := range s1 {
+	for el := range s1 {
 		if _, ok := s2[el]; !ok {
 			delete(s1, el)
 		}
@@ -52,7 +52,7 @@ func (Complex128T) Intersection(s1, s2 map[complex128]struct{}) {
 
 // Union merges s1 and s2, storing the result in s1.
 func (Complex128T) Union(s1, s2 map[complex128]struct{}) {
-	for el, _ := range s2 {
+	for el := range s2 {
 		s1[el] = struct{}{}
 	}
 }

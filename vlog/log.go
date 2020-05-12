@@ -120,13 +120,13 @@ func NewLogger(name string) *Logger {
 // in which case an error will be returned. The Configured error is returned
 // if ConfigureLogger has already been called unless the
 // OverridePriorConfiguration options is included.
+// nolint: gocyclo
 func (l *Logger) Configure(opts ...LoggingOpts) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	override := false
 	for _, o := range opts {
-		switch v := o.(type) {
-		case OverridePriorConfiguration:
+		if v, ok := o.(OverridePriorConfiguration); ok {
 			override = bool(v)
 		}
 	}
@@ -187,7 +187,7 @@ func (l *Logger) LogDir() string {
 
 // Stats returns stats on how many lines/bytes haven been written to
 // this set of logs.
-func (l *Logger) Stats() (Info, Error struct{ Lines, Bytes int64 }) {
+func (l *Logger) Stats() (infoStats, errorStarts struct{ Lines, Bytes int64 }) {
 	stats := l.log.Stats()
 	return struct{ Lines, Bytes int64 }{Lines: stats.Info.Lines(), Bytes: stats.Info.Bytes()},
 		struct{ Lines, Bytes int64 }{Lines: stats.Error.Lines(), Bytes: stats.Error.Bytes()}

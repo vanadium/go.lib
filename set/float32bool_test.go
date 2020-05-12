@@ -11,6 +11,7 @@ import (
 	"testing"
 )
 
+// nolint: gocyclo
 func TestFloat32Bool(t *testing.T) {
 	slice := []float32{}
 

@@ -26,7 +26,7 @@ func (Uint64T) FromSlice(els []uint64) map[uint64]struct{} {
 // ToSlice transforms the given set to a slice.
 func (Uint64T) ToSlice(s map[uint64]struct{}) []uint64 {
 	var result []uint64
-	for el, _ := range s {
+	for el := range s {
 		result = append(result, el)
 	}
 	return result
@@ -34,7 +34,7 @@ func (Uint64T) ToSlice(s map[uint64]struct{}) []uint64 {
 
 // Difference subtracts s2 from s1, storing the result in s1.
 func (Uint64T) Difference(s1, s2 map[uint64]struct{}) {
-	for el, _ := range s1 {
+	for el := range s1 {
 		if _, ok := s2[el]; ok {
 			delete(s1, el)
 		}
@@ -43,7 +43,7 @@ func (Uint64T) Difference(s1, s2 map[uint64]struct{}) {
 
 // Intersection intersects s1 and s2, storing the result in s1.
 func (Uint64T) Intersection(s1, s2 map[uint64]struct{}) {
-	for el, _ := range s1 {
+	for el := range s1 {
 		if _, ok := s2[el]; !ok {
 			delete(s1, el)
 		}
@@ -52,7 +52,7 @@ func (Uint64T) Intersection(s1, s2 map[uint64]struct{}) {
 
 // Union merges s1 and s2, storing the result in s1.
 func (Uint64T) Union(s1, s2 map[uint64]struct{}) {
-	for el, _ := range s2 {
+	for el := range s2 {
 		s1[el] = struct{}{}
 	}
 }

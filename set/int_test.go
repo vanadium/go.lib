@@ -11,6 +11,7 @@ import (
 	"testing"
 )
 
+// nolint: gocyclo
 func TestInt(t *testing.T) {
 	slice := []int{}
 

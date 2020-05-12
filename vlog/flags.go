@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	// Reexport the logging severity levels from the underlying llog package.
+	// InfoLog etc reexport the logging severity levels from the underlying llog package.
 	InfoLog    = llog.InfoLog
 	WarningLog = llog.WarningLog
 	ErrorLog   = llog.ErrorLog
@@ -90,11 +90,11 @@ func (l *Logger) ConfigureFromLoggingFlags(lf *LoggingFlags, opts ...LoggingOpts
 		LogToStderr(lf.ToStderr),
 		AlsoLogToStderr(lf.AlsoToStderr),
 		LogDir(lf.LogDir),
-		Level(lf.Verbosity),
-		StderrThreshold(lf.StderrThreshold),
-		ModuleSpec(lf.VModule),
-		FilepathSpec(lf.VPath),
-		TraceLocation(lf.TraceLocation),
+		lf.Verbosity,
+		lf.StderrThreshold,
+		lf.VModule,
+		lf.VPath,
+		lf.TraceLocation,
 		MaxStackBufSize(lf.MaxStackBufSize),
 	}
 	all = append(all, opts...)

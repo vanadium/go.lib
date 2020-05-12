@@ -11,6 +11,7 @@ import (
 	"testing"
 )
 
+// nolint: gocyclo
 func TestUint16Bool(t *testing.T) {
 	slice := []uint16{}
 

@@ -11,6 +11,7 @@ import (
 	"testing"
 )
 
+// nolint: gocyclo
 func TestUintptrBool(t *testing.T) {
 	slice := []uintptr{}
 
