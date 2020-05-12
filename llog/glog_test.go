@@ -1,4 +1,3 @@
-// Low-level go support for leveled logs, analogous to https://code.google.com/p/google-glog/, that avoids the use of global state and command line flags.
 //
 // Copyright 2013 Google Inc. All Rights Reserved.
 //
@@ -14,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Low-level go support for leveled logs, analogous to https://code.google.com/p/google-glog/, that avoids the use of global state and command line flags.
 package llog
 
 import (
