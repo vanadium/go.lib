@@ -41,7 +41,7 @@ func (w *prefixWriter) Write(data []byte) (int, error) {
 }
 
 // PrefixLineWriter returns a WriteFlusher that wraps w.  Each occurrence of EOL
-// (\f, \n, \r, \v, LineSeparator or ParagraphSeparator) causes the preceeding
+// (\f, \n, \r, \v, LineSeparator or ParagraphSeparator) causes the preceding
 // line to be written to w, with the given prefix, in a single Write call.  Data
 // without EOL is buffered until the next EOL or Flush call.  Flush appends \n to
 // buffered data that doesn't end in EOL.

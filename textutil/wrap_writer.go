@@ -343,6 +343,7 @@ func (w *WrapWriter) updateRune(r rune) bool {
 //
 // Note that Flush calls behave exactly as if an explicit U+2028 line separator
 // were added to the end of all buffered data.
+// nolint: gocyclo
 func (w *WrapWriter) nextState(r rune, forceLineBreak bool) (state, bool) {
 	kind := runeKind(r)
 	if w.forceVerbatim {
