@@ -3,7 +3,6 @@ jobs:
   build:
     docker:
       - image: circleci/golang:1.14
-    working_directory: ~/v.io/x/lib
     steps:
       - checkout
       - run:
