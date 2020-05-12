@@ -239,7 +239,6 @@ func (c *cancelMR) Reduce(mr *simplemr.MR, key string, values []interface{}) err
 		return cancelEg(mr)
 	}
 	panic("should never get here")
-	return nil
 }
 
 func testCancel(t *testing.T, mapper bool) {

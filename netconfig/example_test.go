@@ -12,7 +12,7 @@ import (
 	"v.io/x/lib/netconfig/osnetconfig"
 )
 
-func ExampleNetConfigWatcher() {
+func ExampleNotifyChange() {
 	netconfig.SetOSNotifier(osnetconfig.NewNotifier(0))
 	for {
 		ch, err := netconfig.NotifyChange()
