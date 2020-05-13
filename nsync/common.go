@@ -4,10 +4,12 @@
 
 package nsync
 
-import "math"
-import "runtime"
-import "sync/atomic"
-import "time"
+import (
+	"math"
+	"runtime"
+	"sync/atomic"
+	"time"
+)
 
 // NoDeadline represents a time in the far future---a deadline that will not expire.
 var NoDeadline time.Time

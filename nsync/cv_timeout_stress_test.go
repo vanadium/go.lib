@@ -139,7 +139,7 @@ func TestCVTimeoutStress(t *testing.T) {
 
 	s.mu.AssertHeld()
 	s.mu.Unlock()
-	timeTaken := time.Now().Sub(start)
+	timeTaken := time.Since(start)
 
 	// Check that s.count has the right value.
 	expectedCount := uint64(loopCount * threadsPerValue * 4)

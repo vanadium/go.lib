@@ -4,11 +4,13 @@
 
 package nsync_test
 
-import "runtime"
-import "sync"
-import "testing"
+import (
+	"runtime"
+	"sync"
+	"testing"
 
-import "v.io/x/lib/nsync"
+	"v.io/x/lib/nsync"
+)
 
 // A testData is the state shared between the threads in each of the tests below.
 type testData struct {
@@ -158,8 +160,9 @@ func TestTryMuNThread(t *testing.T) {
 func BenchmarkMuUncontended(b *testing.B) {
 	var mu nsync.Mu
 	for i := 0; i != b.N; i++ {
+
 		mu.Lock()
-		mu.Unlock()
+		mu.Unlock() // nolint: staticcheck
 	}
 }
 
@@ -168,6 +171,6 @@ func BenchmarkMutexUncontended(b *testing.B) {
 	var mu sync.Mutex
 	for i := 0; i != b.N; i++ {
 		mu.Lock()
-		mu.Unlock()
+		mu.Unlock() // nolint: staticcheck
 	}
 }
