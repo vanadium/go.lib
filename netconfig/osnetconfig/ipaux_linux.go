@@ -72,9 +72,8 @@ func (m *rtAddressMessage) String() string {
 // Address looks for the address attribute in an rtAddressMessage.  If it isn't there, just assume the null address.
 func (m *rtAddressMessage) Address() net.IP {
 	for _, a := range m.attributes {
-		switch a.(type) {
-		case ifaAddress:
-			return net.IP(a.(ifaAddress))
+		if v, ok := a.(ifaAddress); ok {
+			return net.IP(v)
 		}
 	}
 	return net.IPv4zero
