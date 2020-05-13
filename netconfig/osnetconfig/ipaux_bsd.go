@@ -18,6 +18,7 @@ import (
 	"net"
 	"syscall"
 
+	xroute "golang.org/x/net/route"
 	"v.io/x/lib/netconfig/route"
 	"v.io/x/lib/vlog"
 )
@@ -45,16 +46,16 @@ func watcher(n *Notifier, sock int) {
 			vlog.Infof("read(%d) on an PF_ROUTE socket failed: %v", sock, err)
 			return
 		}
-		msgs, err := syscall.ParseRoutingMessage(buf[:nr])
+		msgs, err := xroute.ParseRIB(xroute.RIBTypeRoute, buf[:nr])
 		if err != nil {
 			vlog.Infof("ParseRoutingMessage failed: %s", err)
 			continue
 		}
 		for _, m := range msgs {
 			switch m.(type) {
-			case *syscall.InterfaceMessage:
-			case *syscall.InterfaceAddrMessage:
-			case *syscall.RouteMessage:
+			case *xroute.InterfaceMessage:
+			case *xroute.InterfaceAddrMessage:
+			case *xroute.RouteMessage:
 			default:
 				continue
 			}
@@ -66,17 +67,17 @@ func watcher(n *Notifier, sock int) {
 	}
 }
 
-func toIP(sa syscall.Sockaddr) (net.IP, error) {
+func toIP(sa xroute.Addr) (net.IP, error) {
 	switch v := sa.(type) {
-	case *syscall.SockaddrInet4:
-		return net.IPv4(v.Addr[0], v.Addr[1], v.Addr[2], v.Addr[3]), nil
-	case *syscall.SockaddrInet6:
-		return net.IP(v.Addr[:]), nil
+	case *xroute.Inet4Addr:
+		return net.IPv4(v.IP[0], v.IP[1], v.IP[2], v.IP[3]), nil
+	case *xroute.Inet6Addr:
+		return net.IP(v.IP[:]), nil
 	}
 	return net.IPv6zero, errors.New("unknown sockaddr ip")
 }
 
-func toIPNet(sa syscall.Sockaddr, msa syscall.Sockaddr) (net.IPNet, error) {
+func toIPNet(sa xroute.Addr, msa xroute.Addr) (net.IPNet, error) {
 	var x net.IPNet
 	var err error
 	x.IP, err = toIP(sa)
@@ -84,11 +85,11 @@ func toIPNet(sa syscall.Sockaddr, msa syscall.Sockaddr) (net.IPNet, error) {
 		return x, err
 	}
 	switch v := msa.(type) {
-	case *syscall.SockaddrInet4:
-		x.Mask = net.IPv4Mask(v.Addr[0], v.Addr[1], v.Addr[2], v.Addr[3])
+	case *xroute.Inet4Addr:
+		x.Mask = net.IPv4Mask(v.IP[0], v.IP[1], v.IP[2], v.IP[3])
 		return x, nil
-	case *syscall.SockaddrInet6:
-		x.Mask = net.IPMask(v.Addr[:])
+	case *xroute.Inet6Addr:
+		x.Mask = net.IPMask(v.IP[:])
 		return x, nil
 	}
 	return x, errors.New("unknown sockaddr ipnet")
@@ -99,22 +100,21 @@ func (n *Notifier) shutdown() {}
 // GetIPRoutes implements netconfig.Notifier.
 func (n *Notifier) GetIPRoutes(defaultOnly bool) []route.IPRoute {
 	var x []route.IPRoute
-	rib, err := syscall.RouteRIB(syscall.NET_RT_DUMP, 0)
+	rib, err := xroute.FetchRIB(0, xroute.RIBTypeRoute, 0)
 	if err != nil {
 		vlog.Infof("Couldn't read: %s", err)
 		return x
 	}
-	msgs, err := syscall.ParseRoutingMessage(rib)
+	msgs, err := xroute.ParseRIB(xroute.RIBTypeRoute, rib)
 	if err != nil {
 		vlog.Infof("Couldn't parse: %s", err)
 		return x
 	}
 	for _, m := range msgs {
-		switch v := m.(type) {
-		case *syscall.RouteMessage:
-			addrs, err := syscall.ParseRoutingSockaddr(m)
-			if err != nil {
-				return x
+		if v, ok := m.(*xroute.RouteMessage); ok {
+			addrs := v.Addrs
+			if len(addrs) < 3 {
+				continue
 			}
 			if addrs[0] == nil || addrs[1] == nil || addrs[2] == nil {
 				continue
@@ -126,7 +126,7 @@ func (n *Notifier) GetIPRoutes(defaultOnly bool) []route.IPRoute {
 			if r.Net, err = toIPNet(addrs[0], addrs[2]); err != nil {
 				continue
 			}
-			r.IfcIndex = int(v.Header.Index)
+			r.IfcIndex = v.Index
 			if !defaultOnly || route.IsDefaultIPRoute(&r) {
 				x = append(x, r)
 			}
