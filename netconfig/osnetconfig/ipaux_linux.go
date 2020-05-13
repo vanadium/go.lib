@@ -58,12 +58,12 @@ const ifaCacheInfoLen = C.sizeof_struct_ifa_cacheinfo
 // String routines to make debugging easier.
 func (a ifaAddress) String() string   { return "Address=" + net.IP(a).String() }
 func (a ifaLocal) String() string     { return "Local=" + net.IP(a).String() }
-func (a ifaBroadcast) String() string { return "Braodcast=" + net.IP(a).String() }
+func (a ifaBroadcast) String() string { return "Broadcast=" + net.IP(a).String() }
 func (a ifaAnycast) String() string   { return "Anycast=" + net.IP(a).String() }
 func (a ifaMulticast) String() string { return "Anycast=" + net.IP(a).String() }
 func (a ifaLabel) String() string     { return "Label=" + string(a) }
 func (a ifaCacheInfo) String() string {
-	return fmt.Sprintf("CacheInfo[preferred %d valid %d cstamp %d tstamp %d]", a.ifa_prefered, a.ifa_valid, a.cstamp, a.tstamp)
+	return fmt.Sprintf("CacheInfo[preferred %d valid %d cstamp %d tstamp %d]", a.ifa_prefered, a.ifa_valid, a.cstamp, a.tstamp) // nolint: misspell
 }
 func (m *rtAddressMessage) String() string {
 	return fmt.Sprintf("%s: index %d %v", m.name, m.hdr.ifa_index, m.attributes)
@@ -330,6 +330,7 @@ func toIP(a []byte) (net.IP, error) {
 func (n *Notifier) shutdown() {}
 
 // GetIPRoutes implements netconfig.Notifier.
+// nolint: gocyclo
 func (n *Notifier) GetIPRoutes(defaultOnly bool) []route.IPRoute {
 	var iproutes []route.IPRoute
 	rib, err := syscall.NetlinkRIB(syscall.RTM_GETROUTE, syscall.AF_UNSPEC)
@@ -347,7 +348,8 @@ L:
 		if m.Header.Type != syscall.RTM_NEWROUTE {
 			continue
 		}
-		attrs, err := syscall.ParseNetlinkRouteAttr(&m)
+		tmp := m
+		attrs, err := syscall.ParseNetlinkRouteAttr(&tmp)
 		if err != nil {
 			continue
 		}
@@ -355,17 +357,17 @@ L:
 		for _, a := range attrs {
 			switch a.Attr.Type {
 			case syscall.RTA_DST:
-				if r.Net.IP, err = toIP(a.Value[:]); err != nil {
+				if r.Net.IP, err = toIP(a.Value); err != nil {
 					continue L
 				}
 			case syscall.RTA_GATEWAY:
-				if r.Gateway, err = toIP(a.Value[:]); err != nil {
+				if r.Gateway, err = toIP(a.Value); err != nil {
 					continue L
 				}
 			case syscall.RTA_OIF:
 				r.IfcIndex = int(a.Value[0])
 			case syscall.RTA_PREFSRC:
-				if r.PreferredSource, err = toIP(a.Value[:]); err != nil {
+				if r.PreferredSource, err = toIP(a.Value); err != nil {
 					continue L
 				}
 			}
