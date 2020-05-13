@@ -15,6 +15,11 @@
 // encapsulation mechanism) and a symmetric encryption of the payload
 // (called the 'dem' - data encapsulation mechanism).
 
+// SA1019: Package golang.org/x/crypto/bn256 is deprecated: due to its weakened
+// security, new systems should not rely on this elliptic curve. This package is
+// frozen, and not implemented in constant time. There is a more complete
+// implementation at github.com/cloudflare/bn256, but note that it suffers from
+// the same security issues of the underlying curve.
 package ibe
 
 import (
@@ -25,7 +30,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"golang.org/x/crypto/bn256"
+	"golang.org/x/crypto/bn256" // nolint: staticcheck
 	"golang.org/x/crypto/nacl/secretbox"
 )
 
@@ -161,9 +166,9 @@ func newbb1params() *bb1params {
 
 // Helper method that checks that the ciphertext slice for a given message has
 // the correct size: len(C) = len(m) + CiphertextOverhead()
-func checkSizes(m, C []byte, params Params) error {
-	if msize, Csize := len(m), len(C); Csize != msize+params.CiphertextOverhead() {
-		return fmt.Errorf("provided plaintext and ciphertext are of sizes (%d, %d), ciphertext size should be %d", msize, Csize, params.CiphertextOverhead())
+func checkSizes(m, c []byte, params Params) error {
+	if msize, csize := len(m), len(c); csize != msize+params.CiphertextOverhead() {
+		return fmt.Errorf("provided plaintext and ciphertext are of sizes (%d, %d), ciphertext size should be %d", msize, csize, params.CiphertextOverhead())
 	}
 	return nil
 }
@@ -173,17 +178,17 @@ func checkSizes(m, C []byte, params Params) error {
 // proper generation of the ciphertext. This is the Fujisaki-Okamoto transformation.
 // The ciphertext C that is passed in must have size exactly
 // encKeySize + marshaledG1Size.
-func (e *bb1params) encapsulateKeyStart(sigma *[encKeySize]byte, s *big.Int, C []byte) error {
-	if len(C) != encKeySize+marshaledG1Size {
-		return fmt.Errorf("provided buffer has size %d, must be %d", len(C), encKeySize+marshaledG1Size)
+func (e *bb1params) encapsulateKeyStart(sigma *[encKeySize]byte, s *big.Int, c []byte) error {
+	if len(c) != encKeySize+marshaledG1Size {
+		return fmt.Errorf("provided buffer has size %d, must be %d", len(c), encKeySize+marshaledG1Size)
 	}
 
 	var (
 		vs    = new(bn256.GT)
 		tmpG1 = new(bn256.G1)
 		// Ciphertext C = (A, B, C1) - this method computes the first two components
-		A = C[0:encKeySize]
-		B = C[encKeySize : encKeySize+marshaledG1Size]
+		A = c[0:encKeySize]
+		B = c[encKeySize : encKeySize+marshaledG1Size]
 	)
 	vs.ScalarMult(e.v, s)
 	pad := hashval(ibePrefix, vs.Marshal())
@@ -214,8 +219,8 @@ func computeKemRandomness(sigma *[encKeySize]byte, m []byte) *big.Int {
 	return val2bignum(kemPrefix, append(sigma[:], m...))
 }
 
-func (e *bb1params) Encrypt(id string, m, C []byte) error {
-	if err := checkSizes(m, C, e); err != nil {
+func (e *bb1params) Encrypt(id string, m, c []byte) error {
+	if err := checkSizes(m, c, e); err != nil {
 		return err
 	}
 
@@ -231,8 +236,8 @@ func (e *bb1params) Encrypt(id string, m, C []byte) error {
 
 		tmpG1 = new(bn256.G1)
 		// Ciphertext C = (kem, dem)
-		kem = C[0:kemSize]
-		dem = C[kemSize:]
+		kem = c[0:kemSize]
+		dem = c[kemSize:]
 	)
 
 	// kem = (A, B, C1). Invoke encasulateKeyStart to compute (A, B)
@@ -269,20 +274,20 @@ type bb1PrivateKey struct {
 	d0, d1 *bn256.G2
 }
 
-func (k *bb1PrivateKey) Decrypt(C, m []byte) error {
-	if err := checkSizes(m, C, k.params); err != nil {
+func (k *bb1PrivateKey) Decrypt(c, m []byte) error {
+	if err := checkSizes(m, c, k.params); err != nil {
 		return err
 	}
 	var (
-		A  = C[0:encKeySize]
+		A  = c[0:encKeySize]
 		B  = new(bn256.G1)
 		C1 = new(bn256.G1)
-		D  = C[kemSize:]
+		D  = c[kemSize:]
 	)
-	if _, ok := B.Unmarshal(C[encKeySize : encKeySize+marshaledG1Size]); !ok {
+	if _, ok := B.Unmarshal(c[encKeySize : encKeySize+marshaledG1Size]); !ok {
 		return errBadCiphertext
 	}
-	if _, ok := C1.Unmarshal(C[encKeySize+marshaledG1Size : encKeySize+2*marshaledG1Size]); !ok {
+	if _, ok := C1.Unmarshal(c[encKeySize+marshaledG1Size : encKeySize+2*marshaledG1Size]); !ok {
 		return errBadCiphertext
 	}
 	// sigma = A ⊕ H(e(B, d0)/e(C1,d1))
@@ -314,7 +319,7 @@ func (k *bb1PrivateKey) Decrypt(C, m []byte) error {
 	var kemChkBuf [encKeySize + marshaledG1Size]byte
 	k.params.encapsulateKeyStart(&sigma, s, kemChkBuf[:])
 
-	if !bytes.Equal(kemChkBuf[:], C[0:encKeySize+marshaledG1Size]) {
+	if !bytes.Equal(kemChkBuf[:], c[0:encKeySize+marshaledG1Size]) {
 		return errBadCiphertext
 	}
 	return nil
