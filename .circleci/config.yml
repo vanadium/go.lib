@@ -1,19 +1,4 @@
 jobs:
-  build:
-    executor:
-      name: go/default
-      tag: "1.14"
-    steps:
-      - checkout
-      - go/load-cache
-      - go/mod-download
-      - run:
-          name: downloads
-          command: |
-            go get github.com/golangci/golangci-lint/cmd/golangci-lint@v1.27.0
-            go get github.com/matthewloring/validjson/cmd/validjson
-      - go/save-cache
-
   test:
     executor:
       name: go/default
@@ -21,6 +6,8 @@ jobs:
     steps:
       - checkout
       - go/load-cache
+      - go/mod-download
+      - go/save-cache
       - go/test:
           covermode: atomic
           failfast: true
@@ -33,11 +20,18 @@ jobs:
     steps:
       - checkout
       - go/load-cache
+      - go/mod-download
+      - run:
+          name: downloads
+          command: |
+            go get github.com/golangci/golangci-lint/cmd/golangci-lint@v1.27.0
+            go get github.com/matthewloring/validjson/cmd/validjson
       - run:
           name: lint
           command: |
             go run github.com/golangci/golangci-lint/cmd/golangci-lint run ./...
             go run github.com/matthewloring/validjson/cmd/validjson ./...
+      - go/save-cache
 
 version: 2.1
 orbs:
@@ -45,10 +39,5 @@ orbs:
 workflows:
   main:
     jobs:
-      - build
-      - lint:
-          requires:
-            - build
-      - test:
-          requires:
-            - build
+      - test
+      - lint
