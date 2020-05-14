@@ -109,10 +109,7 @@ func (n *node) visit(done, visiting map[*node]bool, sorted *[]interface{}) (cycl
 
 // appendCycles returns the combined cycles in a and b.
 func appendCycles(a [][]interface{}, b [][]interface{}) [][]interface{} {
-	for _, bcycle := range b {
-		a = append(a, bcycle)
-	}
-	return a
+	return append(a, b...)
 }
 
 // DumpCycles dumps the cycles returned from Sorter.Sort, using toString to

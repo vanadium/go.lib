@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"golang.org/x/crypto/bn256"
+	"golang.org/x/crypto/bn256" // nolint: staticcheck
 )
 
 var magicNumber = []byte{0x1b, 0xe0} // prefix that appears in the marshaled form: 2 bytes
@@ -21,12 +21,12 @@ const (
 	fieldElemSize = 32
 
 	// types of encoded bytes, 1 byte
-	typeBB1Params     marshaledType = 0
-	typeBB1PrivateKey               = 1
-	typeBB1MasterKey                = 2
-	typeBB2Params                   = 3
-	typeBB2PrivateKey               = 4
-	typeBB2MasterKey                = 5
+	typeBB1Params marshaledType = iota
+	typeBB1PrivateKey
+	typeBB1MasterKey
+	typeBB2Params
+	typeBB2PrivateKey
+	typeBB2MasterKey
 
 	// Sizes excluding the magic number and type header.
 	headerSize                 = 3
@@ -209,12 +209,12 @@ func UnmarshalPrivateKey(params Params, data []byte) (PrivateKey, error) {
 		if _, ok := k.d1.Unmarshal(advance(marshaledG2Size)); !ok {
 			return nil, fmt.Errorf("failed to unmarshal d1")
 		}
-		if p, ok := params.(*bb1params); !ok {
+		p, ok := params.(*bb1params)
+		if !ok {
 			return nil, fmt.Errorf("params type %T incompatible with %T", params, k)
-		} else {
-			k.params = new(bb1params)
-			*(k.params) = *p
 		}
+		k.params = new(bb1params)
+		*(k.params) = *p
 		return k, nil
 	case typeBB2PrivateKey:
 		if len(data) != marshaledBB2PrivateKeySize {
@@ -228,12 +228,12 @@ func UnmarshalPrivateKey(params Params, data []byte) (PrivateKey, error) {
 		if _, ok := k.K.Unmarshal(advance(marshaledG2Size)); !ok {
 			return nil, fmt.Errorf("failed to unmarshal K")
 		}
-		if p, ok := params.(*bb2params); !ok {
+		p, ok := params.(*bb2params)
+		if !ok {
 			return nil, fmt.Errorf("params type %T incompatible with %T", params, k)
-		} else {
-			k.params = new(bb2params)
-			*(k.params) = *p
 		}
+		k.params = new(bb2params)
+		*(k.params) = *p
 		return k, nil
 	default:
 		return nil, fmt.Errorf("unrecognized private key type (%d)", typ)

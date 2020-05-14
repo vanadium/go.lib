@@ -82,10 +82,10 @@ func testBBCorrectness(t *testing.T, setup SetupFunc) {
 		return ret, nil
 	}
 	if decrypted, err := decrypt(aliceSK); err != nil || !bytes.Equal(decrypted, m) {
-		t.Errorf("Got (%v, %v), want (%v, nil)", decrypted, err, m[:])
+		t.Errorf("Got (%v, %v), want (%v, nil)", decrypted, err, m)
 	}
 	if decrypted, err := decrypt(aliceSK2); err != nil || !bytes.Equal(decrypted, m) {
-		t.Errorf("Got (%v, %v), want (%v, nil)", decrypted, err, m[:])
+		t.Errorf("Got (%v, %v), want (%v, nil)", decrypted, err, m)
 	}
 	if _, err := decrypt(bobSK); err == nil {
 		t.Errorf("Decrypted message with a different PrivateKey")
@@ -113,20 +113,20 @@ func testBBNonMalleability(t *testing.T, setup SetupFunc) {
 
 	m := []byte("01234567899876543210123456789012")
 	overhead := master.Params().CiphertextOverhead()
-	C := make([]byte, len(m)+overhead)
+	c := make([]byte, len(m)+overhead)
 
-	if err := master.Params().Encrypt(alice, m, C); err != nil {
+	if err := master.Params().Encrypt(alice, m, c); err != nil {
 		t.Fatal(err)
 	}
 
-	out := make([]byte, len(C)-overhead)
+	out := make([]byte, len(c)-overhead)
 	// Test that an untampered C can be decrypted successfully.
-	if err := aliceSK.Decrypt(C, out); err != nil || !bytes.Equal(out, m) {
+	if err := aliceSK.Decrypt(c, out); err != nil || !bytes.Equal(out, m) {
 		t.Fatal(err)
 	}
 	// Test that a tampered C cannot be decrypted successfully.
-	C[0] = C[0] ^ byte(1)
-	if err := aliceSK.Decrypt(C, out); err == nil {
+	c[0] ^= byte(1)
+	if err := aliceSK.Decrypt(c, out); err == nil {
 		t.Fatalf("successfully decrypted a tampered ciphetext: %v", err)
 	}
 }
@@ -134,6 +134,7 @@ func testBBNonMalleability(t *testing.T, setup SetupFunc) {
 func TestBB1NonMalleability(t *testing.T) { testBBNonMalleability(t, SetupBB1) }
 func TestBB2NonMalleability(t *testing.T) { testBBNonMalleability(t, SetupBB2) }
 
+// nolint: gocyclo
 func testMarshaling(t *testing.T, setup SetupFunc) {
 	master, err := setup()
 	if err != nil {
@@ -160,30 +161,30 @@ func testMarshaling(t *testing.T, setup SetupFunc) {
 	m := []byte("01234567899876543210123456789012")
 	overhead := bbParams.CiphertextOverhead()
 	var (
-		C1 = make([]byte, len(m)+overhead)
-		C2 = make([]byte, len(m)+overhead)
+		c1 = make([]byte, len(m)+overhead)
+		c2 = make([]byte, len(m)+overhead)
 		m1 = make([]byte, len(m))
 		m2 = make([]byte, len(m))
 	)
 	// Encrypt with the original params, decrypt with key extracted from unmarshaled
 	// master key.
-	if err := bbParams.Encrypt("alice", m, C1); err != nil {
+	if err := bbParams.Encrypt("alice", m, c1); err != nil {
 		t.Error(err)
 	} else if mk, err := UnmarshalMasterKey(bbParams, mkbytes); err != nil {
 		t.Error(err)
 	} else if bbSK, err := mk.Extract("alice"); err != nil {
 		t.Error(err)
-	} else if err := bbSK.Decrypt(C1, m2); err != nil {
+	} else if err := bbSK.Decrypt(c1, m2); err != nil {
 		t.Error(err)
 	} else if !bytes.Equal(m, m2) {
 		t.Errorf("Got %q, want %q", m, m2)
 	}
 	// Encrypt with the original params, decrypt with the unmarshaled key.
-	if err := bbParams.Encrypt("alice", m, C1); err != nil {
+	if err := bbParams.Encrypt("alice", m, c1); err != nil {
 		t.Error(err)
 	} else if sk, err := UnmarshalPrivateKey(bbParams, skbytes); err != nil {
 		t.Error(err)
-	} else if err := sk.Decrypt(C1, m2); err != nil {
+	} else if err := sk.Decrypt(c1, m2); err != nil {
 		t.Error(err)
 	} else if !bytes.Equal(m, m2) {
 		t.Errorf("Got %q, want %q", m, m2)
@@ -191,9 +192,9 @@ func testMarshaling(t *testing.T, setup SetupFunc) {
 	// Encrypt with the unmarshaled params, decrypt with the original key.
 	if p, err := UnmarshalParams(pbytes); err != nil {
 		t.Error(err)
-	} else if err := p.Encrypt("alice", m, C2); err != nil {
+	} else if err := p.Encrypt("alice", m, c2); err != nil {
 		t.Error(err)
-	} else if err := bbSK.Decrypt(C2, m1); err != nil {
+	} else if err := bbSK.Decrypt(c2, m1); err != nil {
 		t.Error(err)
 	} else if !bytes.Equal(m, m1) {
 		t.Errorf("Got %q, want %q", m, m1)
@@ -263,7 +264,7 @@ func initSchemeParams(setup SetupFunc) (Master, PrivateKey, []byte) {
 	if bbSK, err = bbParams.Extract("alice"); err != nil {
 		panic(err)
 	}
-	if _, err := rand.Read(benchmarkm[:]); err != nil {
+	if _, err := rand.Read(benchmarkm); err != nil {
 		panic(err)
 	}
 	overhead := bbParams.Params().CiphertextOverhead()

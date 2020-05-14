@@ -11,6 +11,7 @@ import (
 	"testing"
 )
 
+// nolint: gocyclo
 func TestInt8Bool(t *testing.T) {
 	slice := []int8{}
 

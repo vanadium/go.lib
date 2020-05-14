@@ -11,6 +11,7 @@ import (
 	"testing"
 )
 
+// nolint: gocyclo
 func TestComplex128Bool(t *testing.T) {
 	slice := []complex128{}
 

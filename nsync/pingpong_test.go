@@ -4,11 +4,13 @@
 
 package nsync_test
 
-import "sync"
-import "testing"
-import "time"
+import (
+	"sync"
+	"testing"
+	"time"
 
-import "v.io/x/lib/nsync"
+	"v.io/x/lib/nsync"
+)
 
 // The benchmarks in this file use various mechanisms to
 // ping-pong back and forth between two threads as they count i from

@@ -11,6 +11,7 @@ import (
 	"testing"
 )
 
+// nolint: gocyclo
 func TestFloat64(t *testing.T) {
 	slice := []float64{}
 

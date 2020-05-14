@@ -153,30 +153,30 @@ func TestRoutePredicate(t *testing.T) {
 		return a
 	}
 
-	net1_addr := fromip(ips[0])
-	net1a_addr := fromip(ips[1])
-	net2_addr := fromip(ips[2])
-	net3_addr := fromip(ips[3])
-	net4_addr := fromip(ips[4])
-	net5_addr := fromip(ips[5])
+	net1Addr := fromip(ips[0])
+	net1aAddr := fromip(ips[1])
+	net2Addr := fromip(ips[2])
+	net3Addr := fromip(ips[3])
+	net4Addr := fromip(ips[4])
+	net5Addr := fromip(ips[5])
 
-	if got, want := net1_addr.Interface().Name(), "eth0"; got != want {
+	if got, want := net1Addr.Interface().Name(), "eth0"; got != want {
 		t.Fatalf("got %v, want %v", got, want)
 	}
 
-	if got, want := ifcs[0].Addrs(), []net.Addr{net1_addr, net1a_addr}; !cmpIPAddrs(got, want) {
+	if got, want := ifcs[0].Addrs(), []net.Addr{net1Addr, net1aAddr}; !cmpIPAddrs(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
 
-	if got, want := net4_addr.Interface().Name(), "wn0"; got != want {
+	if got, want := net4Addr.Interface().Name(), "wn0"; got != want {
 		t.Fatalf("got %v, want %v", got, want)
 	}
 
-	if got, want := net4_addr.Interface().Index(), 6; got != want {
+	if got, want := net4Addr.Interface().Index(), 6; got != want {
 		t.Fatalf("got %v, want %v", got, want)
 	}
 
-	if got, want := net3_addr.Interface().(netstate.IPNetworkInterface).IPRoutes(), rt[3]; !cmpRoutes(got, want) {
+	if got, want := net3Addr.Interface().(netstate.IPNetworkInterface).IPRoutes(), rt[3]; !cmpRoutes(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
 
@@ -185,8 +185,8 @@ func TestRoutePredicate(t *testing.T) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
-	al = netstate.AddrList{net1_addr, net2_addr, net3_addr, net4_addr, net5_addr}
-	if got, want := al.Filter(netstate.IsOnDefaultRoute), (netstate.AddrList{net3_addr}); !reflect.DeepEqual(got, want) {
+	al = netstate.AddrList{net1Addr, net2Addr, net3Addr, net4Addr, net5Addr}
+	if got, want := al.Filter(netstate.IsOnDefaultRoute), (netstate.AddrList{net3Addr}); !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
@@ -198,11 +198,11 @@ func TestRoutePredicate(t *testing.T) {
 		al[2] = fromip(ips[3])
 		al[3] = fromip(ips[4])
 		al[4] = fromip(ips[5])
-		net1_addr = fromip(ips[0])
-		net2_addr = fromip(ips[2])
-		net3_addr = fromip(ips[3])
-		net4_addr = fromip(ips[4])
-		net5_addr = fromip(ips[5])
+		net1Addr = fromip(ips[0])
+		net2Addr = fromip(ips[2])
+		net3Addr = fromip(ips[3])
+		net4Addr = fromip(ips[4])
+		net5Addr = fromip(ips[5])
 	}
 
 	defaultRoute := net.IPNet{
@@ -214,7 +214,7 @@ func TestRoutePredicate(t *testing.T) {
 	net2Net := rt[2][0].Net
 	rt[2][0].Net = defaultRoute
 	refresh()
-	if got, want := al.Filter(netstate.IsOnDefaultRoute), (netstate.AddrList{net2_addr, net3_addr}); !reflect.DeepEqual(got, want) {
+	if got, want := al.Filter(netstate.IsOnDefaultRoute), (netstate.AddrList{net2Addr, net3Addr}); !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
@@ -222,27 +222,27 @@ func TestRoutePredicate(t *testing.T) {
 	// an IPv6 address.
 	rt[3][0].Net = defaultRoute
 	refresh()
-	if got, want := al.Filter(netstate.IsOnDefaultRoute), (netstate.AddrList{net2_addr, net3_addr}); !reflect.DeepEqual(got, want) {
+	if got, want := al.Filter(netstate.IsOnDefaultRoute), (netstate.AddrList{net2Addr, net3Addr}); !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
-	net6_0_net := rt[6][0].Net
-	net6_0_gw := rt[6][0].Gateway
+	net6Net0 := rt[6][0].Net
+	net6GW0 := rt[6][0].Gateway
 	rt[2][0].Net = net2Net // Restore the original route.
 	rt[6][0].Net = defaultRoute
 	rt[6][0].Gateway = net.IPv4zero // Need an ipv4 gateway
 	refresh()
-	if got, want := al.Filter(netstate.IsOnDefaultRoute), (netstate.AddrList{net3_addr, net4_addr}); !reflect.DeepEqual(got, want) {
+	if got, want := al.Filter(netstate.IsOnDefaultRoute), (netstate.AddrList{net3Addr, net4Addr}); !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
 	// Shouldn't return the IPv6 default route so long as al doesn't
 	// contain any IPv6 default routes.
-	rt[6][0].Net = net6_0_net
-	rt[6][0].Gateway = net6_0_gw
+	rt[6][0].Net = net6Net0
+	rt[6][0].Gateway = net6GW0
 	rt[6][1].Net = defaultRoute
 	refresh()
-	if got, want := al.Filter(netstate.IsOnDefaultRoute), (netstate.AddrList{net3_addr}); !reflect.DeepEqual(got, want) {
+	if got, want := al.Filter(netstate.IsOnDefaultRoute), (netstate.AddrList{net3Addr}); !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
@@ -254,7 +254,7 @@ func TestRoutePredicate(t *testing.T) {
 	}
 	refresh()
 
-	if got, want := al.Filter(netstate.IsOnDefaultRoute), (netstate.AddrList{net3_addr, net4_addr, net5_addr}); !reflect.DeepEqual(got, want) {
+	if got, want := al.Filter(netstate.IsOnDefaultRoute), (netstate.AddrList{net3Addr, net4Addr, net5Addr}); !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 

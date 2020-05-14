@@ -4,20 +4,24 @@
 
 package nsync_test
 
-import "testing"
-import "time"
+import (
+	"fmt"
+	"testing"
+	"time"
 
-import "v.io/x/lib/nsync"
+	"v.io/x/lib/nsync"
+)
 
 // ---------------------------
 
 // A queue represents a FIFO queue with up to Limit elements.
 // The storage for the queue expands as necessary up to Limit.
 type queue struct {
-	Limit    int           // max value of count---should not be changed after initialization
-	nonEmpty nsync.CV      // signalled when count transitions from zero to non-zero
-	nonFull  nsync.CV      // signalled when count transitions from Limit to less than Limit
-	mu       nsync.Mu      // protects fields below
+	Limit    int      // max value of count---should not be changed after initialization
+	nonEmpty nsync.CV // signalled when count transitions from zero to non-zero
+	nonFull  nsync.CV // signalled when count transitions from Limit to less than Limit
+	mu       nsync.Mu // protects fields below
+	canceled bool
 	data     []interface{} // in use elements are data[pos, ..., (pos+count-1)%len(data)]
 	pos      int           // index of first in-use element
 	count    int           // number of elements in use
@@ -43,9 +47,9 @@ func (q *queue) Put(v interface{}, absDeadline time.Time) (added bool) {
 			}
 			newData := make([]interface{}, newLength)
 			if i <= length {
-				copy(newData[:], q.data[q.pos:i])
+				copy(newData, q.data[q.pos:i])
 			} else {
-				n := copy(newData[:], q.data[q.pos:length])
+				n := copy(newData, q.data[q.pos:length])
 				copy(newData[n:], q.data[:i-length])
 			}
 			q.pos = 0
@@ -72,7 +76,13 @@ func (q *queue) Put(v interface{}, absDeadline time.Time) (added bool) {
 // do nothing and return nil and false.
 func (q *queue) Get(absDeadline time.Time) (v interface{}, ok bool) {
 	q.mu.Lock()
-	for q.count == 0 && q.nonEmpty.WaitWithDeadline(&q.mu, absDeadline, nil) == nsync.OK {
+	if q.canceled {
+		return nil, false
+	}
+	for q.count == 0 && !q.canceled && q.nonEmpty.WaitWithDeadline(&q.mu, absDeadline, nil) == nsync.OK {
+	}
+	if q.canceled {
+		return nil, false
 	}
 	if q.count != 0 {
 		v = q.data[q.pos]
@@ -91,93 +101,129 @@ func (q *queue) Get(absDeadline time.Time) (v interface{}, ok bool) {
 	return v, ok
 }
 
+func (q *queue) Cancel() {
+	q.mu.Lock()
+	q.canceled = true
+	q.nonEmpty.Broadcast()
+	q.mu.Unlock()
+}
+
 // ---------------------------
 
 // producerN() Put()s count integers on *q, in the sequence start*3, (start+1)*3, (start+2)*3, ....
-func producerN(t *testing.T, q *queue, start int, count int) {
+func producerN(errCh chan error, q *queue, start int, count int) {
 	for i := 0; i != count; i++ {
 		if !q.Put((start+i)*3, nsync.NoDeadline) {
-			t.Fatalf("queue.Put() returned false with no deadline")
+			errCh <- fmt.Errorf("queue.Put() returned false with no deadline")
+			q.Cancel()
+			return
 		}
 	}
+	errCh <- nil
 }
 
 // consumerN() Get()s count integers from *q, and checks that they are in the
 // sequence start*3, (start+1)*3, (start+2)*3, ....
-func consumerN(t *testing.T, q *queue, start int, count int) {
+func consumerN(errCh chan error, q *queue, start int, count int) {
 	for i := 0; i != count; i++ {
 		v, ok := q.Get(nsync.NoDeadline)
 		if !ok {
-			t.Fatalf("queue.Get() returned false with no deadline")
+			errCh <- fmt.Errorf("queue.Get() returned false with no deadline")
+			return
 		}
 		x, isInt := v.(int)
 		if !isInt {
-			t.Fatalf("queue.Get() returned non integer value; wanted int %d, got %#v", (start+i)*3, v)
+			errCh <- fmt.Errorf("queue.Get() returned non integer value; wanted int %d, got %#v", (start+i)*3, v)
+			return
 		}
 		if x != (start+i)*3 {
-			t.Fatalf("queue.Get() returned bad value; want %d, got %d", (start+i)*3, x)
+			errCh <- fmt.Errorf("queue.Get() returned bad value; want %d, got %d", (start+i)*3, x)
+			return
 		}
 	}
+	errCh <- nil
 }
 
 // producerConsumerN is the number of elements passed from producer to consumer in the
 // TestCVProducerConsumerX() tests below.
 const producerConsumerN = 300000
 
+func checkErrors(t *testing.T, errCh chan error) {
+	for _, err := range []error{<-errCh, <-errCh} {
+		if err != nil {
+			t.Error(err)
+		}
+	}
+}
+
 // TestCVProducerConsumer0() sends a stream of integers from a producer thread to
 // a consumer thread via a queue with Limit 10**0.
 func TestCVProducerConsumer0(t *testing.T) {
 	q := queue{Limit: 1}
-	go producerN(t, &q, 0, producerConsumerN)
-	consumerN(t, &q, 0, producerConsumerN)
+	errCh := make(chan error, 2)
+	go producerN(errCh, &q, 0, producerConsumerN)
+	consumerN(errCh, &q, 0, producerConsumerN)
+	checkErrors(t, errCh)
 }
 
 // TestCVProducerConsumer1() sends a stream of integers from a producer thread to
 // a consumer thread via a queue with Limit 10**1.
 func TestCVProducerConsumer1(t *testing.T) {
 	q := queue{Limit: 10}
-	go producerN(t, &q, 0, producerConsumerN)
-	consumerN(t, &q, 0, producerConsumerN)
+	errCh := make(chan error, 2)
+	go producerN(errCh, &q, 0, producerConsumerN)
+	consumerN(errCh, &q, 0, producerConsumerN)
+	checkErrors(t, errCh)
 }
 
 // TestCVProducerConsumer2() sends a stream of integers from a producer thread to
 // a consumer thread via a queue with Limit 10**2.
 func TestCVProducerConsumer2(t *testing.T) {
 	q := queue{Limit: 100}
-	go producerN(t, &q, 0, producerConsumerN)
-	consumerN(t, &q, 0, producerConsumerN)
+	errCh := make(chan error, 2)
+	go producerN(errCh, &q, 0, producerConsumerN)
+	consumerN(errCh, &q, 0, producerConsumerN)
+	checkErrors(t, errCh)
 }
 
 // TestCVProducerConsumer3() sends a stream of integers from a producer thread to
 // a consumer thread via a queue with Limit 10**3.
 func TestCVProducerConsumer3(t *testing.T) {
 	q := queue{Limit: 1000}
-	go producerN(t, &q, 0, producerConsumerN)
-	consumerN(t, &q, 0, producerConsumerN)
+	errCh := make(chan error, 2)
+	go producerN(errCh, &q, 0, producerConsumerN)
+	consumerN(errCh, &q, 0, producerConsumerN)
+	checkErrors(t, errCh)
 }
 
 // TestCVProducerConsumer4() sends a stream of integers from a producer thread to
 // a consumer thread via a queue with Limit 10**4.
 func TestCVProducerConsumer4(t *testing.T) {
 	q := queue{Limit: 10000}
-	go producerN(t, &q, 0, producerConsumerN)
-	consumerN(t, &q, 0, producerConsumerN)
+	errCh := make(chan error, 2)
+	go producerN(errCh, &q, 0, producerConsumerN)
+	consumerN(errCh, &q, 0, producerConsumerN)
+	checkErrors(t, errCh)
 }
 
 // TestCVProducerConsumer5() sends a stream of integers from a producer thread to
 // a consumer thread via a queue with Limit 10**5.
 func TestCVProducerConsumer5(t *testing.T) {
 	q := queue{Limit: 100000}
-	go producerN(t, &q, 0, producerConsumerN)
-	consumerN(t, &q, 0, producerConsumerN)
+	errCh := make(chan error, 2)
+	go producerN(errCh, &q, 0, producerConsumerN)
+	consumerN(errCh, &q, 0, producerConsumerN)
+	checkErrors(t, errCh)
 }
 
 // TestCVProducerConsumer6() sends a stream of integers from a producer thread to
 // a consumer thread via a queue with Limit 10**6.
 func TestCVProducerConsumer6(t *testing.T) {
 	q := queue{Limit: 1000000}
-	go producerN(t, &q, 0, producerConsumerN)
-	consumerN(t, &q, 0, producerConsumerN)
+	errCh := make(chan error, 2)
+	go producerN(errCh, &q, 0, producerConsumerN)
+	consumerN(errCh, &q, 0, producerConsumerN)
+	checkErrors(t, errCh)
 }
 
 // TestCVDeadline() checks timeouts on a CV WaitWithDeadline().

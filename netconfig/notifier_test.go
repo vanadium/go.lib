@@ -5,6 +5,7 @@
 package netconfig_test
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -27,12 +28,18 @@ func TestNotifyChange(t *testing.T) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
-	go netconfig.Shutdown()
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		netconfig.Shutdown()
+		wg.Done()
+	}()
 	select {
 	case <-ch:
 	case <-time.After(10 * time.Second):
 		t.Errorf("timeout")
 	}
+	wg.Wait()
 
 	netconfig.SetOSNotifier(osnetconfig.NewNotifier(0))
 	// Expect at least one route

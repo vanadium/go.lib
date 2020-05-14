@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"v.io/x/lib/gosh"
-	"v.io/x/lib/gosh/internal/gosh_example_lib"
+	lib "v.io/x/lib/gosh/internal/gosh_example_lib"
 )
 
 // Mirrors TestCmd in shell_test.go.

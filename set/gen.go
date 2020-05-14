@@ -50,7 +50,7 @@ func ({{capitalize .KeyType}}{{capitalize (suffix .ValueType)}}T) FromSlice(els 
 // ToSlice transforms the given set to a slice.
 func ({{capitalize .KeyType}}{{capitalize (suffix .ValueType)}}T) ToSlice(s map[{{.KeyType}}]{{.ValueType}}) []{{.KeyType}} {
 	var result []{{.KeyType}}
-	for el, _ := range s {
+	for el := range s {
 		result = append(result, el)
 	}
 	return result
@@ -58,7 +58,7 @@ func ({{capitalize .KeyType}}{{capitalize (suffix .ValueType)}}T) ToSlice(s map[
 
 // Difference subtracts s2 from s1, storing the result in s1.
 func ({{capitalize .KeyType}}{{capitalize (suffix .ValueType)}}T) Difference(s1, s2 map[{{.KeyType}}]{{.ValueType}}) {
-	for el, _ := range s1 {
+	for el := range s1 {
 		if _, ok := s2[el]; ok {
 			delete(s1, el)
 		}
@@ -67,7 +67,7 @@ func ({{capitalize .KeyType}}{{capitalize (suffix .ValueType)}}T) Difference(s1,
 
 // Intersection intersects s1 and s2, storing the result in s1.
 func ({{capitalize .KeyType}}{{capitalize (suffix .ValueType)}}T) Intersection(s1, s2 map[{{.KeyType}}]{{.ValueType}}) {
-	for el, _ := range s1 {
+	for el := range s1 {
 		if _, ok := s2[el]; !ok {
 			delete(s1, el)
 		}
@@ -76,7 +76,7 @@ func ({{capitalize .KeyType}}{{capitalize (suffix .ValueType)}}T) Intersection(s
 
 // Union merges s1 and s2, storing the result in s1.
 func ({{capitalize .KeyType}}{{capitalize (suffix .ValueType)}}T) Union(s1, s2 map[{{.KeyType}}]{{.ValueType}}) {
-	for el, _ := range s2 {
+	for el := range s2 {
 		s1[el] = {{value .ValueType}}
 	}
 }
@@ -95,6 +95,7 @@ import (
 	"testing"
 )
 
+// nolint: gocyclo
 func Test{{capitalize .KeyType}}{{capitalize (suffix .ValueType)}}(t *testing.T) {
 	slice := []{{.KeyType}}{}
 {{range $el := .Elements}}

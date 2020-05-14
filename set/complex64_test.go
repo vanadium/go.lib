@@ -11,6 +11,7 @@ import (
 	"testing"
 )
 
+// nolint: gocyclo
 func TestComplex64(t *testing.T) {
 	slice := []complex64{}
 

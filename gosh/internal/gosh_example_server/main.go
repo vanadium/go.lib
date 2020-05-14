@@ -6,7 +6,7 @@ package main
 
 import (
 	"v.io/x/lib/gosh"
-	"v.io/x/lib/gosh/internal/gosh_example_lib"
+	lib "v.io/x/lib/gosh/internal/gosh_example_lib"
 )
 
 func main() {

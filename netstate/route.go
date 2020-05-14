@@ -35,7 +35,8 @@ type RoutePredicate func(r *route.IPRoute) bool
 func (rl IPRouteList) Filter(predicate RoutePredicate) IPRouteList {
 	r := IPRouteList{}
 	for _, rt := range rl {
-		if predicate(&rt) {
+		tmp := rt
+		if predicate(&tmp) {
 			r = append(r, rt)
 		}
 	}
@@ -61,12 +62,13 @@ func IsOnDefaultRoute(a Address) bool {
 		if r.Gateway == nil {
 			continue
 		}
+		tmp := r
 		// We have a default route, so we check the gateway to make sure
 		// it matches the format of the default route.
-		if ipv4 && route.IsDefaultIPv4Route(&r) && r.Gateway.To4() != nil {
+		if ipv4 && route.IsDefaultIPv4Route(&tmp) && r.Gateway.To4() != nil {
 			return true
 		}
-		if route.IsDefaultIPv6Route(&r) {
+		if route.IsDefaultIPv6Route(&tmp) {
 			return true
 		}
 	}

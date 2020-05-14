@@ -356,14 +356,12 @@ func (fp *FilepathSpec) String() string {
 
 // Get is part of the (Go 1.2)  flag.Getter interface. It always returns nil for this flag type since the
 // struct is not exported.
-func (p *FilepathSpec) Get() interface{} {
+func (fp *FilepathSpec) Get() interface{} {
 	return nil
 }
 
-var errVpackageSyntax = errors.New("syntax error: expect comma-separated list of regexp=N")
-
 // Syntax: foo/bar=2,foo/bar/.*=1,f*=3
-func (p *FilepathSpec) Set(value string) error {
+func (fp *FilepathSpec) Set(value string) error {
 	var filter []filepathPat
 	for _, pat := range strings.Split(value, ",") {
 		pattern, v, err := parseFilter(pat)
@@ -380,7 +378,7 @@ func (p *FilepathSpec) Set(value string) error {
 		// TODO: check syntax of filter?
 		filter = append(filter, filepathPat{re, pattern, Level(v)})
 	}
-	p.filter = filter
+	fp.filter = filter
 	return nil
 }
 
@@ -841,6 +839,7 @@ func (l *Log) PrintFileLine(s Severity, file string, line int, args ...interface
 }
 
 // output writes the data to the log files and releases the buffer.
+// nolint: gocyclo
 func (l *Log) output(s Severity, buf *buffer, file string, line int) {
 	l.mu.Lock()
 	if l.traceLocation.isSet() {
@@ -1042,7 +1041,7 @@ const flushInterval = 30 * time.Second
 
 // flushDaemon periodically flushes the log file buffers.
 func (l *Log) flushDaemon() {
-	for _ = range time.NewTicker(flushInterval).C {
+	for range time.NewTicker(flushInterval).C {
 		l.lockAndFlushAll()
 	}
 }
@@ -1204,16 +1203,16 @@ func (lb logBridge) Write(b []byte) (n int, err error) {
 	buf := lb.log.getBuffer()
 	// Split "d.go:23: message" into "d.go", "23", and "message".
 	if parts := bytes.SplitN(b, []byte{':'}, 3); len(parts) != 3 || len(parts[0]) < 1 || len(parts[2]) < 1 {
-		fmt.Fprint(buf, fmt.Sprintf("bad log format: %s", b))
+		fmt.Fprintf(buf, "bad log format: %s", b)
 	} else {
 		file = string(parts[0])
 		line, err = strconv.Atoi(string(parts[1]))
 		fmt.Fprint(buf, string(b))
 		if err != nil {
-			fmt.Fprint(buf, fmt.Sprintf("bad line number: %s", b))
+			fmt.Fprintf(buf, "bad line number: %s", b)
 			line = 1
 		}
 	}
-	lb.log.output(Severity(lb.severity), buf, file, line)
+	lb.log.output(lb.severity, buf, file, line)
 	return len(b), nil
 }

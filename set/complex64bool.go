@@ -26,7 +26,7 @@ func (Complex64BoolT) FromSlice(els []complex64) map[complex64]bool {
 // ToSlice transforms the given set to a slice.
 func (Complex64BoolT) ToSlice(s map[complex64]bool) []complex64 {
 	var result []complex64
-	for el, _ := range s {
+	for el := range s {
 		result = append(result, el)
 	}
 	return result
@@ -34,7 +34,7 @@ func (Complex64BoolT) ToSlice(s map[complex64]bool) []complex64 {
 
 // Difference subtracts s2 from s1, storing the result in s1.
 func (Complex64BoolT) Difference(s1, s2 map[complex64]bool) {
-	for el, _ := range s1 {
+	for el := range s1 {
 		if _, ok := s2[el]; ok {
 			delete(s1, el)
 		}
@@ -43,7 +43,7 @@ func (Complex64BoolT) Difference(s1, s2 map[complex64]bool) {
 
 // Intersection intersects s1 and s2, storing the result in s1.
 func (Complex64BoolT) Intersection(s1, s2 map[complex64]bool) {
-	for el, _ := range s1 {
+	for el := range s1 {
 		if _, ok := s2[el]; !ok {
 			delete(s1, el)
 		}
@@ -52,7 +52,7 @@ func (Complex64BoolT) Intersection(s1, s2 map[complex64]bool) {
 
 // Union merges s1 and s2, storing the result in s1.
 func (Complex64BoolT) Union(s1, s2 map[complex64]bool) {
-	for el, _ := range s2 {
+	for el := range s2 {
 		s1[el] = true
 	}
 }

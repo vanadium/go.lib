@@ -34,7 +34,7 @@ import (
 	lib "v.io/x/lib/gosh/internal/gosh_example_lib"
 )
 
-var fakeError = errors.New("fake error")
+var errFake = errors.New("fake error")
 
 func fatal(t *testing.T, v ...interface{}) {
 	debug.PrintStack()
@@ -163,7 +163,7 @@ func TestCustomTB(t *testing.T) {
 	sh := gosh.NewShell(tb)
 	defer sh.Cleanup()
 
-	sh.HandleError(fakeError)
+	sh.HandleError(errFake)
 	// Note, our deferred sh.Cleanup() should succeed despite this error.
 	nok(t, sh.Err)
 	eq(t, tb.calledFailNow, true)
@@ -344,7 +344,7 @@ func TestOkPanics(t *testing.T) {
 		sh := gosh.NewShell(t)
 		sh.ContinueOnError = true
 		defer sh.Cleanup()
-		sh.Err = fakeError
+		sh.Err = errFake
 		defer func() { neq(t, recover(), nil) }()
 		sh.Ok()
 	}()
@@ -362,22 +362,22 @@ func TestHandleErrorPanics(t *testing.T) {
 	func() { // errDidNotCallNewShell
 		sh := gosh.Shell{}
 		defer func() { neq(t, recover(), nil) }()
-		sh.HandleError(fakeError)
+		sh.HandleError(errFake)
 	}()
 	func() { // errShellErrIsNotNil
 		sh := gosh.NewShell(t)
 		sh.ContinueOnError = true
 		defer sh.Cleanup()
-		sh.Err = fakeError
+		sh.Err = errFake
 		defer func() { neq(t, recover(), nil) }()
-		sh.HandleError(fakeError)
+		sh.HandleError(errFake)
 	}()
 	func() { // errAlreadyCalledCleanup
 		sh := gosh.NewShell(t)
 		sh.ContinueOnError = true
 		sh.Cleanup()
 		defer func() { neq(t, recover(), nil) }()
-		sh.HandleError(fakeError)
+		sh.HandleError(errFake)
 	}()
 }
 
@@ -393,7 +393,7 @@ func TestCleanupPanics(t *testing.T) {
 // Tests that Shell.Cleanup succeeds even if sh.Err is not nil.
 func TestCleanupAfterError(t *testing.T) {
 	sh := gosh.NewShell(t)
-	sh.Err = fakeError
+	sh.Err = errFake
 	sh.Cleanup()
 }
 
@@ -413,9 +413,9 @@ func TestHandleErrorLogging(t *testing.T) {
 
 	// Call HandleError, then check that the stack trace and error got logged.
 	tb.Reset()
-	sh.HandleError(fakeError)
+	sh.HandleError(errFake)
 	_, file, line, _ := runtime.Caller(0)
-	got, wantSuffix := tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line-1, fakeError)
+	got, wantSuffix := tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line-1, errFake)
 	if !strings.HasSuffix(got, wantSuffix) {
 		t.Fatalf("got %v, want suffix %v", got, wantSuffix)
 	}
@@ -428,25 +428,25 @@ func TestHandleErrorLogging(t *testing.T) {
 	// get logged.
 	sh.ContinueOnError = true
 	tb.Reset()
-	sh.HandleError(fakeError)
+	sh.HandleError(errFake)
 	_, file, line, _ = runtime.Caller(0)
-	got, want := tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line-1, fakeError)
+	got, want := tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line-1, errFake)
 	eq(t, got, want)
 	sh.Err = nil
 
 	// Same as above, but calling HandleErrorWithSkip, with skip set to 1.
 	tb.Reset()
-	sh.HandleErrorWithSkip(fakeError, 1)
+	sh.HandleErrorWithSkip(errFake, 1)
 	_, file, line, _ = runtime.Caller(0)
-	got, want = tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line-1, fakeError)
+	got, want = tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line-1, errFake)
 	eq(t, got, want)
 	sh.Err = nil
 
 	// Same as above, but with skip set to 2.
 	tb.Reset()
-	sh.HandleErrorWithSkip(fakeError, 2)
+	sh.HandleErrorWithSkip(errFake, 2)
 	_, file, line, _ = runtime.Caller(1)
-	got, want = tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line, fakeError)
+	got, want = tb.buf.String(), fmt.Sprintf("%s:%d: %v\n", filepath.Base(file), line, errFake)
 	eq(t, got, want)
 	sh.Err = nil
 }
@@ -524,7 +524,7 @@ var (
 		time.Sleep(time.Hour)
 	})
 	stderrFunc = gosh.RegisterFunc("stderrFunc", func(s string) {
-		fmt.Fprintf(os.Stderr, s)
+		fmt.Fprintln(os.Stderr, s)
 		time.Sleep(time.Hour)
 	})
 )
@@ -1005,7 +1005,7 @@ var cmdFailureFunc = gosh.RegisterFunc("cmdFailureFunc", func(nStdout, nStderr i
 		return err
 	}
 	time.Sleep(time.Second)
-	return fakeError
+	return errFake
 })
 
 // Tests that when a command fails, we log the head and tail of its stdout and
@@ -1019,7 +1019,7 @@ func TestCmdFailureLoggingEnabled(t *testing.T) {
 
 	// Note: When a FuncCmd fails, InitMain calls log.Fatal(err), which writes err
 	// to stderr. In several places below, our expected stderr must accommodate
-	// this logged fakeError string.
+	// this logged errFake string.
 	tests := []struct {
 		nStdout    int
 		nStderr    int
@@ -1030,9 +1030,9 @@ func TestCmdFailureLoggingEnabled(t *testing.T) {
 		{1, 1, "A", "B"},
 		{k, k, strings.Repeat("A", k), strings.Repeat("B", k)},
 		{k + 1, k + 1, strings.Repeat("A", k+1), strings.Repeat("B", k+1)},
-		// Stderr includes fakeError.
+		// Stderr includes errFake.
 		{2 * k, 2 * k, strings.Repeat("A", 2*k), strings.Repeat("B", k) + "\n[ ... skipping "},
-		// Stderr includes fakeError.
+		// Stderr includes errFake.
 		{2*k + 1, 2*k + 1, strings.Repeat("A", k) + "\n[ ... skipping 1 bytes ... ]\n" + strings.Repeat("A", k), strings.Repeat("B", k) + "\n[ ... skipping "},
 	}
 
@@ -1045,7 +1045,7 @@ func TestCmdFailureLoggingEnabled(t *testing.T) {
 		if !strings.Contains(got, wantStdout) {
 			t.Fatalf("got %v, want substring %v", got, wantStdout)
 		}
-		// Stderr includes fakeError.
+		// Stderr includes errFake.
 		wantStderr := fmt.Sprintf("\nSTDERR\n%s\n%s", sep, test.wantStderr)
 		if !strings.Contains(got, wantStderr) {
 			t.Fatalf("got %v, want substring %v", got, wantStderr)

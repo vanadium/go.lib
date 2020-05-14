@@ -38,7 +38,7 @@ func makeHelpRunner(path []*Command, env *Env) helpRunner {
 }
 
 // helpConfig holds configuration data for help.  The style and width may be
-// overriden by flags if the command returned by newCommand is parsed.
+// overridden by flags if the command returned by newCommand is parsed.
 type helpConfig struct {
 	style     style
 	width     int
@@ -278,6 +278,7 @@ func usageAll(w *textutil.WrapWriter, env *Env, path []*Command, config *helpCon
 // usage prints the usage of the last command in path to w.  The bool firstCall
 // is set to false when printing usage for multiple commands, and is used to
 // avoid printing redundant information (e.g. help command, global flags).
+// nolint: gocyclo
 func usage(w *textutil.WrapWriter, env *Env, path []*Command, config *helpConfig, firstCall bool) {
 	cmd, cmdPath := path[len(path)-1], pathName(config.prefix, path)
 	env.TimerPush("usage " + cmdPath)

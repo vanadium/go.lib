@@ -25,7 +25,7 @@
 //
 // (4) Decrypt: Uses the private key (and global system parameters) to decrypt
 // messages. To be clear, the private key here is for the identity (sometimes
-// refered to as the "identity key" in literature) and not the master secret.
+// referred to as the "identity key" in literature) and not the master secret.
 //
 // This package defines 3 interfaces: one for Extract, one for Encrypt and one
 // for Decrypt and provides Setup function implementations for different IBE

@@ -4,9 +4,11 @@
 
 package nsync
 
-import "math"
-import "sync/atomic"
-import "time"
+import (
+	"math"
+	"sync/atomic"
+	"time"
+)
 
 // --------------------------------
 
@@ -19,15 +21,15 @@ type dll struct {
 
 // MakeEmpty() makes list *l empty.
 // Requires that *l is currently not part of a non-empty list.
-func (l *dll) MakeEmpty() {
-	l.next = l
-	l.prev = l
+func (e *dll) MakeEmpty() {
+	e.next = e
+	e.prev = e
 }
 
 // IsEmpty() returns whether list *l is empty.
 // Requires that *l is currently part of a list, or the zero dll element.
-func (l *dll) IsEmpty() bool {
-	return l.next == l
+func (e *dll) IsEmpty() bool {
+	return e.next == e
 }
 
 // InsertAfter() inserts element *e into the list after position *p.

@@ -136,7 +136,7 @@ func Configure(opts ...LoggingOpts) error {
 
 // Stats returns stats on how many lines/bytes haven been written to
 // this set of logs.
-func Stats() (Info, Error struct{ Lines, Bytes int64 }) {
+func Stats() (infoStats, errorStats struct{ Lines, Bytes int64 }) {
 	return Log.Stats()
 }
 

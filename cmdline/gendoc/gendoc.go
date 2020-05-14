@@ -22,6 +22,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -55,6 +56,7 @@ func main() {
 	}
 }
 
+// nolint: gocyclo
 func generate(args []string) error {
 	if got, want := len(args), 1; got < want {
 		return fmt.Errorf("gendoc requires at least one argument\nusage: gendoc <pkg> [args]")
@@ -66,7 +68,8 @@ func generate(args []string) error {
 	listCmd := exec.Command("go", "list", pkg)
 	listCmd.Stdout = &listOut
 	if err := listCmd.Run(); err != nil {
-		return fmt.Errorf("%q failed: %v\n%v\n", strings.Join(listCmd.Args, " "), err, listOut.String())
+		msg := fmt.Sprintf("%q failed: %v\n%v\n", strings.Join(listCmd.Args, " "), err, listOut.String())
+		return errors.New(msg)
 	}
 	binName := filepath.Base(strings.TrimSpace(listOut.String()))
 
@@ -91,7 +94,8 @@ func generate(args []string) error {
 		installCmd := exec.Command(installArgs[0], installArgs[1:]...)
 		installCmd.Env = append(os.Environ(), "GOBIN="+tmpDir)
 		if err := installCmd.Run(); err != nil {
-			return fmt.Errorf("%q failed: %v\n", strings.Join(installCmd.Args, " "), err)
+			msg := fmt.Sprintf("%q failed: %v\n", strings.Join(installCmd.Args, " "), err)
+			return errors.New(msg)
 		}
 	}
 
@@ -104,7 +108,8 @@ func generate(args []string) error {
 	runCmd.Stdout = &out
 	runCmd.Env = runEnviron(tmpDir)
 	if err := runCmd.Run(); err != nil {
-		return fmt.Errorf("%q failed: %v\n%v\n", strings.Join(runCmd.Args, " "), err, out.String())
+		msg := fmt.Sprintf("%q failed: %v\n%v\n", strings.Join(runCmd.Args, " "), err, out.String())
+		return errors.New(msg)
 	}
 	var tagsConstraint string
 	if flagTags != "" {
@@ -126,7 +131,8 @@ func generate(args []string) error {
 		if len(copyrightNotice) > 0 {
 			buf, err := ioutil.ReadFile(copyrightNotice)
 			if err != nil {
-				return fmt.Errorf("failed to read copyright notice file: %v: %v", copyrightNotice, err)
+				msg := fmt.Sprintf("failed to read copyright notice file: %v: %v", copyrightNotice, err)
+				return errors.New(msg)
 			}
 			copyright = string(buf)
 		}
@@ -142,7 +148,8 @@ package main
 	// Write the result to the output file.
 	path, perm := flagOut, os.FileMode(0644)
 	if err := ioutil.WriteFile(path, []byte(doc), perm); err != nil {
-		return fmt.Errorf("WriteFile(%v, %v) failed: %v\n", path, perm, err)
+		msg := fmt.Sprintf("WriteFile(%v, %v) failed: %v\n", path, perm, err)
+		return errors.New(msg)
 	}
 	return nil
 }
@@ -154,7 +161,7 @@ package main
 // vanadium-go-generate test, which requires that the output of gendoc is the
 // same on all systems.
 func suppressParallelFlag(input string) string {
-	pattern := regexp.MustCompile("(?m:(^ -test\\.parallel=)(?:\\d)+$)")
+	pattern := regexp.MustCompile(`(?m:(^ -test\.parallel=)(?:\d)+$)`)
 	return pattern.ReplaceAllString(input, "$1<number of threads>")
 }
 

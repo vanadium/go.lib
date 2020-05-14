@@ -4,9 +4,11 @@
 
 package nsync
 
-import "sync"
-import "sync/atomic"
-import "time"
+import (
+	"sync"
+	"sync/atomic"
+	"time"
+)
 
 // See also the implementation notes at the top of mu.go.
 
@@ -107,6 +109,7 @@ const (
 // might extend beyond the expected deadline.  Relative delays tend to be more
 // convenient mostly in tests and trivial examples than they are in real
 // programmes.
+// nolint: gocyclo
 func (cv *CV) WaitWithDeadline(mu sync.Locker, absDeadline time.Time, cancelChan <-chan struct{}) (outcome int) {
 	var w *waiter = newWaiter()
 	atomic.StoreUint32(&w.waiting, 1)
@@ -129,7 +132,7 @@ func (cv *CV) WaitWithDeadline(mu sync.Locker, absDeadline time.Time, cancelChan
 	var deadlineTimer *time.Timer
 	if absDeadline != NoDeadline {
 		deadlineTimer = w.deadlineTimer
-		if deadlineTimer.Reset(absDeadline.Sub(time.Now())) {
+		if deadlineTimer.Reset(time.Until(absDeadline)) {
 			// w.deadlineTimer is guaranteed inactive and drained;
 			// see "Stop any active timer" code below.
 			panic("deadlineTimer was active")
@@ -247,6 +250,7 @@ func (cv *CV) Wait(mu sync.Locker) {
 // - Every element of the list pointed to by toWakeList is a waiter---there is
 //   no head/sentinel.
 // - Every waiter is associated with the same mutex.
+// nolint: gocyclo
 func wakeWaiters(toWakeList *waiter) {
 	var firstWaiter *waiter = toWakeList.q.prev.elem
 	var mu *Mu = firstWaiter.cvMu

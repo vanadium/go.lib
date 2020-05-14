@@ -26,7 +26,7 @@ func (UintptrBoolT) FromSlice(els []uintptr) map[uintptr]bool {
 // ToSlice transforms the given set to a slice.
 func (UintptrBoolT) ToSlice(s map[uintptr]bool) []uintptr {
 	var result []uintptr
-	for el, _ := range s {
+	for el := range s {
 		result = append(result, el)
 	}
 	return result
@@ -34,7 +34,7 @@ func (UintptrBoolT) ToSlice(s map[uintptr]bool) []uintptr {
 
 // Difference subtracts s2 from s1, storing the result in s1.
 func (UintptrBoolT) Difference(s1, s2 map[uintptr]bool) {
-	for el, _ := range s1 {
+	for el := range s1 {
 		if _, ok := s2[el]; ok {
 			delete(s1, el)
 		}
@@ -43,7 +43,7 @@ func (UintptrBoolT) Difference(s1, s2 map[uintptr]bool) {
 
 // Intersection intersects s1 and s2, storing the result in s1.
 func (UintptrBoolT) Intersection(s1, s2 map[uintptr]bool) {
-	for el, _ := range s1 {
+	for el := range s1 {
 		if _, ok := s2[el]; !ok {
 			delete(s1, el)
 		}
@@ -52,7 +52,7 @@ func (UintptrBoolT) Intersection(s1, s2 map[uintptr]bool) {
 
 // Union merges s1 and s2, storing the result in s1.
 func (UintptrBoolT) Union(s1, s2 map[uintptr]bool) {
-	for el, _ := range s2 {
+	for el := range s2 {
 		s1[el] = true
 	}
 }
