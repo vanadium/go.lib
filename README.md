@@ -1,4 +1,3 @@
-[![Build Status](https://travis-ci.org/vanadium/go.lib.svg?branch=master)](https://travis-ci.org/vanadium/go.lib)
 [![CircleCI](https://circleci.com/gh/vanadium/go.lib.svg?style=svg)](https://circleci.com/gh/vanadium/go.lib)
 
 This repository contains general purpose libraries created by and used by the
