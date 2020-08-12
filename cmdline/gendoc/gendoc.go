@@ -137,9 +137,11 @@ func generate(readStderr bool, args []string) error {
 		}
 		fmt.Printf("ignoring exit error: %v\n", exitErr)
 	}
-	if flagPostProcess {
+	return writeOutput(postProcess(flagPostProcess, tmpDir, out.String()))
+}
 
-	}
+func writeOutput(out string) error {
+
 	var tagsConstraint string
 	if flagTags != "" {
 		tagsConstraint = fmt.Sprintf("// +build %s\n\n", flagTags)
@@ -172,7 +174,7 @@ func generate(readStderr bool, args []string) error {
 %s/*
 %s*/
 package main
-`, copyright, tagsConstraint, postProcess(flagPostProcess, tmpDir, out.String()))
+`, copyright, tagsConstraint, out)
 
 	// Write the result to the output file.
 	path, perm := flagOut, os.FileMode(0644)
@@ -182,7 +184,6 @@ package main
 	}
 	return nil
 }
-
 func postProcess(postProcessFlag bool, tmpDir string, body string) string {
 	out := suppressParallelFlag(body)
 	if !postProcessFlag {
