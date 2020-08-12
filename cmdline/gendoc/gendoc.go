@@ -13,11 +13,10 @@
 // [args] are the arguments to pass to the tool to produce usage output.  If no
 // args are given, runs "<tool> help ..."
 //
-// The reason this command is located under a testdata directory is to enforce
-// its idiomatic use via "go run".
-//
 // The gendoc command itself is not based on the cmdline library to avoid
 // non-trivial bootstrapping.
+//
+//go:generate go run . -go-flag-pkg v.io/x/lib/cmdline/gendoc -h
 package main
 
 import (
@@ -49,7 +48,7 @@ func main() {
 	flag.StringVar(&flagEnv, "env", "os", `Environment variables to set before running command.  If "os", grabs vars from the underlying OS.  If empty, doesn't set any vars.  Otherwise vars are expected to be comma-separated entries of the form KEY1=VALUE1,KEY2=VALUE2,...`)
 	flag.StringVar(&flagInstall, "install", "", "Comma separated list of packages to install before running command.  All commands that are built will be on the PATH.")
 	flag.StringVar(&flagOut, "out", "./doc.go", "Path to the output file.")
-	flag.BoolVar(&flagStderr, "use-stderr", false, "If set, read usage output from stderr rather than stdout.")
+	flag.BoolVar(&flagStderr, "use-stderr", false, "If set, read usage output from stderr rather than stdout; it also ignores the exit status of the command.")
 	flag.BoolVar(&flagPostProcess, "postprocess-output", false, "If set, the help/usage output will be post processed to remove absolute path names that contain the build directory.")
 	flag.BoolVar(&flagGoFlagPkg, "go-flag-pkg", false, "Set if the command is using the standard go flag package, it sets both use-stderr and postprocess-output to true")
 	flag.StringVar(&flagTags, "tags", "", "Tags for go build, also added as build constraints in the generated output file.")
