@@ -118,12 +118,12 @@ func TestPrefixLineWriter(t *testing.T) {
 			// in Wants with '\n'.
 			var writes, wants []string
 			for _, x := range test.Writes {
-				x = strings.Replace(x, "\n", string(eol), -1)
+				x = strings.ReplaceAll(x, "\n", string(eol))
 				writes = append(writes, x)
 			}
 			for _, x := range test.Wants {
-				x = strings.Replace(x, "\n", string(eol), -1)
-				x = strings.Replace(x, ".", "\n", -1)
+				x = strings.ReplaceAll(x, "\n", string(eol))
+				x = strings.ReplaceAll(x, ".", "\n")
 				wants = append(wants, x)
 			}
 			// Run the actual tests.

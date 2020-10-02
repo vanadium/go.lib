@@ -85,8 +85,8 @@ func setsErr(t *testing.T, sh *gosh.Shell, f func()) {
 	sh.ContinueOnError = continueOnError
 }
 
-////////////////////////////////////////////////////////////////////////////////
 // Simple registered functions
+// ===========================
 
 // Simplified versions of various Unix commands.
 var (
@@ -130,8 +130,8 @@ var (
 	})
 )
 
-////////////////////////////////////////////////////////////////////////////////
 // Shell tests
+// ===========
 
 type customTB struct {
 	t             *testing.T
@@ -451,8 +451,8 @@ func TestHandleErrorLogging(t *testing.T) {
 	sh.Err = nil
 }
 
-////////////////////////////////////////////////////////////////////////////////
 // Cmd tests
+// =========
 
 const (
 	helloWorldPkg = "v.io/x/lib/gosh/internal/hello_world"
@@ -842,7 +842,7 @@ var replaceFunc = gosh.RegisterFunc("replaceFunc", func(old, new byte) error {
 		case err != nil:
 			return err
 		}
-		rep := bytes.Replace(buf[:n], []byte{old}, []byte{new}, -1)
+		rep := bytes.ReplaceAll(buf[:n], []byte{old}, []byte{new})
 		if _, err := os.Stdout.Write(rep); err != nil {
 			return err
 		}
@@ -1090,8 +1090,8 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-////////////////////////////////////////////////////////////////////////////////
 // Other tests
+// ===========
 
 // Tests BuildGoPkg's handling of the -o flag.
 func TestBuildGoPkg(t *testing.T) {
