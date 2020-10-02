@@ -120,7 +120,7 @@ type byteReplaceWriter struct {
 }
 
 func (w *byteReplaceWriter) Write(data []byte) (int, error) {
-	replaced := bytes.Replace(data, w.old, w.new, -1)
+	replaced := bytes.ReplaceAll(data, w.old, w.new)
 	if len(replaced) == 0 {
 		return len(data), nil
 	}

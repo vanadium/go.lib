@@ -237,8 +237,8 @@ func (c *Cmd) Pid() int {
 	return c.c.Process.Pid
 }
 
-////////////////////////////////////////
 // Internals
+// =========
 
 const headTailCapacity = 1 << 15
 
@@ -730,8 +730,8 @@ func (c *Cmd) combinedOutput() (string, error) {
 	return output.String(), err
 }
 
-////////////////////////////////////////
 // Head-and-tail buffer
+// ====================
 
 // headTail stores the first and last 'capacity' written bytes.
 type headTail struct {

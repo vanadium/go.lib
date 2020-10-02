@@ -142,8 +142,8 @@ func checkCall(handle string, args ...interface{}) error {
 	return nil
 }
 
-////////////////////////////////////////
 // invocation
+// ==========
 
 type invocation struct {
 	Handle string

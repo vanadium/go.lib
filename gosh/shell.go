@@ -233,8 +233,8 @@ func (sh *Shell) Ok() {
 	}
 }
 
-////////////////////////////////////////
 // Internals
+// =========
 
 type defaultTB struct{}
 
@@ -527,8 +527,8 @@ func (sh *Shell) cleanup() {
 	close(sh.cleanupDone)
 }
 
-////////////////////////////////////////
 // Public utilities
+// ================
 
 var calledInitMain = false
 

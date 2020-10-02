@@ -220,13 +220,13 @@ func TestWrapWriterForceVerbatim(t *testing.T) {
 // into the writer.  The point is to make it easy to specify the various control
 // sequences in a single character, so it's easier to understand.
 func xlateIn(text string) string {
-	text = strings.Replace(text, "F", "\f", -1)
-	text = strings.Replace(text, "N", "\n", -1)
-	text = strings.Replace(text, ".", "\n", -1) // Also allow . for easier reading
-	text = strings.Replace(text, "R", "\r", -1)
-	text = strings.Replace(text, "V", "\v", -1)
-	text = strings.Replace(text, "L", "\u2028", -1)
-	text = strings.Replace(text, "P", "\u2029", -1)
+	text = strings.ReplaceAll(text, "F", "\f")
+	text = strings.ReplaceAll(text, "N", "\n")
+	text = strings.ReplaceAll(text, ".", "\n") // Also allow . for easier reading
+	text = strings.ReplaceAll(text, "R", "\r")
+	text = strings.ReplaceAll(text, "V", "\v")
+	text = strings.ReplaceAll(text, "L", "\u2028")
+	text = strings.ReplaceAll(text, "P", "\u2029")
 	return text
 }
 
@@ -240,31 +240,31 @@ func xlateWant(text string, lp lp, indents []int) string {
 	if line == "" {
 		line = "\n"
 	}
-	text = strings.Replace(text, ".", line, -1)
+	text = strings.ReplaceAll(text, ".", line)
 	para := lp.para
 	if para == "" {
 		para = "\n"
 	}
-	text = strings.Replace(text, ":", para, -1)
+	text = strings.ReplaceAll(text, ":", para)
 	// The numbers in the want string indicate paragraph line numbers, to make it
 	// easier to automatically replace for various indent configurations.
 	switch len(indents) {
 	case 0:
-		text = strings.Replace(text, "0", "", -1)
-		text = strings.Replace(text, "1", "", -1)
-		text = strings.Replace(text, "2", "", -1)
+		text = strings.ReplaceAll(text, "0", "")
+		text = strings.ReplaceAll(text, "1", "")
+		text = strings.ReplaceAll(text, "2", "")
 	case 1:
-		text = strings.Replace(text, "0", spaces(indents[0]), -1)
-		text = strings.Replace(text, "1", spaces(indents[0]), -1)
-		text = strings.Replace(text, "2", spaces(indents[0]), -1)
+		text = strings.ReplaceAll(text, "0", spaces(indents[0]))
+		text = strings.ReplaceAll(text, "1", spaces(indents[0]))
+		text = strings.ReplaceAll(text, "2", spaces(indents[0]))
 	case 2:
-		text = strings.Replace(text, "0", spaces(indents[0]), -1)
-		text = strings.Replace(text, "1", spaces(indents[1]), -1)
-		text = strings.Replace(text, "2", spaces(indents[1]), -1)
+		text = strings.ReplaceAll(text, "0", spaces(indents[0]))
+		text = strings.ReplaceAll(text, "1", spaces(indents[1]))
+		text = strings.ReplaceAll(text, "2", spaces(indents[1]))
 	case 3:
-		text = strings.Replace(text, "0", spaces(indents[0]), -1)
-		text = strings.Replace(text, "1", spaces(indents[1]), -1)
-		text = strings.Replace(text, "2", spaces(indents[2]), -1)
+		text = strings.ReplaceAll(text, "0", spaces(indents[0]))
+		text = strings.ReplaceAll(text, "1", spaces(indents[1]))
+		text = strings.ReplaceAll(text, "2", spaces(indents[2]))
 	}
 	return text
 }

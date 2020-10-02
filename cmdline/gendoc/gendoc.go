@@ -189,7 +189,7 @@ func postProcess(postProcessFlag bool, tmpDir string, body string) string {
 	if !postProcessFlag {
 		return out
 	}
-	out = strings.Replace(out, tmpDir+string(filepath.Separator), "", -1)
+	out = strings.ReplaceAll(out, tmpDir+string(filepath.Separator), "")
 	return out
 }
 

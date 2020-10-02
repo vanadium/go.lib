@@ -156,8 +156,8 @@ func (p *Pipeline) CombinedOutput() string {
 	return res
 }
 
-////////////////////////////////////////
 // Internals
+// =========
 
 // handleError is used instead of direct calls to Shell.HandleError throughout
 // the pipeline implementation. This is needed to handle the case where the user
