@@ -49,7 +49,7 @@ func V(level Level) bool {
 // VDepth acts as V but uses depth to determine which call frame to check V.
 // A depth of 0 is equivalent to calling V.
 func VDepth(depth int, level Level) bool {
-	return Log.log.VDepth(0, llog.Level(level))
+	return Log.log.VDepth(depth, llog.Level(level))
 }
 
 // VI is like V, except that it returns an instance of the Info
