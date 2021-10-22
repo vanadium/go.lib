@@ -1126,7 +1126,7 @@ func (l *Log) VDepth(depth int, level Level) bool {
 		return true
 	}
 
-	// It's off globally but it vmodule may still be set.
+	// It's off globally but vmodule may still be set.
 	// Here is another cheap but safe test to see if vmodule is enabled.
 	if atomic.LoadInt32(&l.filterLength) > 0 {
 		// Now we need a proper lock to use the logging structure. The pcs field

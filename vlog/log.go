@@ -244,6 +244,8 @@ func (l *Logger) VDepth(depth int, v int) bool {
 	return l.log.VDepth(depth, llog.Level(v))
 }
 
+var discard = &discardInfo{}
+
 type discardInfo struct{}
 
 func (*discardInfo) Info(...interface{})           {}
@@ -271,7 +273,7 @@ func (l *Logger) VI(v int) interface {
 	if l.log.VDepth(0, llog.Level(v)) {
 		return l
 	}
-	return &discardInfo{}
+	return discard
 }
 
 func (l *Logger) VIDepth(depth int, v int) interface {
@@ -294,7 +296,7 @@ func (l *Logger) VIDepth(depth int, v int) interface {
 	if l.log.VDepth(depth, llog.Level(v)) {
 		return l
 	}
-	return &discardInfo{}
+	return discard
 }
 
 // Flush flushes all pending log I/O.
