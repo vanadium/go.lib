@@ -1,4 +1,4 @@
-[![CircleCI (linux)](https://circleci.com/gh/vanadium/go.lib.svg?style=svg)](https://circleci.com/gh/vanadium/go.lib)
+[![CircleCI](https://circleci.com/gh/vanadium/go.lib.svg?style=shield)](https://circleci.com/gh/vanadium/go.lib/)
 ![GithubActions](https://github.com/cosnicolaou/pbzip2/actions/workflows/macos.yml/badge.svg)
 
 
