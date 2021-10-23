@@ -36,11 +36,12 @@ jobs:
           command: |
             curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin
             go get github.com/matthewloring/validjson/cmd/validjson
+            go install -x github.com/matthewloring/validjson/cmd/validjson@latest
       - run:
           name: lint
           command: |
-            go run github.com/golangci/golangci-lint/cmd/golangci-lint run ./...
-            go run github.com/matthewloring/validjson/cmd/validjson ./...
+            golangci-lint run ./...
+            validjson ./...
       - go/save-cache
 
 workflows:
@@ -53,4 +54,4 @@ workflows:
       - lint:
           matrix:
             parameters:
-              go: ["1.17"]
+              go: ["1.16"]
