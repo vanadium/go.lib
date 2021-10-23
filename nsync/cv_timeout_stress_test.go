@@ -3,6 +3,7 @@
 // license that can be found in the LICENSE file.
 
 // This test runs too slowly under the race detector.
+//go:build !race
 // +build !race
 
 package nsync_test

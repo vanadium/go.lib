@@ -101,13 +101,13 @@ func generate(readStderr bool, args []string) error {
 		pkgs = append(pkgs, strings.Split(flagInstall, ",")...)
 	}
 
-	installCmd := append([]string{}, "go", "install")
+	installArgs := append([]string{}, "go", "install")
 	if len(goInstallCommand) > 0 {
-		installCmd = strings.Split(goInstallCommand, " ")
+		installArgs = strings.Split(goInstallCommand, " ")
 	}
 
 	for _, installPkg := range pkgs {
-		installArgs := append(installCmd, "-tags="+flagTags, installPkg)
+		installArgs = append(installArgs, "-tags="+flagTags, installPkg)
 		installCmd := exec.Command(installArgs[0], installArgs[1:]...)
 		installCmd.Env = append(os.Environ(), "GOBIN="+tmpDir)
 		if err := installCmd.Run(); err != nil {

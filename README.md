@@ -1,4 +1,6 @@
-[![CircleCI](https://circleci.com/gh/vanadium/go.lib.svg?style=svg)](https://circleci.com/gh/vanadium/go.lib)
+[![CircleCI (linux)](https://circleci.com/gh/vanadium/go.lib.svg?style=svg)](https://circleci.com/gh/vanadium/go.lib)
+![GithubActions](https://github.com/cosnicolaou/pbzip2/actions/workflows/macos.yml/badge.svg)
+
 
 This repository contains general purpose libraries created by and used by the
 [github.com/vanadium](Vanadium project). They do not depend on Vanadium and

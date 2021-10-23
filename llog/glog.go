@@ -1080,9 +1080,7 @@ func (l *Log) setV(pc uintptr) Level {
 	fn := runtime.FuncForPC(pc)
 	file, _ := fn.FileLine(pc)
 	// The file is something like /a/b/c/d.go. We want just the d.
-	if strings.HasSuffix(file, ".go") {
-		file = file[:len(file)-3]
-	}
+	file = strings.TrimSuffix(file, ".go")
 	module := file
 	if slash := strings.LastIndex(file, "/"); slash >= 0 {
 		module = file[slash+1:]
@@ -1126,7 +1124,7 @@ func (l *Log) VDepth(depth int, level Level) bool {
 		return true
 	}
 
-	// It's off globally but it vmodule may still be set.
+	// It's off globally but vmodule may still be set.
 	// Here is another cheap but safe test to see if vmodule is enabled.
 	if atomic.LoadInt32(&l.filterLength) > 0 {
 		// Now we need a proper lock to use the logging structure. The pcs field
