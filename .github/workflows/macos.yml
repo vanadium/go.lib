@@ -22,9 +22,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
         with:
-          path: v.io/vanadium/x/ref/lib
+          path: github.com/vanadium/go.lib
 
       - name: Test
         run: |
-          cd v.io/x/ref/lib
+          cd github.com/vanadium/go.lib
           go test -failfast --covermode=atomic -race ./...
