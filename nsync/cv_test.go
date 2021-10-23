@@ -228,17 +228,27 @@ func TestCVProducerConsumer6(t *testing.T) {
 
 // TestCVDeadline() checks timeouts on a CV WaitWithDeadline().
 func TestCVDeadline(t *testing.T) {
-	var mu nsync.Mu
-	var cv nsync.CV
-
 	// The following two values control how aggressively we police the timeout.
-	const tooEarly time.Duration = 1 * time.Millisecond
-	const tooLate time.Duration = 70 * time.Millisecond // longer, to accommodate scheduling delays
-	const tooLateAllowed int = 3                        // number of iterations permitted to violate tooLate
-	const iterations = 50
+	const (
+		tooEarly = 1 * time.Millisecond
+		// Set the deadline to be now + deadlineDelay.
+		deadlineDelay = 100 * time.Millisecond
+		// Allow for a grace period to cover scheduling delays etc. Set
+		// conservatively for
+		tooLate = 200 * time.Millisecond
+		// number of tests to run.
+		iterations = 50
+		// number of iterations permitted to violate tooLate
+		tooLateAllowed int = iterations / 10
+	)
 
-	var tooLateViolations int
-	var totalOverrun time.Duration
+	var (
+		mu                nsync.Mu
+		cv                nsync.CV
+		tooLateViolations int
+		totalOverrun      time.Duration
+	)
+
 	mu.Lock()
 	for i := 0; i < iterations; i++ {
 		startTime := time.Now()
@@ -256,11 +266,10 @@ func TestCVDeadline(t *testing.T) {
 		}
 	}
 	mu.Unlock()
-	t.Logf("#overruns %v/%v (allowed %v), total overrun duration %v", tooLateViolations, iterations, tooLateAllowed, totalOverrun)
 	if tooLateViolations > tooLateAllowed {
+		t.Logf("#overruns %v/%v (allowed %v), total overrun duration %v", tooLateViolations, iterations, tooLateAllowed, totalOverrun)
 		t.Errorf("cvWait() returned too late %d times", tooLateViolations)
 	}
-	t.Fail()
 }
 
 // TestCVCancel() checks cancellations on a CV WaitWithDeadline().

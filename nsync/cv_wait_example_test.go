@@ -69,14 +69,6 @@ func (q *StringPriorityQueue) RemoveWithDeadline(absDeadline time.Time) (s strin
 
 // ---------------------------------------
 
-// addAndWait() adds strings s[0, ...] to *q, with the specified delay between additions.
-func addAndWait(q *StringPriorityQueue, delay time.Duration, s ...string) {
-	for i := range s {
-		q.Add(s[i])
-		time.Sleep(delay)
-	}
-}
-
 // removeAndPrint() removes the first item from *q and outputs it on stdout,
 // or outputs "timeout: <delay>" if no value can be found before "delay" elapses.
 func removeAndPrint(q *StringPriorityQueue, delay time.Duration) {
@@ -91,10 +83,21 @@ func removeAndPrint(q *StringPriorityQueue, delay time.Duration) {
 // See the routine RemoveWithDeadline(), above.
 func ExampleCV_Wait() {
 	var q StringPriorityQueue
+	ch := make(chan bool)
 
-	go addAndWait(&q, 500*time.Millisecond, "one", "two", "three", "four", "five")
+	go func() {
+		q.Add("one")
+		q.Add("two")
+		q.Add("three")
+		close(ch)
+		time.Sleep(500 * time.Millisecond)
+		q.Add("four")
+		time.Sleep(500 * time.Millisecond)
+		q.Add("five")
+	}()
 
-	time.Sleep(1100 * time.Millisecond) // delay while "one", "two" and "three" are queued, but not yet "four"
+	// delay while "one", "two" and "three" are queued, but not yet "four"
+	<-ch
 
 	removeAndPrint(&q, 1*time.Second)        // should get "one"
 	removeAndPrint(&q, 1*time.Second)        // should get "three" (it's lexicographically less than "two")
