@@ -25,4 +25,6 @@ jobs:
           path: v.io/vanadium/x/ref/lib
 
       - name: Test
-        run: go test -failfast --covermode=atomic -race ./...
+        run: |
+          cd v.io/x/ref/lib
+          go test -failfast --covermode=atomic -race ./...
