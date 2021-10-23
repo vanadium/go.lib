@@ -1,8 +1,15 @@
+version: 2.1
+orbs:
+  go: circleci/go@1.7.0
+
 jobs:
-  test:
+  test-linux:
+    parameters:
+      go:
+        type: string
     executor:
       name: go/default
-      tag: "1.14"
+      tag: << parameters.go >>
     steps:
       - checkout
       - go/load-cache
@@ -14,9 +21,12 @@ jobs:
           race: true
 
   lint:
+    parameters:
+      go:
+        type: string
     executor:
       name: go/default
-      tag: "1.14"
+      tag: << parameters.go >>
     steps:
       - checkout
       - go/load-cache
@@ -33,11 +43,14 @@ jobs:
             go run github.com/matthewloring/validjson/cmd/validjson ./...
       - go/save-cache
 
-version: 2.1
-orbs:
-  go: circleci/go@1.7.0
 workflows:
-  main:
+  circleci:
     jobs:
-      - test
-      - lint
+      - test-linux:
+          matrix:
+            parameters:
+              go: ["1.13", "1.17"]
+      - lint:
+          matrix:
+            parameters:
+              go: ["1.17"]
