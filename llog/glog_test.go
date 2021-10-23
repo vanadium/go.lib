@@ -337,10 +337,8 @@ func testVfilepathRegexp(pat string, match bool, t *testing.T) {
 	}
 	l.SetVFilepath(spec)
 	_, file, _, _ := runtime.Caller(1)
-	fmt.Printf("current file %v, pat: %v: %v %v\n", pat, file, l.V(2), match)
 	if l.V(2) != match {
 		_, file, _, _ := runtime.Caller(1)
-		t.Logf("current file: %v", file)
 		t.Errorf("incorrect match for %q: got %t expected %t", pat, l.V(2), match)
 	}
 }

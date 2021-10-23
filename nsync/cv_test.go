@@ -268,6 +268,7 @@ func TestCVDeadline(t *testing.T) {
 	mu.Unlock()
 	if tooLateViolations > tooLateAllowed {
 		t.Logf("#overruns %v/%v (allowed %v), total overrun duration %v", tooLateViolations, iterations, tooLateAllowed, totalOverrun)
+		t.Errorf("#overruns %v/%v (allowed %v), total overrun duration %v", tooLateViolations, iterations, tooLateAllowed, totalOverrun)
 		t.Errorf("cvWait() returned too late %d times", tooLateViolations)
 	}
 }
