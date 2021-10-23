@@ -320,7 +320,7 @@ var vRegexps = map[string]bool{
 	".l.*=2":         true,
 	"...._.*=2":      true,
 	"..[mno]?_.*t=2": true,
-	"m.*=2":          true,
+	"m.*=2":          true, // assumes that the filename for this package contains 'm'
 	"llog.*=2":       true, // llog is not always llog/ with go modules
 	".._.*=2":        true,
 	// These all use 2 and check the patterns. All are false.
@@ -336,6 +336,8 @@ func testVfilepathRegexp(pat string, match bool, t *testing.T) {
 		t.Fatal(err)
 	}
 	l.SetVFilepath(spec)
+	_, file, _, _ := runtime.Caller(1)
+	fmt.Printf("current file %v, pat: %v: %v %v\n", pat, file, l.V(2), match)
 	if l.V(2) != match {
 		_, file, _, _ := runtime.Caller(1)
 		t.Logf("current file: %v", file)

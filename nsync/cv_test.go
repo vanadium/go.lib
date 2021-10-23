@@ -233,7 +233,7 @@ func TestCVDeadline(t *testing.T) {
 
 	// The following two values control how aggressively we police the timeout.
 	const tooEarly time.Duration = 1 * time.Millisecond
-	const tooLate time.Duration = 35 * time.Millisecond // longer, to accommodate scheduling delays
+	const tooLate time.Duration = 70 * time.Millisecond // longer, to accommodate scheduling delays
 	const tooLateAllowed int = 3                        // number of iterations permitted to violate tooLate
 
 	var tooLateViolations int
