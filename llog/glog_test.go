@@ -336,7 +336,6 @@ func testVfilepathRegexp(pat string, match bool, t *testing.T) {
 		t.Fatal(err)
 	}
 	l.SetVFilepath(spec)
-	_, file, _, _ := runtime.Caller(1)
 	if l.V(2) != match {
 		_, file, _, _ := runtime.Caller(1)
 		t.Errorf("incorrect match for %q: got %t expected %t", pat, l.V(2), match)
