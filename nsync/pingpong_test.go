@@ -81,7 +81,7 @@ func BenchmarkPingPongMuCV(b *testing.B) {
 
 // muCVUnexpiredDeadlinePingPong() is run by each thread in BenchmarkPingPongMuCVUnexpiredDeadline().
 func (pp *pingPong) muCVUnexpiredDeadlinePingPong(parity int) {
-	var deadlineIn1Hour time.Time = time.Now().Add(1 * time.Hour)
+	var deadlineIn1Hour = time.Now().Add(1 * time.Hour)
 	pp.mu.Lock()
 	for pp.i < pp.limit {
 		for (pp.i & 1) == parity {

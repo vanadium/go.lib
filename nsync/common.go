@@ -42,7 +42,7 @@ func spinDelay(attempts uint) uint {
 // barrier.
 func spinTestAndSet(w *uint32, test uint32, set uint32) uint32 {
 	var attempts uint // cvSpinlock retry count
-	var old uint32 = atomic.LoadUint32(w)
+	var old = atomic.LoadUint32(w)
 	for (old&test) != 0 || !atomic.CompareAndSwapUint32(w, old, old|set) { // acquire CAS
 		attempts = spinDelay(attempts)
 		old = atomic.LoadUint32(w)
