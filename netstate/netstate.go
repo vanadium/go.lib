@@ -198,7 +198,9 @@ func (ifc ipifc) Flags() net.Flags {
 func (ifc ipifc) Networks() []net.Addr {
 	nets := []net.Addr{}
 	for _, r := range ifc.ipRoutes {
-		nets = append(nets, &r.Net)
+		cpy := new(net.IPNet)
+		*cpy = r.Net
+		nets = append(nets, cpy)
 	}
 	return nets
 }

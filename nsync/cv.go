@@ -260,8 +260,8 @@ func wakeWaiters(toWakeList *waiter) {
 		//  - either mu is locked, or there's more than one thread on toWakeList, and
 		//  - we acquire the spinlock on the first try.
 		// The spinlock acquisition also marks mu as having waiters.
-		var oldMuWord uint32 = atomic.LoadUint32(&mu.word)
-		var locked bool = (oldMuWord & muLock) != 0
+		var oldMuWord = atomic.LoadUint32(&mu.word)
+		var locked = (oldMuWord & muLock) != 0
 		var setDesigWaker uint32 // set to muDesigWaker if a thread is to be woken rather than transferred
 		if !locked {
 			setDesigWaker = muDesigWaker
