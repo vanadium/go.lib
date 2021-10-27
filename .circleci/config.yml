@@ -1,36 +1,39 @@
 version: 2.1
 orbs:
-  go: circleci/go@1.7.0
+  win: circleci/windows@2.4.1
 
 jobs:
   test-linux:
     parameters:
       go:
         type: string
-    executor:
-      name: go/default
-      tag: << parameters.go >>
+    docker:
+      - image: cimg/go:<< parameters.go >>
     steps:
       - checkout
-      - go/load-cache
-      - go/mod-download
-      - go/save-cache
-      - go/test:
-          covermode: atomic
-          failfast: true
-          race: true
+      - run:
+          name: test
+          command: |
+            go test -race --covermode=atomic ./...
 
+  test-windows:
+    executor:
+      name: win/default
+    steps:
+      - run: git config --global core.autocrlf false
+      - checkout
+      - run:
+          name: test
+          command: |
+            go test -race --covermode=atomic ./...
   lint:
     parameters:
       go:
         type: string
-    executor:
-      name: go/default
-      tag: << parameters.go >>
+    docker:
+      - image: cimg/go:<< parameters.go >>
     steps:
       - checkout
-      - go/load-cache
-      - go/mod-download
       - run:
           name: downloads
           command: |
@@ -42,7 +45,6 @@ jobs:
           command: |
             golangci-lint run ./...
             validjson ./...
-      - go/save-cache
 
 workflows:
   circleci:
@@ -54,4 +56,4 @@ workflows:
       - lint:
           matrix:
             parameters:
-              go: ["1.16"]
+              go: ["1.17"]
