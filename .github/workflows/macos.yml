@@ -7,7 +7,7 @@ on:
     branches: [master]
 
 jobs:
-  build:
+  test:
     strategy:
       matrix:
         go-version: [1.16.x, 1.17.x]
