@@ -51,11 +51,18 @@ type Notifier interface {
 // NullNotifier represents a null implementation of Notifier that will
 // never return any notifications or routes. It is provided as a default.
 type NullNotifier struct {
-	ch chan struct{}
+	mu          sync.Mutex
+	initialized bool
+	ch          chan struct{}
 }
 
 // NotifyChange implements Notifier.
 func (n *NullNotifier) NotifyChange() (<-chan struct{}, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.initialized {
+		return n.ch, nil
+	}
 	n.ch = make(chan struct{})
 	return n.ch, nil
 }
@@ -67,6 +74,8 @@ func (n *NullNotifier) GetIPRoutes(defaultOnly bool) []route.IPRoute {
 
 // Shutdown implements Notifier.
 func (n *NullNotifier) Shutdown() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
 	if n.ch != nil {
 		close(n.ch)
 	}

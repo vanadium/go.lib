@@ -15,12 +15,12 @@ linters:
     - gocyclo
     - gofmt
     - goimports
-    - golint
+    - revive
     - gosimple
     - govet
     - ineffassign
     - misspell
-    - scopelint
+    - exportloopref
     - staticcheck
     - structcheck
     - typecheck

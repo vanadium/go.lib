@@ -47,7 +47,7 @@ func cvStressIncLoop(s *cvStressData, countImod4 uint64, n uint64) {
 	for i := uint64(0); i != n; i++ {
 		s.mu.AssertHeld()
 		for (s.count & 3) != countImod4 {
-			var absDeadline time.Time = time.Now().Add(time.Duration(rand.Int31n(cvMaxDelayMicros)) * time.Microsecond)
+			var absDeadline = time.Now().Add(time.Duration(rand.Int31n(cvMaxDelayMicros)) * time.Microsecond)
 			for s.countIsIMod4[countImod4].WaitWithDeadline(&s.mu, absDeadline, nil) != nsync.OK && (s.count&3) != countImod4 {
 				s.mu.AssertHeld()
 				s.timeouts++

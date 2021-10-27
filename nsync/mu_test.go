@@ -57,7 +57,7 @@ func (td *testData) waitForAllThreads() {
 // *td represents the test data that the threads share, and id is an integer
 // unique to each test thread.
 func countingLoopMu(td *testData, id int) {
-	var n int = td.loopCount
+	var n = td.loopCount
 	for i := 0; i != n; i++ {
 		td.mu.Lock()
 		td.id = id
@@ -91,7 +91,7 @@ func TestMuNThread(t *testing.T) {
 // *td represents the test data that the threads share, and id is an integer
 // unique to each test thread, here protected by a sync.Mutex.
 func countingLoopMutex(td *testData, id int) {
-	var n int = td.loopCount
+	var n = td.loopCount
 	for i := 0; i != n; i++ {
 		td.mutex.Lock()
 		td.id = id
@@ -125,7 +125,7 @@ func TestMutexNThread(t *testing.T) {
 // *td represents the test data that the threads share, and id is an integer
 // unique to each test thread.
 func countingLoopTryMu(td *testData, id int) {
-	var n int = td.loopCount
+	var n = td.loopCount
 	for i := 0; i != n; i++ {
 		for !td.mu.TryLock() {
 			runtime.Gosched()

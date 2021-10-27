@@ -96,7 +96,7 @@ func newWaiter() (w *waiter) {
 		freeWaiters.MakeEmpty()
 	}
 	if !freeWaiters.IsEmpty() { // If free list is non-empty, dequeue an item.
-		var q *dll = freeWaiters.next
+		var q = freeWaiters.next
 		q.Remove()
 		w = q.elem
 	}

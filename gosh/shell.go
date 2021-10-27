@@ -246,7 +246,7 @@ func (*defaultTB) Logf(format string, args ...interface{}) {
 	log.Printf(format, args...)
 }
 
-var pkgLevelDefaultTB *defaultTB = &defaultTB{}
+var pkgLevelDefaultTB = &defaultTB{}
 
 func newShell(tb TB) (*Shell, error) {
 	if tb == nil {
