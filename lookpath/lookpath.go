@@ -5,11 +5,8 @@
 // Package lookpath implements utilities to find executables.
 package lookpath
 
-// TODO(toddw): implement for non-unix systems.
-
 import (
 	"io/ioutil"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
@@ -18,7 +15,7 @@ import (
 
 func splitPath(env map[string]string) []string {
 	var dirs []string
-	for _, dir := range strings.Split(env["PATH"], string(filepath.ListSeparator)) {
+	for _, dir := range strings.Split(env[PathEnvVar], string(filepath.ListSeparator)) {
 		if dir != "" {
 			dirs = append(dirs, dir)
 		}
@@ -26,19 +23,19 @@ func splitPath(env map[string]string) []string {
 	return dirs
 }
 
-func isExecutable(info os.FileInfo) bool {
-	mode := info.Mode()
-	return !mode.IsDir() && mode&0111 != 0
-}
-
 // Look returns the absolute path of the executable with the given name.  If
-// name only contains a single path component, the dirs in env["PATH"] are
-// consulted, and the first match is returned.  Otherwise, for multi-component
-// paths, the absolute path of the name is looked up directly.
+// name only contains a single path component, the dirs in env["PATH"]
+// or env["Path"] on windows (use lookpath.PathEnvVar to obtain the os specific
+// value) are consulted, and the first match is returned.  Otherwise, for
+// multi-component paths, the absolute path of the name is looked up directly.
 //
 // The behavior is the same as LookPath in the os/exec package, but allows the
 // env to be passed in explicitly.
+// On Windows systems PATH is copied to Path in env unless Path is already
+// defined. Again, on Windows, the returned executable name does not include
+// the .exe suffix.
 func Look(env map[string]string, name string) (string, error) {
+	env = translateEnv(env)
 	var dirs []string
 	base := filepath.Base(name)
 	if base == name {
@@ -47,18 +44,9 @@ func Look(env map[string]string, name string) (string, error) {
 		dirs = []string{filepath.Dir(name)}
 	}
 	for _, dir := range dirs {
-		file, err := filepath.Abs(filepath.Join(dir, base))
-		if err != nil {
-			continue
+		if file, ok := isExecutablePath(dir, base); ok {
+			return ExecutableBasename(file), nil
 		}
-		info, err := os.Stat(file)
-		if err != nil {
-			continue
-		}
-		if !isExecutable(info) {
-			continue
-		}
-		return file, nil
 	}
 	return "", &exec.Error{Name: name, Err: exec.ErrNotFound}
 }
@@ -73,7 +61,11 @@ func Look(env map[string]string, name string) (string, error) {
 // The names are filled in as the method runs, to ensure the first matching
 // property.  As a consequence, you may pass in a pre-populated names map to
 // prevent matching those names.  It is fine to pass in a nil names map.
+// On Windows systems PATH is copied to Path in env unless Path is already
+// defined. Again, on Windows, the returned executable name does not include
+// the .exe suffix.
 func LookPrefix(env map[string]string, prefix string, names map[string]bool) ([]string, error) {
+	env = translateEnv(env)
 	if names == nil {
 		names = make(map[string]bool)
 	}
@@ -98,16 +90,16 @@ func LookPrefix(env map[string]string, prefix string, names map[string]bool) ([]
 				continue
 			}
 			name := info.Name()
-			file := filepath.Join(dir, name)
-			index := strings.LastIndex(file, prefix)
-			if index == -1 || strings.ContainsRune(file[index+len(prefix):], filepath.Separator) {
+			bprefix := filepath.Base(prefix)
+			if !strings.HasPrefix(name, bprefix) {
 				continue
 			}
+			name = ExecutableBasename(name)
 			if names[name] {
 				continue
 			}
 			names[name] = true
-			all = append(all, file)
+			all = append(all, filepath.Join(dir, name))
 		}
 	}
 	if len(all) > 0 {

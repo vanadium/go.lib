@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"v.io/x/lib/envvar"
+	"v.io/x/lib/lookpath"
 )
 
 var (
@@ -2505,7 +2506,7 @@ func TestExternalSubcommand(t *testing.T) {
 
 	// Build the external subcommands.
 	for _, subCmd := range []string{"exitcode", "flags", "flat", "foreign", "nested", "repeated"} {
-		cmd := exec.Command("go", "build", "-o", filepath.Join(tmpDir, "unlikely-"+subCmd), filepath.Join(".", "testdata", subCmd+".go"))
+		cmd := exec.Command("go", "build", "-o", lookpath.ExecutableFilename(filepath.Join(tmpDir, "unlikely-"+subCmd)), filepath.Join(".", "testdata", subCmd+".go"))
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("%v, %v", string(out), err)
 		}
@@ -2971,6 +2972,7 @@ The global flags are:
 			Stdout: `global1="A B" shared="C D" local="E F" ["x" "y" "z"]` + "\n",
 		},
 	}
+	tests = tests[:1]
 	runTestCases(t, cmd, tests)
 }
 

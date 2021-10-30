@@ -184,7 +184,7 @@ func TestPipelineSignal(t *testing.T) {
 			time.Sleep(100 * time.Millisecond)
 			p.Signal(s)
 			switch {
-			case s == os.Interrupt:
+			case gosh.TranslateSignal(s) == os.Interrupt:
 				// Wait should succeed as long as the exit code was 0, regardless of
 				// whether the signal arrived or the processes had already exited.
 				p.Wait()

@@ -6,6 +6,12 @@
 
 package gosh
 
+import (
+	"os"
+	"strings"
+	"syscall"
+)
+
 // TODO(sadovsky): Maybe wrap every child process with a "supervisor" process
 // that calls InitChildMain.
 
@@ -77,4 +83,23 @@ func (c *Cmd) cleanupProcessGroup() {
 
 	// No grace period.
 	c.c.Process.Kill()
+}
+
+func isSysClosedPipeError(err error) bool {
+	// Closed pipe on os.Pipe; mirrors logic in os/exec/exec_posix.go.
+	const _ERROR_NO_DATA = syscall.Errno(0xe8)
+	if pe, ok := err.(*os.PathError); ok {
+		return pe.Op == "write" &&
+			pe.Path == "|1" &&
+			(pe.Err == syscall.ERROR_BROKEN_PIPE || pe.Err == _ERROR_NO_DATA)
+	}
+	return false
+}
+
+func TranslateSignal(sig os.Signal) os.Signal {
+	return os.Kill
+}
+
+func ExecutableFilename(n string) string {
+	return strings.TrimSuffix(n, ".exe") + ".exe"
 }

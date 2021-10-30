@@ -3,15 +3,9 @@
 // license that can be found in the LICENSE file.
 
 // Package osnetconfig provides OS specific routines for detecting network
-// changes and reading the route table; it uses cgo to to do so. Unfortunately
-// some applications prefer to avoid the use of cgo entirely and this leads to
-// a convoluted
+// changes and reading the route table; it uses cgo to to do so on some systems.
 package osnetconfig
 
-// Force this file to compile as cgo, to work around bazel/rules_go
-// limitations. See also https://github.com/bazelbuild/rules_go/issues/255
-
-import "C"
 import (
 	"net"
 	"sync"
@@ -74,6 +68,12 @@ func (n *Notifier) Shutdown() {
 	if n.ch != nil {
 		close(n.ch)
 	}
+}
+
+func (n *Notifier) stopped() bool {
+	n.Lock()
+	defer n.Unlock()
+	return n.stop
 }
 
 // ding returns true when the nofitifer is being shutdown.

@@ -101,7 +101,7 @@ const (
 // There are two reasons for using an absolute deadline, rather than a relative
 // timeout---these are why pthread_cond_timedwait() also uses an absolute
 // deadline.  First, condition variable waits have to be used in a loop; with
-// an absolute times, the deadline does not have to be recomputed on each
+// an absolute time, the deadline does not have to be recomputed on each
 // iteration.  Second, in most real programmes, some activity (such as an RPC
 // to a server, or when guaranteeing response time in a UI), there is a
 // deadline imposed by the specification or the caller/user; relative delays

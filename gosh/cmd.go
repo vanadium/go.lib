@@ -506,12 +506,11 @@ func isClosedPipeError(err error) bool {
 	if err == io.ErrClosedPipe {
 		return true
 	}
-	// Closed pipe on os.Pipe; mirrors logic in os/exec/exec_posix.go.
-	if pe, ok := err.(*os.PathError); ok {
-		if pe.Op == "write" && pe.Path == "|1" && pe.Err == syscall.EPIPE {
-			return true
-		}
+
+	if isSysClosedPipeError(err) {
+		return true
 	}
+
 	// Process exited due to a SIGPIPE signal.
 	if ee, ok := err.(*exec.ExitError); ok {
 		if ws, ok := ee.ProcessState.Sys().(syscall.WaitStatus); ok {
@@ -672,7 +671,8 @@ func (c *Cmd) signal(sig os.Signal) error {
 	if !c.isRunning() {
 		return nil
 	}
-	if err := c.c.Process.Signal(sig); err != nil && err.Error() != errFinished {
+	if err := c.c.Process.Signal(TranslateSignal(sig)); err != nil && err.Error() != errFinished {
+		fmt.Printf("cmd signal: %v -> %v: %v\n", sig, TranslateSignal(sig), err)
 		return err
 	}
 	return nil
