@@ -51,7 +51,7 @@ func initTmpDir(t *testing.T) (string, func()) {
 }
 
 func pathEnv(dir ...string) map[string]string {
-	return map[string]string{"HOME": strings.Join(dir, string(filepath.ListSeparator))}
+	return map[string]string{"PATH": strings.Join(dir, string(filepath.ListSeparator))}
 }
 
 func isNotFoundError(err error, name string) bool {
@@ -145,7 +145,7 @@ func TestLookPrefix(t *testing.T) {
 		{pathEnv(dirA, dirB), "f", nil, []string{aFoo}},
 		{pathEnv(dirA, dirB), "b", nil, []string{bBaa, aBar, bBaz, aBzz}},
 		// Don't find baz, since it's already provided.
-		{pathEnv(dirA, dirB), "b", map[string]bool{filepath.Base(bBaz): true}, []string{bBaa, aBar, aBzz}},
+		{pathEnv(dirA, dirB), "b", map[string]bool{"baz": true}, []string{bBaa, aBar, aBzz}},
 		// Make sure we find bExe, since aExe isn't executable.
 		{pathEnv(dirA, dirB), "exe", nil, []string{bExe}},
 		{pathEnv(dirA, dirB), "e", nil, []string{bExe}},
@@ -162,7 +162,7 @@ func TestLookPrefix(t *testing.T) {
 		{nil, filepath.Join(dirA, "b"), nil, []string{aBar, aBzz}},
 		{nil, filepath.Join(dirB, "f"), nil, nil},
 		{nil, filepath.Join(dirB, "b"), nil, []string{bBaa, bBar, bBaz}},
-		{nil, filepath.Join(dirB, "b"), map[string]bool{filepath.Base(bBaz): true}, []string{bBaa, bBar}},
+		{nil, filepath.Join(dirB, "b"), map[string]bool{"baz": true}, []string{bBaa, bBar}},
 		{nil, aExe, nil, nil},
 		{nil, filepath.Join(dirA, "e"), nil, nil},
 		{nil, bExe, nil, []string{bExe}},
