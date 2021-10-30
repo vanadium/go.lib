@@ -54,7 +54,7 @@ workflows:
           matrix:
             parameters:
               go: ["1.13", "1.17"]
-      - test-windows:
+      - test-windows
       - lint:
           matrix:
             parameters:
