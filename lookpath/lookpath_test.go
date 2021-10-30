@@ -51,7 +51,7 @@ func initTmpDir(t *testing.T) (string, func()) {
 }
 
 func pathEnv(dir ...string) map[string]string {
-	return map[string]string{lookpath.PathEnvVar: strings.Join(dir, string(filepath.ListSeparator))}
+	return map[string]string{"HOME": strings.Join(dir, string(filepath.ListSeparator))}
 }
 
 func isNotFoundError(err error, name string) bool {

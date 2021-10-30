@@ -61,9 +61,6 @@ func Look(env map[string]string, name string) (string, error) {
 // The names are filled in as the method runs, to ensure the first matching
 // property.  As a consequence, you may pass in a pre-populated names map to
 // prevent matching those names.  It is fine to pass in a nil names map.
-// On Windows systems PATH is copied to Path in env unless Path is already
-// defined. Again, on Windows, the returned executable name does not include
-// the .exe suffix.
 func LookPrefix(env map[string]string, prefix string, names map[string]bool) ([]string, error) {
 	env = translateEnv(env)
 	if names == nil {

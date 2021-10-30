@@ -506,7 +506,7 @@ func TestLookPath(t *testing.T) {
 	defer sh.Cleanup()
 
 	binDir := sh.MakeTempDir()
-	sh.Vars[lookpath.PathEnvVar] = binDir + string(filepath.ListSeparator) + sh.Vars[lookpath.PathEnvVar]
+	sh.Vars["PATH"] = binDir + string(filepath.ListSeparator) + sh.Vars[lookpath.PathEnvVar]
 	relName := "hw"
 	absName := filepath.Join(binDir, relName)
 	gosh.BuildGoPkg(sh, "", helloWorldPkg, "-o", absName)
@@ -514,7 +514,7 @@ func TestLookPath(t *testing.T) {
 	eq(t, c.Stdout(), helloWorldStr)
 
 	// Test the case where we cannot find the executable.
-	sh.Vars[lookpath.PathEnvVar] = ""
+	sh.Vars["PATH"] = ""
 	setsErr(t, sh, func() { sh.Cmd("yes") })
 }
 

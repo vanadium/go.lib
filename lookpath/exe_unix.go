@@ -50,6 +50,9 @@ func ExecutableBasename(name string) string {
 	return strings.TrimSuffix(name, ".exe")
 }
 
+// translateEnv translates commonly used environment variables to their
+// system specific equivalents, e.g. the commonly used PATH on UNIX
+// systems to Path on Windows.
 func translateEnv(env map[string]string) map[string]string {
 	return env
 }
