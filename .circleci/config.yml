@@ -26,6 +26,7 @@ jobs:
           name: test
           command: |
             go test -race --covermode=atomic ./...
+
   lint:
     parameters:
       go:
@@ -54,9 +55,6 @@ workflows:
             parameters:
               go: ["1.13", "1.17"]
       - test-windows:
-          matrix:
-            parameters:
-              go: ["1.16", "1.17"]
       - lint:
           matrix:
             parameters:
