@@ -10,10 +10,12 @@ jobs:
     docker:
       - image: cimg/go:<< parameters.go >>
     steps:
-      - checkout
+      - checkout:
+          path: github.com/vanadium/go.lib
       - run:
           name: test
           command: |
+            cd github.com/vanadium/go.lib
             go test -race --covermode=atomic ./...
 
   test-windows:
@@ -21,7 +23,8 @@ jobs:
       name: win/default
     steps:
       - run: git config --global core.autocrlf false
-      - checkout
+      - checkout:
+          path: github.com/vanadium/go.lib
       - run:
           name: install mingw
           command: |
@@ -29,6 +32,7 @@ jobs:
       - run:
           name: test
           command: |
+            cd github.com/vanadium/go.lib
             go test -race --covermode=atomic ./...
 
   lint:
