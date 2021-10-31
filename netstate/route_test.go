@@ -30,6 +30,7 @@ func TestInterfaces(t *testing.T) {
 
 	str := ifcs.String()
 	if got, want := strings.Count(str, "("), len(ifcs); got != want {
+		t.Log(str)
 		t.Fatalf("got %v, want %v", got, want)
 	}
 }

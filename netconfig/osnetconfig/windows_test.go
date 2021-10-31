@@ -72,9 +72,8 @@ func TestRouteParsing(t *testing.T) {
 	if err != nil {
 		t.Errorf("failed to parse route command's output: %v", err)
 	}
-
 	if got, want := len(routes), 16; got != want {
-		t.Errorf("got %v, want %v", got, want)
+		t.Fatalf("got %v, want %v", got, want)
 	}
 	rt := route.IPRoute{
 		Net: net.IPNet{
