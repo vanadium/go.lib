@@ -11,7 +11,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"log"
 	"net"
 	"os/exec"
 	"strconv"
@@ -21,6 +20,7 @@ import (
 
 	"golang.org/x/sys/windows"
 	"v.io/x/lib/netconfig/route"
+	"v.io/x/lib/vlog"
 )
 
 var (
@@ -73,33 +73,39 @@ func (n *Notifier) GetIPRoutes(defaultOnly bool) []route.IPRoute {
 	cmd := exec.Command("route", "print")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Printf("%s failed: %s: %v\n", strings.Join(cmd.Args, " "), out, err)
+		vlog.Infof("%s failed: %s: %v\n", strings.Join(cmd.Args, " "), out, err)
 		return nil
 	}
-	routes, err := ParseWindowsRouteCommandOutput(string(out))
+	ifcs, err := net.Interfaces()
 	if err != nil {
-		log.Printf("%s failed to parse output: %s: %v\n", strings.Join(cmd.Args, " "), out, err)
+		vlog.Infof("failed to obtain network interface configuration: %v", err)
+		return nil
+	}
+	nifcs, err := newNetIfcs(ifcs)
+	if err != nil {
+		vlog.Infof("failed to parse network interface configuration: %v", err)
+		return nil
+	}
+	routes, err := parseWindowsRouteCommandOutput(nifcs, string(out), defaultOnly)
+	if err != nil {
+		vlog.Infof("%s failed to parse output: %s: %v\n", strings.Join(cmd.Args, " "), out, err)
 		return nil
 	}
 	return routes
 }
 
-// ParseWindowsRouteCommandOutput parses the output of the windows
+// parseWindowsRouteCommandOutput parses the output of the windows
 // 'route print' command's output and is used by GetIPRoutes.
-func ParseWindowsRouteCommandOutput(output string) ([]route.IPRoute, error) {
+func parseWindowsRouteCommandOutput(nifcs netIfcs, output string, defaultOnly bool) ([]route.IPRoute, error) {
 	lines, err := readLines(output)
 	if err != nil {
 		return nil, err
 	}
-	ifcs, err := getInterfaceInfo()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read network interface config")
-	}
-	routes, err := ifcs.parseIPv4(lines)
+	routes, err := nifcs.parseIPv4(lines, defaultOnly)
 	if err != nil {
 		return nil, err
 	}
-	v6, err := ifcs.parseIPv6(lines)
+	v6, err := nifcs.parseIPv6(lines, defaultOnly)
 	if err != nil {
 		return nil, err
 	}
@@ -131,11 +137,7 @@ type netIfc struct {
 
 type netIfcs []netIfc
 
-func getInterfaceInfo() (netIfcs, error) {
-	ifcs, err := net.Interfaces()
-	if err != nil {
-		return nil, err
-	}
+func newNetIfcs(ifcs []net.Interface) (netIfcs, error) {
 	nifcs := make([]netIfc, len(ifcs))
 	for i, ifc := range ifcs {
 		nifcs[i].idx = ifc.Index
@@ -200,15 +202,15 @@ func findRoutingTable(lines []string, title string) (int, int, error) {
 	return table + start, table + start + stop, nil
 }
 
-func (ni netIfcs) parseIPv4(lines []string) ([]route.IPRoute, error) {
+func (ni netIfcs) parseIPv4(lines []string, defaultOnly bool) ([]route.IPRoute, error) {
 	start, stop, err := findRoutingTable(lines, "IPv4 Route Table")
 	if err != nil {
 		return nil, err
 	}
-	return ni.parseIP4Routes(lines[start:stop])
+	return ni.parseIP4Routes(lines[start:stop], defaultOnly)
 }
 
-func (ni netIfcs) parseIP4Routes(lines []string) ([]route.IPRoute, error) {
+func (ni netIfcs) parseIP4Routes(lines []string, defaultOnly bool) ([]route.IPRoute, error) {
 	const (
 		netdst  = 0
 		netmask = 1
@@ -246,27 +248,31 @@ func (ni netIfcs) parseIP4Routes(lines []string) ([]route.IPRoute, error) {
 		if idx < 0 {
 			return nil, fmt.Errorf("failed to determine interface index for route %v", l)
 		}
-		routes = append(routes, route.IPRoute{
+		r := route.IPRoute{
 			Net: net.IPNet{
 				IP:   dstIP,
 				Mask: net.IPMask(mask.To4()),
 			},
 			Gateway:  gw,
 			IfcIndex: idx,
-		})
+		}
+		if defaultOnly && !route.IsDefaultIPRoute(&r) {
+			continue
+		}
+		routes = append(routes, r)
 	}
 	return routes, nil
 }
 
-func (ni netIfcs) parseIPv6(lines []string) ([]route.IPRoute, error) {
+func (ni netIfcs) parseIPv6(lines []string, defaultOnly bool) ([]route.IPRoute, error) {
 	start, stop, err := findRoutingTable(lines, "IPv6 Route Table")
 	if err != nil {
 		return nil, err
 	}
-	return ni.parseIP6Routes(lines[start:stop])
+	return ni.parseIP6Routes(lines[start:stop], defaultOnly)
 }
 
-func (ni netIfcs) parseIP6Routes(lines []string) ([]route.IPRoute, error) {
+func (ni netIfcs) parseIP6Routes(lines []string, defaultOnly bool) ([]route.IPRoute, error) {
 	const (
 		ifc     = 0
 		netdst  = 2
@@ -324,11 +330,15 @@ func (ni netIfcs) parseIP6Routes(lines []string) ([]route.IPRoute, error) {
 				return nil, fmt.Errorf("invalid gateway: %v", gw)
 			}
 		}
-		routes = append(routes, route.IPRoute{
+		r := route.IPRoute{
 			Net:      *dstIP,
 			Gateway:  gw,
 			IfcIndex: ifcIdx,
-		})
+		}
+		if defaultOnly && !route.IsDefaultIPRoute(&r) {
+			continue
+		}
+		routes = append(routes, r)
 	}
 	return routes, nil
 }
