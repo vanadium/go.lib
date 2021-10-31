@@ -408,11 +408,14 @@ func GetAllInterfaces() (InterfaceList, error) {
 }
 
 func (ifcl InterfaceList) String() string {
-	r := ""
-	for _, ifc := range ifcl {
-		r += fmt.Sprintf("%s, ", ifc)
+	out := strings.Builder{}
+	for i, ifc := range ifcl {
+		out.WriteString(ifc.String())
+		if i+1 < len(ifcl) {
+			out.WriteString(", ")
+		}
 	}
-	return strings.TrimRight(r, ", ")
+	return out.String()
 }
 
 // GetAccessibleIPs returns all of the accessible IP addresses on the device

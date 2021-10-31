@@ -26,6 +26,7 @@ func mkdir(t *testing.T, d ...string) string {
 }
 
 func mkfile(t *testing.T, dir, file string, perm os.FileMode) string {
+	file = lookpath.ExecutableFileNameForTests(file, perm)
 	path := filepath.Join(dir, file)
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, perm)
 	if err != nil {
@@ -34,7 +35,7 @@ func mkfile(t *testing.T, dir, file string, perm os.FileMode) string {
 	if err := f.Close(); err != nil {
 		t.Fatal(err)
 	}
-	return path
+	return lookpath.ExecutableBasename(path)
 }
 
 func initTmpDir(t *testing.T) (string, func()) {
@@ -93,17 +94,21 @@ func TestLook(t *testing.T) {
 		{nil, aExe, ""},
 		{nil, bExe, bExe},
 	}
-	for _, test := range tests {
+	for i, test := range tests {
 		hdr := fmt.Sprintf("env=%v name=%v", test.Env, test.Name)
 		look, err := lookpath.Look(test.Env, test.Name)
 		if got, want := look, test.Want; got != want {
-			t.Errorf("%s got %v, want %v", hdr, got, want)
+			t.Errorf("%v: %s got %v, want %v", i, hdr, got, want)
+			return
+		}
+		if strings.HasSuffix(look, ".exe") {
+			t.Errorf("executables should never have a .exe suffix, even on Windows")
 		}
 		if (look == "") == (err == nil) {
-			t.Errorf("%s got mismatched look=%v err=%v", hdr, look, err)
+			t.Errorf("%v: %s got mismatched look=%v err=%v", i, hdr, look, err)
 		}
 		if err != nil && !isNotFoundError(err, test.Name) {
-			t.Errorf("%s got wrong error %v", hdr, err)
+			t.Errorf("%v: %s got wrong error %v", i, hdr, err)
 		}
 	}
 }
@@ -163,17 +168,22 @@ func TestLookPrefix(t *testing.T) {
 		{nil, bExe, nil, []string{bExe}},
 		{nil, filepath.Join(dirB, "e"), nil, []string{bExe}},
 	}
-	for _, test := range tests {
+	for i, test := range tests {
 		hdr := fmt.Sprintf("env=%v prefix=%v names=%v", test.Env, test.Prefix, test.Names)
 		look, err := lookpath.LookPrefix(test.Env, test.Prefix, test.Names)
 		if got, want := look, test.Want; !reflect.DeepEqual(got, want) {
-			t.Errorf("%s got %v, want %v", hdr, got, want)
+			t.Errorf("%v: %s got %v, want %v", i, hdr, got, want)
 		}
 		if (look == nil) == (err == nil) {
-			t.Errorf("%s got mismatched look=%v err=%v", hdr, look, err)
+			t.Errorf("%v: %s got mismatched look=%v err=%v", i, hdr, look, err)
+		}
+		for _, l := range look {
+			if strings.HasSuffix(l, ".exe") {
+				t.Errorf("executables should never have a .exe suffix, even on Windows")
+			}
 		}
 		if err != nil && !isNotFoundError(err, test.Prefix+"*") {
-			t.Errorf("%s got wrong error %v", hdr, err)
+			t.Errorf("%v: %s got wrong error %v", i, hdr, err)
 		}
 	}
 }

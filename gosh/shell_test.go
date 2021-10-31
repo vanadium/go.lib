@@ -26,12 +26,12 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
 	"v.io/x/lib/gosh"
 	lib "v.io/x/lib/gosh/internal/gosh_example_lib"
+	"v.io/x/lib/lookpath"
 )
 
 var errFake = errors.New("fake error")
@@ -506,7 +506,7 @@ func TestLookPath(t *testing.T) {
 	defer sh.Cleanup()
 
 	binDir := sh.MakeTempDir()
-	sh.Vars["PATH"] = binDir + ":" + sh.Vars["PATH"]
+	sh.Vars["PATH"] = binDir + string(filepath.ListSeparator) + sh.Vars[lookpath.PathEnvVar]
 	relName := "hw"
 	absName := filepath.Join(binDir, relName)
 	gosh.BuildGoPkg(sh, "", helloWorldPkg, "-o", absName)
@@ -863,7 +863,7 @@ func TestSignal(t *testing.T) {
 			time.Sleep(100 * time.Millisecond)
 			c.Signal(s)
 			switch {
-			case s == os.Interrupt:
+			case gosh.TranslateSignal(s) == os.Interrupt:
 				// Wait should succeed as long as the exit code was 0, regardless of
 				// whether the signal arrived or the process had already exited.
 				c.Wait()
@@ -891,25 +891,6 @@ var processGroup = gosh.RegisterFunc("processGroup", func(n int) {
 	gosh.SendVars(map[string]string{"pids": strings.Join(pids, ",")})
 	time.Sleep(time.Minute)
 })
-
-func TestCleanupProcessGroup(t *testing.T) {
-	sh := gosh.NewShell(t)
-	defer sh.Cleanup()
-
-	c := sh.FuncCmd(processGroup, 5)
-	c.Start()
-	pids := c.AwaitVars("pids")["pids"]
-	c.Signal(os.Interrupt)
-
-	// Wait for all processes in the child's process group to exit.
-	for syscall.Kill(-c.Pid(), 0) != syscall.ESRCH {
-		time.Sleep(100 * time.Millisecond)
-	}
-	for _, pid := range strings.Split(pids, ",") {
-		p, _ := strconv.Atoi(pid)
-		eq(t, syscall.Kill(p, 0), syscall.ESRCH)
-	}
-}
 
 func TestTerminate(t *testing.T) {
 	sh := gosh.NewShell(t)
@@ -1104,21 +1085,21 @@ func TestBuildGoPkg(t *testing.T) {
 	// Set -o to an absolute name.
 	relName := "hw"
 	absName := filepath.Join(sh.MakeTempDir(), relName)
-	eq(t, gosh.BuildGoPkg(sh, "", helloWorldPkg, "-o", absName), absName)
+	eq(t, gosh.BuildGoPkg(sh, "", helloWorldPkg, "-o", absName), gosh.ExecutableFilename(absName))
 	c := sh.Cmd(absName)
 	eq(t, c.Stdout(), helloWorldStr)
 
 	// Set -o to a relative name with no path separators.
 	binDir := sh.MakeTempDir()
 	absName = filepath.Join(binDir, relName)
-	eq(t, gosh.BuildGoPkg(sh, binDir, helloWorldPkg, "-o", relName), absName)
+	eq(t, gosh.BuildGoPkg(sh, binDir, helloWorldPkg, "-o", relName), gosh.ExecutableFilename(absName))
 	c = sh.Cmd(absName)
 	eq(t, c.Stdout(), helloWorldStr)
 
 	// Set -o to a relative name that contains a path separator.
 	relNameWithSlash := filepath.Join("subdir", relName)
 	absName = filepath.Join(binDir, relNameWithSlash)
-	eq(t, gosh.BuildGoPkg(sh, binDir, helloWorldPkg, "-o", relNameWithSlash), absName)
+	eq(t, gosh.BuildGoPkg(sh, binDir, helloWorldPkg, "-o", relNameWithSlash), gosh.ExecutableFilename(absName))
 	c = sh.Cmd(absName)
 	eq(t, c.Stdout(), helloWorldStr)
 
@@ -1133,7 +1114,7 @@ func TestBuildGoPkg(t *testing.T) {
 
 	// Use --o instead of -o.
 	absName = filepath.Join(sh.MakeTempDir(), relName)
-	gosh.BuildGoPkg(sh, "", helloWorldPkg, "--o", absName)
+	gosh.BuildGoPkg(sh, "", helloWorldPkg, "--o", gosh.ExecutableFilename(absName))
 	c = sh.Cmd(absName)
 	eq(t, c.Stdout(), helloWorldStr)
 }

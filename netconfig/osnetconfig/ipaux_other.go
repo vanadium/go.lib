@@ -2,15 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build !linux,!darwin,!dragonfly,!freebsd,!netbsd,!openbsd
-// TODO(bprosnitz) Should change for nacl?
+//go:build !linux && !darwin && !dragonfly && !freebsd && !netbsd && !openbsd && !windows
+// +build !linux,!darwin,!dragonfly,!freebsd,!netbsd,!openbsd,!windows
 
 package osnetconfig
-
-// Force this file to compile as cgo, to work around bazel/rules_go
-// limitations. See also https://github.com/bazelbuild/rules_go/issues/255
-
-import "C"
 
 // Code to signal a network change every 2 minutes.   We use
 // this for systems where we don't yet have a good way to

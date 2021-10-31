@@ -8,6 +8,7 @@
 package gosh
 
 import (
+	"os"
 	"syscall"
 	"time"
 )
@@ -99,4 +100,22 @@ func (c *Cmd) cleanupProcessGroup() {
 		}
 	}
 	syscall.Kill(-c.Pid(), syscall.SIGKILL)
+}
+
+func isSysClosedPipeError(err error) bool {
+	// Closed pipe on os.Pipe; mirrors logic in os/exec/exec_posix.go.
+	if pe, ok := err.(*os.PathError); ok {
+		return pe.Op == "write" &&
+			pe.Path == "|1" &&
+			pe.Err == syscall.EPIPE
+	}
+	return false
+}
+
+func TranslateSignal(sig os.Signal) os.Signal {
+	return sig
+}
+
+func ExecutableFilename(n string) string {
+	return n
 }
