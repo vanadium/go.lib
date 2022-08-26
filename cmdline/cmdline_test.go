@@ -9,7 +9,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -2490,7 +2489,7 @@ func TestRootCommandFlags(t *testing.T) {
 
 func TestExternalSubcommand(t *testing.T) {
 	// Create a temporary directory for the external subcommands.
-	tmpDir, err := ioutil.TempDir("", "cmdline-test")
+	tmpDir, err := os.MkdirTemp("", "cmdline-test")
 	if err != nil {
 		t.Fatalf("%v", err)
 	}

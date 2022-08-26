@@ -25,41 +25,48 @@ import (
 // Usage:
 //
 // After making the desired predicate true, call:
-//     cv.Signal() // If at most one thread can make use of the predicate becoming true.
+//
+//	cv.Signal() // If at most one thread can make use of the predicate becoming true.
+//
 // or
-//     cv.Broadcast() // If multiple threads can make use of the predicate becoming true.
+//
+//	cv.Broadcast() // If multiple threads can make use of the predicate becoming true.
 //
 // To wait for a predicate with no deadline (assuming cv.Broadcast() is called
 // whenever the predicate becomes true):
-//      mu.Lock()
-//      for !some_predicate_protected_by_mu { // the for-loop is required.
-//              cv.Wait(&mu)
-//      }
-//      // predicate is now true
-//      mu.Unlock()
+//
+//	mu.Lock()
+//	for !some_predicate_protected_by_mu { // the for-loop is required.
+//	        cv.Wait(&mu)
+//	}
+//	// predicate is now true
+//	mu.Unlock()
 //
 // To wait for a predicate with a deadline (assuming cv.Broadcast() is called
 // whenever the predicate becomes true):
-//      mu.Lock()
-//      for !some_predicate_protected_by_mu && cv.WaitWithDeadline(&mu, absDeadline, cancelChan) == nsync.OK {
-//      }
-//      if some_predicate_protected_by_mu { // predicate is true
-//      } else { // predicate is false, and deadline expired, or cancelChan was closed.
-//      }
-//      mu.Unlock()
+//
+//	mu.Lock()
+//	for !some_predicate_protected_by_mu && cv.WaitWithDeadline(&mu, absDeadline, cancelChan) == nsync.OK {
+//	}
+//	if some_predicate_protected_by_mu { // predicate is true
+//	} else { // predicate is false, and deadline expired, or cancelChan was closed.
+//	}
+//	mu.Unlock()
+//
 // or, if the predicate is complex and you wish to write it just once and
 // inline, you could use the following instead of the for-loop above:
-//      mu.Lock()
-//      var predIsTrue bool
-//      for outcome := OK; ; outcome = cv.WaitWithDeadline(&mu, absDeadline, cancelChan) {
-//              if predIsTrue = some_predicate_protected_by_mu; predIsTrue || outcome != nsync.OK {
-//                      break
-//              }
-//      }
-//      if predIsTrue { // predicate is true
-//      } else { // predicate is false, and deadline expired, or cancelChan was closed.
-//      }
-//      mu.Unlock()
+//
+//	mu.Lock()
+//	var predIsTrue bool
+//	for outcome := OK; ; outcome = cv.WaitWithDeadline(&mu, absDeadline, cancelChan) {
+//	        if predIsTrue = some_predicate_protected_by_mu; predIsTrue || outcome != nsync.OK {
+//	                break
+//	        }
+//	}
+//	if predIsTrue { // predicate is true
+//	} else { // predicate is false, and deadline expired, or cancelChan was closed.
+//	}
+//	mu.Unlock()
 //
 // As the examples show, Mesa-style condition variables require that waits use
 // a loop that tests the predicate anew after each wait.  It may be surprising
@@ -111,7 +118,7 @@ const (
 // programmes.
 // nolint: gocyclo
 func (cv *CV) WaitWithDeadline(mu sync.Locker, absDeadline time.Time, cancelChan <-chan struct{}) (outcome int) {
-	var w *waiter = newWaiter()
+	var w = newWaiter()
 	atomic.StoreUint32(&w.waiting, 1)
 	cvMu, _ := mu.(*Mu)
 	w.cvMu = cvMu // If the Locker is an nsync.Mu, record its address, else record nil.
@@ -247,13 +254,14 @@ func (cv *CV) Wait(mu sync.Locker) {
 // which may not be nil.  If the waiter is associated with an nsync.Mu (as
 // opposed to another implementation of sync.Locker), the "wakeup" may consist
 // of transferring the waiters to the nsync.Mu's queue.  Requires:
-// - Every element of the list pointed to by toWakeList is a waiter---there is
-//   no head/sentinel.
-// - Every waiter is associated with the same mutex.
+//   - Every element of the list pointed to by toWakeList is a waiter---there is
+//     no head/sentinel.
+//   - Every waiter is associated with the same mutex.
+//
 // nolint: gocyclo
 func wakeWaiters(toWakeList *waiter) {
-	var firstWaiter *waiter = toWakeList.q.prev.elem
-	var mu *Mu = firstWaiter.cvMu
+	var firstWaiter = toWakeList.q.prev.elem
+	var mu = firstWaiter.cvMu
 	if mu != nil { // waiter is associated with the nsync.Mu *mu.
 		// We will transfer elements of toWakeList to *mu if all of:
 		//  - mu's spinlock is not held, and
@@ -284,7 +292,7 @@ func wakeWaiters(toWakeList *waiter) {
 			// waiter queue.  We've acquired *mu's spinlock.  Queue
 			// the threads there instead of waking them.
 			for toTransferList != nil {
-				var toTransfer *waiter = toTransferList.q.prev.elem
+				var toTransfer = toTransferList.q.prev.elem
 				if toTransfer == toTransferList { // *toTransferList was singleton; *toTransfer is last waiter
 					toTransferList = nil
 				} else {
@@ -317,7 +325,7 @@ func wakeWaiters(toWakeList *waiter) {
 	// Wake any waiters we didn't manage to enqueue on the Mu.
 	for toWakeList != nil {
 		// Take one waiter from the toWakeList.
-		var toWake *waiter = toWakeList.q.prev.elem
+		var toWake = toWakeList.q.prev.elem
 		if toWake == toWakeList { // *toWakeList was a singleton; *toWake is the last waiter
 			toWakeList = nil // tell the loop to exit
 		} else {

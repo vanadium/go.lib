@@ -68,11 +68,12 @@ import "sync/atomic"
 // Mu in one thread and release it in another.
 //
 // Example usage, where p.mu is an nsync.Mu protecting the invariant p.a+p.b==0
-//      p.mu.Lock()
-//      // The current thread now has exclusive access to p.a and p.b; invariant assumed true.
-//      p.a++
-//      p.b-- // restore invariant p.a+p.b==0 before releasing p.mu
-//      p.mu.Unlock()
+//
+//	p.mu.Lock()
+//	// The current thread now has exclusive access to p.a and p.b; invariant assumed true.
+//	p.a++
+//	p.b-- // restore invariant p.a+p.b==0 before releasing p.mu
+//	p.mu.Unlock()
 type Mu struct {
 	word    uint32 // bits:  see below
 	waiters dll    // Head of a doubly-linked list of enqueued waiters; under mu.
@@ -186,7 +187,7 @@ func (mu *Mu) Unlock() {
 			}
 
 			// Remove a waiter from the queue, if possible.
-			var wake *waiter = mu.waiters.prev.elem
+			var wake = mu.waiters.prev.elem
 			var clearOnRelease uint32 = muSpinlock
 			if wake != nil {
 				wake.q.Remove()

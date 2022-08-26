@@ -16,7 +16,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"os"
@@ -408,7 +407,7 @@ func (sh *Shell) makeTempFile() (*os.File, error) {
 	if sh.calledCleanup {
 		return nil, errAlreadyCalledCleanup
 	}
-	f, err := ioutil.TempFile("", "")
+	f, err := os.CreateTemp("", "")
 	if err != nil {
 		return nil, err
 	}
@@ -422,7 +421,7 @@ func (sh *Shell) makeTempDir() (string, error) {
 	if sh.calledCleanup {
 		return "", errAlreadyCalledCleanup
 	}
-	name, err := ioutil.TempDir("", "")
+	name, err := os.MkdirTemp("", "")
 	if err != nil {
 		return "", err
 	}
@@ -607,7 +606,7 @@ func buildGoPkg(sh *Shell, binDir, pkg string, flags ...string) (string, error) 
 	}
 	// Build binary to tempBinPath (in a fresh temporary directory), then move it
 	// to binPath.
-	tempDir, err := ioutil.TempDir(binDir, "")
+	tempDir, err := os.MkdirTemp(binDir, "")
 	if err != nil {
 		return "", err
 	}

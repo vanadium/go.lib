@@ -52,7 +52,9 @@ func (FilepathSpec) LoggingOpt() {}
 func (StderrThreshold) LoggingOpt() {}
 
 // When set to a file and line number holding a logging statement, such as
+//
 //	gopherflakes.go:234
+//
 // a stack trace will be written to the Info log whenever execution
 // hits that statement. (Unlike with -vmodule, the ".go" must be
 // present.)

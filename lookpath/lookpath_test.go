@@ -6,7 +6,6 @@ package lookpath_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -39,7 +38,7 @@ func mkfile(t *testing.T, dir, file string, perm os.FileMode) string {
 }
 
 func initTmpDir(t *testing.T) (string, func()) {
-	tmpDir, err := ioutil.TempDir("", "envvar_lookpath")
+	tmpDir, err := os.MkdirTemp("", "envvar_lookpath")
 	if err != nil {
 		t.Fatal(err)
 	}

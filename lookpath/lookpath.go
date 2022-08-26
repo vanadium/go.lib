@@ -6,7 +6,7 @@
 package lookpath
 
 import (
-	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
@@ -78,12 +78,16 @@ func LookPrefix(env map[string]string, prefix string, names map[string]bool) ([]
 		if err != nil {
 			continue
 		}
-		infos, err := ioutil.ReadDir(dir)
+		infos, err := os.ReadDir(dir)
 		if err != nil {
 			continue
 		}
 		for _, info := range infos {
-			if !isExecutable(info) {
+			fsinfo, err := info.Info()
+			if err != nil {
+				return nil, err
+			}
+			if !isExecutable(fsinfo) {
 				continue
 			}
 			name := info.Name()

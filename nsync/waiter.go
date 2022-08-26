@@ -65,13 +65,16 @@ func (e *dll) IsInList(l *dll) bool {
 // Allocate a waiter struct *w with newWaiter(), set w.waiting=1, and
 // w.cvMu=nil or to the associated Mu if waiting on a condition variable, then
 // queue w.dll on some queue, and then wait using:
-//    for atomic.LoadUint32(&w.waiting) != 0 { w.sem.P() }
+//
+//	for atomic.LoadUint32(&w.waiting) != 0 { w.sem.P() }
+//
 // Return *w to the freepool by calling freeWaiter(w).
 //
 // To wakeup:
 // Remove *w from the relevant queue then:
-//  atomic.Store(&w.waiting, 0)
-//  w.sem.V()
+//
+//	atomic.Store(&w.waiting, 0)
+//	w.sem.V()
 type waiter struct {
 	q             dll             // Doubly-linked list element.
 	sem           binarySemaphore // Thread waits on this semaphore.

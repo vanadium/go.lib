@@ -8,6 +8,7 @@
 package lookpath
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,7 +27,7 @@ func isExecutablePath(dir, base string) (string, bool) {
 	return file, err == nil && !info.Mode().IsDir()
 }
 
-func isExecutable(info os.FileInfo) bool {
+func isExecutable(info fs.FileInfo) bool {
 	return strings.HasSuffix(info.Name(), ".exe")
 }
 

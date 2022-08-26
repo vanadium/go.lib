@@ -204,15 +204,15 @@ func literalDefault(typeName, literal string, initialValue interface{}) (value i
 // Embedded (anonymous) structs may be used provided that they are not themselves
 // tagged. For example:
 //
-// type CommonFlags struct {
-//   A int `cmdline:"a,,use a"`
-//   B int `cmdline:"b,,use b"`
-// }
+//	type CommonFlags struct {
+//	  A int `cmdline:"a,,use a"`
+//	  B int `cmdline:"b,,use b"`
+//	}
 //
-// flagSet := struct{
-//   CommonFlags
-//   C bool `cmdline:"c,,use c"`
-// }
+//	flagSet := struct{
+//	  CommonFlags
+//	  C bool `cmdline:"c,,use c"`
+//	}
 //
 // will result in three flags, --a, --b and --c.
 // Note that embedding as a pointer is not supported.

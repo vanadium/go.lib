@@ -28,7 +28,6 @@
 // The NewLogger factory function accepts positional parameters that correspond
 // google command line flags.
 //
-//
 //	l := NewLogger("system")
 //	l.Print(infoLog, Info("Prepare to repel boarders")
 //
@@ -40,7 +39,6 @@
 //		l.Print(infoLog,"Starting transaction...")
 //	}
 //
-//
 // Log output is buffered and written periodically using Flush. Programs
 // should call Flush before exiting to guarantee all log output is written.
 //
@@ -48,47 +46,48 @@
 // This package provides several methods that modify this behavior.
 // These methods must be called before any logging is done.
 //
-//	NewLogger(name)
+//		NewLogger(name)
 //
-//	SetLogDir(logDir)
-//		log files will be written to this directory instead of the
-//		default temporary directory.
-//	SetLogToStderr(bool)
-//		If true, logs are written to standard error instead of to files.
-//	SetAlsoLogToStderr(bool)
-//		If true, logs are written to standard error as well as to files.
-//	SetStderrThreshold(level)
-//		Log events at or above this severity are logged to standard
-//		error as well as to files.
-//	SetMaxStackBufSize(size)
-//		Set the max size (bytes) of the byte buffer to use for stack
-//		traces. The default max is 4096K; use powers of 2 since the
-//		stack size will be grown exponentially until it exceeds the max.
-//              A min of 128K is enforced and any attempts to reduce this will
-//              be silently ignored.
+//		SetLogDir(logDir)
+//			log files will be written to this directory instead of the
+//			default temporary directory.
+//		SetLogToStderr(bool)
+//			If true, logs are written to standard error instead of to files.
+//		SetAlsoLogToStderr(bool)
+//			If true, logs are written to standard error as well as to files.
+//		SetStderrThreshold(level)
+//			Log events at or above this severity are logged to standard
+//			error as well as to files.
+//		SetMaxStackBufSize(size)
+//			Set the max size (bytes) of the byte buffer to use for stack
+//			traces. The default max is 4096K; use powers of 2 since the
+//			stack size will be grown exponentially until it exceeds the max.
+//	             A min of 128K is enforced and any attempts to reduce this will
+//	             be silently ignored.
 //
-//	Other controls provide aids to debugging.
+//		Other controls provide aids to debugging.
 //
-//	SetLogBacktraceAt(location)
-//		When set to a file and line number holding a logging statement,
-//		such as
-//			gopherflakes.go:234
-//		a stack trace will be written to the Info log whenever execution
-//		hits that statement. (Unlike with -vmodule, the ".go" must be
-//		present.)
-//	SetV(level)
-//		Enable V-leveled logging at the specified level.
-//	SetVModule(module)
-//		The syntax of the argument is a comma-separated list of pattern=N,
-//		where pattern is a literal file name (minus the ".go" suffix) or
-//		"glob" pattern and N is a V level. For instance,
-//			-gopher*=3
-//		sets the V level to 3 in all Go files whose names begin "gopher".
+//		SetLogBacktraceAt(location)
+//			When set to a file and line number holding a logging statement,
+//			such as
+//				gopherflakes.go:234
+//			a stack trace will be written to the Info log whenever execution
+//			hits that statement. (Unlike with -vmodule, the ".go" must be
+//			present.)
+//		SetV(level)
+//			Enable V-leveled logging at the specified level.
+//		SetVModule(module)
+//			The syntax of the argument is a comma-separated list of pattern=N,
+//			where pattern is a literal file name (minus the ".go" suffix) or
+//			"glob" pattern and N is a V level. For instance,
+//				-gopher*=3
+//			sets the V level to 3 in all Go files whose names begin "gopher".
+//
 // SetVFilepath(regexp)
-//      The syntax of the argument is as per VModule, expect that regular
-//      expressions on the entire file path path are used instead of glob
-//      patterns on the file name component as SetVModule.
 //
+//	The syntax of the argument is as per VModule, expect that regular
+//	expressions on the entire file path path are used instead of glob
+//	patterns on the file name component as SetVModule.
 package llog
 
 import (
@@ -689,8 +688,11 @@ It returns a buffer containing the formatted header.
 The depth specifies how many stack frames above lives the source line to be identified in the log message.
 
 Log lines have this form:
+
 	Lmmdd hh:mm:ss.uuuuuu threadid file:line] msg...
+
 where the fields are defined as follows:
+
 	L                A single character, representing the log level (eg 'I' for INFO)
 	mm               The month (zero padded; ie May is '05')
 	dd               The day (zero padded)
@@ -1105,9 +1107,13 @@ func (l *Log) setV(pc uintptr) Level {
 // The returned value is a boolean of type Verbose, which implements Info, Infoln
 // and Infof. These methods will write to the Info log if called.
 // Thus, one may write either
+//
 //	if glog.V(2) { glog.Info("log this") }
+//
 // or
+//
 //	glog.V(2).Info("log this")
+//
 // The second form is shorter but the first is cheaper if logging is off because it does
 // not evaluate its arguments.
 //

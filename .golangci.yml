@@ -2,7 +2,6 @@ run:
   timeout: 5m
   issues-exit-code: 1
   tests: true
-  build-tags:
 
 linters-settings:
   gocyclo:
@@ -10,7 +9,6 @@ linters-settings:
 
 linters:
   enable:
-    - deadcode
     - gocritic
     - gocyclo
     - gofmt
@@ -22,8 +20,6 @@ linters:
     - misspell
     - exportloopref
     - staticcheck
-    - structcheck
     - typecheck
     - unconvert
-    - varcheck
   disable-all: true

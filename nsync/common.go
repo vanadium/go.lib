@@ -22,10 +22,11 @@ func init() {
 
 // spinDelay() is used in spinloops to delay resumption of the loop.
 // Usage:
-//     var attempts uint
-//     for try_something {
-//        attempts = spinDelay(attempts)
-//     }
+//
+//	var attempts uint
+//	for try_something {
+//	   attempts = spinDelay(attempts)
+//	}
 func spinDelay(attempts uint) uint {
 	if attempts < 7 {
 		for i := 0; i != 1<<attempts; i++ {

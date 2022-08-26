@@ -6,7 +6,7 @@ package lib
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -21,7 +21,7 @@ func Get(addr string) {
 		log.Fatal(err)
 	}
 	defer resp.Body.Close()
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 	fmt.Print(string(body))
 }
 

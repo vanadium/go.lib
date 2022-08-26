@@ -14,9 +14,10 @@ import (
 // lines with a given target width in runes.
 //
 // Each input rune is classified into one of three kinds:
-//   EOL:    end-of-line, consisting of \f, \n, \r, \v, U+2028 or U+2029
-//   Space:  defined by unicode.IsSpace
-//   Letter: everything else
+//
+//	EOL:    end-of-line, consisting of \f, \n, \r, \v, U+2028 or U+2029
+//	Space:  defined by unicode.IsSpace
+//	Letter: everything else
 //
 // The input text is expected to consist of words, defined as sequences of
 // letters.  Sequences of words form paragraphs, where paragraphs are separated
@@ -44,14 +45,14 @@ import (
 //
 // Flush must be called after the last call to Write; the input is buffered.
 //
-//   Implementation note: line breaking is a complicated topic.  This approach
-//   attempts to be simple and useful; a full implementation conforming to
-//   Unicode Standard Annex #14 would be complicated, and is not implemented.
-//   Languages that don't use spaces to separate words (e.g. CJK) won't work
-//   well under the current approach.
+//	Implementation note: line breaking is a complicated topic.  This approach
+//	attempts to be simple and useful; a full implementation conforming to
+//	Unicode Standard Annex #14 would be complicated, and is not implemented.
+//	Languages that don't use spaces to separate words (e.g. CJK) won't work
+//	well under the current approach.
 //
-//   http://www.unicode.org/reports/tr14 [Unicode Line Breaking Algorithm]
-//   http://www.unicode.org/versions/Unicode4.0.0/ch05.pdf [5.8 Newline Guidelines]
+//	http://www.unicode.org/reports/tr14 [Unicode Line Breaking Algorithm]
+//	http://www.unicode.org/versions/Unicode4.0.0/ch05.pdf [5.8 Newline Guidelines]
 type WrapWriter struct {
 	// State configured by the user.
 	w             io.Writer
@@ -307,39 +308,39 @@ func (w *WrapWriter) updateRune(r rune) bool {
 // break input text, grouped by the reason for the break.  The current position
 // is the last non-* rune in each pattern, which is where we decide to break.
 //
-//              w.prevState   Next state   Buffer reset
-//              -----------   ----------   ------------
-//   ===== Force line break (U+2028 / U+2029, blank line) =====
-//   a..*|***   *             wordWrap     empty
-//   a._.|***   *             wordWrap     empty
-//   a+**|***   *             wordWrap     empty
+//	           w.prevState   Next state   Buffer reset
+//	           -----------   ----------   ------------
+//	===== Force line break (U+2028 / U+2029, blank line) =====
+//	a..*|***   *             wordWrap     empty
+//	a._.|***   *             wordWrap     empty
+//	a+**|***   *             wordWrap     empty
 //
-//   ===== verbatim: wait for any EOL =====
-//   _*.*|***   verbatim      wordWrap     empty
+//	===== verbatim: wait for any EOL =====
+//	_*.*|***   verbatim      wordWrap     empty
 //
-//   ===== wordWrap: switch to verbatim =====
-//   a._*|***   wordWrap      verbatim     empty
+//	===== wordWrap: switch to verbatim =====
+//	a._*|***   wordWrap      verbatim     empty
 //
-//   ===== wordWrap: line is too wide =====
-//   abc.|***   wordWrap      wordWrap     empty
-//   abcd|.**   wordWrap      wordWrap     empty
-//   abcd|e.*   wordWrap      wordWrap     empty
-//   a_cd|.**   wordWrap      wordWrap     empty
+//	===== wordWrap: line is too wide =====
+//	abc.|***   wordWrap      wordWrap     empty
+//	abcd|.**   wordWrap      wordWrap     empty
+//	abcd|e.*   wordWrap      wordWrap     empty
+//	a_cd|.**   wordWrap      wordWrap     empty
 //
-//   abc_|***   wordWrap      skipSpace    empty
-//   abcd|_**   wordWrap      skipSpace    empty
-//   abcd|e_*   wordWrap      skipSpace    empty
-//   a_cd|_**   wordWrap      skipSpace    empty
+//	abc_|***   wordWrap      skipSpace    empty
+//	abcd|_**   wordWrap      skipSpace    empty
+//	abcd|e_*   wordWrap      skipSpace    empty
+//	a_cd|_**   wordWrap      skipSpace    empty
 //
-//   a_cd|e**   wordWrap      start        newWordStart
+//	a_cd|e**   wordWrap      start        newWordStart
 //
-//   LEGEND
-//     abcde  Letter
-//     .      End-of-line
-//     +      End-of-line (only U+2028 / U+2029)
-//     _      Space
-//     *      Any rune (letter, line-end or space)
-//     |      Visual indication of width=4, has no width itself.
+//	LEGEND
+//	  abcde  Letter
+//	  .      End-of-line
+//	  +      End-of-line (only U+2028 / U+2029)
+//	  _      Space
+//	  *      Any rune (letter, line-end or space)
+//	  |      Visual indication of width=4, has no width itself.
 //
 // Note that Flush calls behave exactly as if an explicit U+2028 line separator
 // were added to the end of all buffered data.

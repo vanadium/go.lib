@@ -4,9 +4,9 @@
 
 // Package envvar implements utilities for processing environment variables.
 // There are three representations of environment variables:
-//   1) []"key=value"  # hard to get and set, used by standard Go packages
-//   2) map[key]value  # simple to get and set, nicest syntax
-//   3) *envvar.Vars   # simple to get and set, also tracks deltas
+//  1. []"key=value"  # hard to get and set, used by standard Go packages
+//  2. map[key]value  # simple to get and set, nicest syntax
+//  3. *envvar.Vars   # simple to get and set, also tracks deltas
 //
 // The slice form (1) is used by standard Go packages, presumably since it's
 // similar to the underlying OS representation.  The map form (2) is convenient

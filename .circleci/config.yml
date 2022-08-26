@@ -47,13 +47,10 @@ jobs:
           name: downloads
           command: |
             curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin
-            go get github.com/matthewloring/validjson/cmd/validjson
-            go install -x github.com/matthewloring/validjson/cmd/validjson@latest
       - run:
           name: lint
           command: |
             golangci-lint run ./...
-            validjson ./...
 
 workflows:
   circleci:
@@ -61,9 +58,9 @@ workflows:
       - test-linux:
           matrix:
             parameters:
-              go: ["1.13", "1.17"]
+              go: ["1.16", "1.19"]
       - test-windows
       - lint:
           matrix:
             parameters:
-              go: ["1.17"]
+              go: ["1.19"]
