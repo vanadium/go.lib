@@ -292,7 +292,7 @@ func wakeWaiters(toWakeList *waiter) {
 			// waiter queue.  We've acquired *mu's spinlock.  Queue
 			// the threads there instead of waking them.
 			for toTransferList != nil {
-				var toTransfer *waiter = toTransferList.q.prev.elem
+				var toTransfer = toTransferList.q.prev.elem
 				if toTransfer == toTransferList { // *toTransferList was singleton; *toTransfer is last waiter
 					toTransferList = nil
 				} else {

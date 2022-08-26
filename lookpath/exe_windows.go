@@ -8,6 +8,7 @@
 package lookpath
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
