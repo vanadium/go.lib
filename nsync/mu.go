@@ -187,7 +187,7 @@ func (mu *Mu) Unlock() {
 			}
 
 			// Remove a waiter from the queue, if possible.
-			var wake *waiter = mu.waiters.prev.elem
+			var wake = mu.waiters.prev.elem
 			var clearOnRelease uint32 = muSpinlock
 			if wake != nil {
 				wake.q.Remove()

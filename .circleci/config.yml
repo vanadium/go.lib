@@ -61,9 +61,9 @@ workflows:
       - test-linux:
           matrix:
             parameters:
-              go: ["1.13", "1.17"]
+              go: ["1.16", "1.19"]
       - test-windows
       - lint:
           matrix:
             parameters:
-              go: ["1.17"]
+              go: ["1.19"]

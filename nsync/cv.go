@@ -118,7 +118,7 @@ const (
 // programmes.
 // nolint: gocyclo
 func (cv *CV) WaitWithDeadline(mu sync.Locker, absDeadline time.Time, cancelChan <-chan struct{}) (outcome int) {
-	var w *waiter = newWaiter()
+	var w = newWaiter()
 	atomic.StoreUint32(&w.waiting, 1)
 	cvMu, _ := mu.(*Mu)
 	w.cvMu = cvMu // If the Locker is an nsync.Mu, record its address, else record nil.
@@ -260,8 +260,8 @@ func (cv *CV) Wait(mu sync.Locker) {
 //
 // nolint: gocyclo
 func wakeWaiters(toWakeList *waiter) {
-	var firstWaiter *waiter = toWakeList.q.prev.elem
-	var mu *Mu = firstWaiter.cvMu
+	var firstWaiter = toWakeList.q.prev.elem
+	var mu = firstWaiter.cvMu
 	if mu != nil { // waiter is associated with the nsync.Mu *mu.
 		// We will transfer elements of toWakeList to *mu if all of:
 		//  - mu's spinlock is not held, and
@@ -325,7 +325,7 @@ func wakeWaiters(toWakeList *waiter) {
 	// Wake any waiters we didn't manage to enqueue on the Mu.
 	for toWakeList != nil {
 		// Take one waiter from the toWakeList.
-		var toWake *waiter = toWakeList.q.prev.elem
+		var toWake = toWakeList.q.prev.elem
 		if toWake == toWakeList { // *toWakeList was a singleton; *toWake is the last waiter
 			toWakeList = nil // tell the loop to exit
 		} else {
