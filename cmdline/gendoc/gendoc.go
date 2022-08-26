@@ -25,7 +25,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -93,7 +92,7 @@ func generate(readStderr bool, args []string) error {
 	}
 
 	// Build the binary into a temporary directory
-	tmpDir, err := ioutil.TempDir("", "")
+	tmpDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return fmt.Errorf("TempDir() failed: %v", err)
 	}
@@ -168,7 +167,7 @@ func writeOutput(out string, runGoFmt bool) error {
 
 	if len(copyright) == 0 {
 		if len(copyrightNotice) > 0 {
-			buf, err := ioutil.ReadFile(copyrightNotice)
+			buf, err := os.ReadFile(copyrightNotice)
 			if err != nil {
 				msg := fmt.Sprintf("failed to read copyright notice file: %v: %v", copyrightNotice, err)
 				return errors.New(msg)
@@ -194,7 +193,7 @@ package main
 
 	// Write the result to the output file.
 	path, perm := flagOut, os.FileMode(0644)
-	if err := ioutil.WriteFile(path, []byte(doc), perm); err != nil {
+	if err := os.WriteFile(path, []byte(doc), perm); err != nil {
 		msg := fmt.Sprintf("WriteFile(%v, %v) failed: %v\n", path, perm, err)
 		return errors.New(msg)
 	}
@@ -206,8 +205,6 @@ func runner(buf string, binary string, args ...string) (string, error) {
 	cmd.Stdin = bytes.NewBufferString(buf)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Printf("IN: %s\n", buf)
-		fmt.Printf("OUT: %s\n", output)
 		return "", fmt.Errorf("failed to run %v: %v", strings.Join(cmd.Args, " "), err)
 	}
 	return string(output), nil

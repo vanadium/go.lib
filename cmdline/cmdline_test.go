@@ -9,12 +9,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -2490,7 +2490,7 @@ func TestRootCommandFlags(t *testing.T) {
 
 func TestExternalSubcommand(t *testing.T) {
 	// Create a temporary directory for the external subcommands.
-	tmpDir, err := ioutil.TempDir("", "cmdline-test")
+	tmpDir, err := os.MkdirTemp("", "cmdline-test")
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -3135,4 +3135,14 @@ func createCommandTree(flagConfigs []fc) []*Command {
 	}
 
 	return result
+}
+
+func gofmt(input string) string {
+	cmd := exec.Command(filepath.Join(runtime.GOROOT(), "bin", "gofmt"), "-s")
+	cmd.Stdin = bytes.NewBufferString(input)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		panic(fmt.Errorf("failed to run %v: %v", strings.Join(cmd.Args, " "), err))
+	}
+	return string(output)
 }

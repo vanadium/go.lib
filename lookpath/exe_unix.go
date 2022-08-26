@@ -8,6 +8,7 @@
 package lookpath
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,9 +29,8 @@ func isExecutablePath(dir, base string) (string, bool) {
 	return file, true
 }
 
-func isExecutable(info os.FileInfo) bool {
-	mode := info.Mode()
-	return !mode.IsDir() && mode&0111 != 0
+func isExecutable(info fs.FileInfo) bool {
+	return !info.IsDir() && info.Mode()&0111 != 0
 }
 
 // PathEnvVar is the system specific environment variable name for command

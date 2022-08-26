@@ -11,7 +11,7 @@
 //
 // The syntax for each command-line program is:
 //
-//   command [flags] [subcommand [flags]]* [args]
+//	command [flags] [subcommand [flags]]* [args]
 //
 // Each sequence of flags is associated with the command that immediately
 // precedes it.  Flags registered on flag.CommandLine are considered global
@@ -25,7 +25,7 @@
 // arguments "help ..."; this behavior is relied on when generating recursive
 // help to distinguish between external subcommands with and without children.
 //
-// Pitfalls
+// # Pitfalls
 //
 // The cmdline package must be in full control of flag parsing.  Typically you
 // call cmdline.Main in your main function, and flag parsing is taken care of.
@@ -43,7 +43,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -157,11 +156,11 @@ type Topic struct {
 //
 // Most main packages should be implemented as follows:
 //
-//   var root := &cmdline.Command{...}
+//	var root := &cmdline.Command{...}
 //
-//   func main() {
-//     cmdline.Main(root)
-//   }
+//	func main() {
+//	  cmdline.Main(root)
+//	}
 func Main(root *Command) {
 	env := EnvFromOS()
 	if env.Timer != nil && len(env.Timer.Intervals) > 0 {
@@ -197,21 +196,21 @@ var flagTime = flag.Bool("time", false, "Dump timing information to stderr befor
 // special processing is required after parsing the args, and before the runner
 // is run.  An example:
 //
-//   var root := &cmdline.Command{...}
+//	var root := &cmdline.Command{...}
 //
-//   func main() {
-//     env := cmdline.EnvFromOS()
-//     os.Exit(cmdline.ExitCode(parseAndRun(env), env.Stderr))
-//   }
+//	func main() {
+//	  env := cmdline.EnvFromOS()
+//	  os.Exit(cmdline.ExitCode(parseAndRun(env), env.Stderr))
+//	}
 //
-//   func parseAndRun(env *cmdline.Env) error {
-//     runner, args, err := cmdline.Parse(env, root, os.Args[1:])
-//     if err != nil {
-//       return err
-//     }
-//     // ... perform initialization that might parse flags ...
-//     return runner.Run(env, args)
-//   }
+//	func parseAndRun(env *cmdline.Env) error {
+//	  runner, args, err := cmdline.Parse(env, root, os.Args[1:])
+//	  if err != nil {
+//	    return err
+//	  }
+//	  // ... perform initialization that might parse flags ...
+//	  return runner.Run(env, args)
+//	}
 //
 // Parse merges root flags into flag.CommandLine and sets ContinueOnError, so
 // that subsequent calls to flag.Parsed return true.
@@ -477,7 +476,7 @@ func parseFlags(path []*Command, env *Env, args []string) ([]string, map[string]
 	//   2) Discard all output (can't be nil, that means stderr).
 	//   3) Set an empty Usage (can't be nil, that means use the default).
 	flags.Init(cmd.Name, flag.ContinueOnError)
-	flags.SetOutput(ioutil.Discard)
+	flags.SetOutput(io.Discard)
 	flags.Usage = func() {}
 	if isRoot {
 		// If this is the root command, we must remember to undo the above changes
@@ -576,9 +575,11 @@ func (x ErrExitCode) Error() string {
 const ErrUsage = ErrExitCode(2)
 
 // ExitCode returns the exit code corresponding to err.
-//   0:    if err == nil
-//   code: if err is ErrExitCode(code)
-//   1:    all other errors
+//
+//	0:    if err == nil
+//	code: if err is ErrExitCode(code)
+//	1:    all other errors
+//
 // Writes the error message for "all other errors" to w, if w is non-nil.
 func ExitCode(err error, w io.Writer) int {
 	if err == nil {

@@ -2,7 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//+build ignore
+//go:build ignore
+// +build ignore
 
 // This command is used by "go generate" for (re)generating the
 // implementation of this package.
@@ -321,77 +322,77 @@ func value(ty string) string {
 
 func main() {
 	builtins := []builtin{
-		builtin{
+		{
 			KeyType:  "complex64",
 			Elements: []string{"complex(-1.0, 1.0)", "complex(1.0, -1.0)"},
 		},
-		builtin{
+		{
 			KeyType:  "complex128",
 			Elements: []string{"complex(-1.0, 1.0)", "complex(1.0, -1.0)"},
 		},
-		builtin{
+		{
 			KeyType:  "float32",
 			Elements: []string{"-1.0", "1.0"},
 		},
-		builtin{
+		{
 			KeyType:  "float64",
 			Elements: []string{"-1.0", "1.0"},
 		},
-		builtin{
+		{
 			KeyType:  "int",
 			Elements: []string{"-1", "1"},
 		},
-		builtin{
+		{
 			KeyType:  "int8",
 			Elements: []string{"-1", "1"},
 		},
-		builtin{
+		{
 			KeyType:  "int16",
 			Elements: []string{"-1", "1"},
 		},
-		builtin{
+		{
 			KeyType:  "int32",
 			Elements: []string{"-1", "1"},
 		},
-		builtin{
+		{
 			KeyType:  "int64",
 			Elements: []string{"-1", "1"},
 		},
-		builtin{
+		{
 			KeyType:  "string",
 			Elements: []string{`"a"`, `"b"`},
 		},
-		builtin{
+		{
 			KeyType:  "uint",
 			Elements: []string{"0", "1"},
 		},
-		builtin{
+		{
 			KeyType:  "uint8",
 			Elements: []string{"0", "1"},
 		},
-		builtin{
+		{
 			KeyType:  "uint16",
 			Elements: []string{"0", "1"},
 		},
-		builtin{
+		{
 			KeyType:  "uint32",
 			Elements: []string{"0", "1"},
 		},
-		builtin{
+		{
 			KeyType:  "uint64",
 			Elements: []string{"0", "1"},
 		},
-		builtin{
+		{
 			KeyType:  "uintptr",
 			Elements: []string{"0", "1"},
 		},
 	}
 	generators := []generator{
-		generator{
+		{
 			Suffix:   ".go",
 			Template: implTemplate,
 		},
-		generator{
+		{
 			Suffix:   "_test.go",
 			Template: implTestTemplate,
 		},

@@ -6,7 +6,6 @@ package vlog_test
 
 import (
 	"bufio"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -37,14 +36,14 @@ func readLogFiles(dir string) ([]string, error) {
 	return readLogLines(dir, false /* do not include header lines */)
 }
 func readLogLines(dir string, includeHeader bool) ([]string, error) {
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
 	var contents []string
 	for _, fi := range files {
 		// Skip symlinks to avoid double-counting log lines.
-		if !fi.Mode().IsRegular() {
+		if !fi.Type().IsRegular() {
 			continue
 		}
 		file, err := os.Open(filepath.Join(dir, fi.Name()))
@@ -62,7 +61,7 @@ func readLogLines(dir string, includeHeader bool) ([]string, error) {
 }
 
 func TestHeaders(t *testing.T) {
-	dir, err := ioutil.TempDir("", "logtest")
+	dir, err := os.MkdirTemp("", "logtest")
 	defer os.RemoveAll(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
@@ -95,7 +94,7 @@ func TestHeaders(t *testing.T) {
 }
 
 func TestCopyStandardLogTo(t *testing.T) {
-	dir, err := ioutil.TempDir("", "logtest")
+	dir, err := os.MkdirTemp("", "logtest")
 	defer os.RemoveAll(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
@@ -126,7 +125,7 @@ func TestCopyStandardLogTo(t *testing.T) {
 }
 
 func TestDepth(t *testing.T) {
-	dir, err := ioutil.TempDir("", "logtest")
+	dir, err := os.MkdirTemp("", "logtest")
 	defer os.RemoveAll(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
@@ -163,7 +162,7 @@ func TestDepth(t *testing.T) {
 }
 
 func TestVModule(t *testing.T) {
-	dir, err := ioutil.TempDir("", "logtest")
+	dir, err := os.MkdirTemp("", "logtest")
 	defer os.RemoveAll(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -208,7 +207,7 @@ func TestVModule(t *testing.T) {
 }
 
 func TestVFilepath(t *testing.T) {
-	dir, err := ioutil.TempDir("", "logtest")
+	dir, err := os.MkdirTemp("", "logtest")
 	defer os.RemoveAll(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -253,7 +252,7 @@ func TestVFilepath(t *testing.T) {
 }
 
 func TestConfigure(t *testing.T) {
-	dir, err := ioutil.TempDir("", "logtest")
+	dir, err := os.MkdirTemp("", "logtest")
 	defer os.RemoveAll(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -271,7 +270,7 @@ func TestConfigure(t *testing.T) {
 }
 
 func TestStats(t *testing.T) {
-	dir, err := ioutil.TempDir("", "logtest")
+	dir, err := os.MkdirTemp("", "logtest")
 	defer os.RemoveAll(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)

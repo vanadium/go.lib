@@ -16,9 +16,9 @@
 //
 // A simple usage would be:
 //
-//   state, _ := netstate.GetAccessibleIPs()
-//   ipv4 := state.Filter(netstate.IsPublicUnicastIPv4)
-//   // ipv4 will contain all of the public IPv4 addresses, if any.
+//	state, _ := netstate.GetAccessibleIPs()
+//	ipv4 := state.Filter(netstate.IsPublicUnicastIPv4)
+//	// ipv4 will contain all of the public IPv4 addresses, if any.
 //
 // The example policy described above would be implemented using a
 // series of calls to Filter with appropriate predicates.
@@ -450,11 +450,11 @@ func (al AddrList) AsNetAddrs() []net.Addr {
 
 // ConvertToAddresses attempts to convert a slice of net.Addr's into
 // an AddrList. It does so as follows:
-// - using type assertion if the net.Addr instance is also an instance
-//   of Address.
-// - using AddressFromAddr.
-// - filling in just the address portion of Address without any interface
-//   information.
+//   - using type assertion if the net.Addr instance is also an instance
+//     of Address.
+//   - using AddressFromAddr.
+//   - filling in just the address portion of Address without any interface
+//     information.
 func ConvertToAddresses(addrs []net.Addr) AddrList {
 	r := []Address{}
 	for _, addr := range addrs {

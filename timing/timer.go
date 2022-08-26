@@ -109,14 +109,14 @@ func (t *Timer) String() string {
 
 // IntervalPrinter is a pretty-printer for Intervals.  Example output:
 //
-//    00:00:01.000 root       98.000s       00:01:39.000
-//    00:00:01.000    *           9.000s    00:00:10.000
-//    00:00:10.000    foo        45.000s    00:00:55.000
-//    00:00:10.000       *           5.000s 00:00:15.000
-//    00:00:15.000       foo1       22.000s 00:00:37.000
-//    00:00:37.000       foo2       18.000s 00:00:55.000
-//    00:00:55.000    bar        25.000s    00:01:20.000
-//    00:01:20.000    baz        19.000s    00:01:39.000
+//	00:00:01.000 root       98.000s       00:01:39.000
+//	00:00:01.000    *           9.000s    00:00:10.000
+//	00:00:10.000    foo        45.000s    00:00:55.000
+//	00:00:10.000       *           5.000s 00:00:15.000
+//	00:00:15.000       foo1       22.000s 00:00:37.000
+//	00:00:37.000       foo2       18.000s 00:00:55.000
+//	00:00:55.000    bar        25.000s    00:01:20.000
+//	00:01:20.000    baz        19.000s    00:01:39.000
 type IntervalPrinter struct {
 	// Zero is the absolute start time to use for printing; all interval times are
 	// computed relative to the zero time.  Typically this is set to Timer.Zero to

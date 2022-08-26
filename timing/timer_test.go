@@ -68,9 +68,10 @@ func (x finish) run(f *fakeNow, t *Timer) {
 
 // stripGaps strips out leading newlines, and also strips any line with an
 // asterisk (*).  Asterisks appear in lines with gaps, as shown here:
-//    00:00:01.000 root   98.000s    00:01:39.000
-//    00:00:01.000    *       9.000s 00:00:10.000
-//    00:00:10.000    abc    89.000s 00:01:39.000
+//
+//	00:00:01.000 root   98.000s    00:01:39.000
+//	00:00:01.000    *       9.000s 00:00:10.000
+//	00:00:10.000    abc    89.000s 00:01:39.000
 func stripGaps(out string) string {
 	out = strings.TrimLeft(out, "\n")
 	var lines []string

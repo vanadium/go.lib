@@ -40,15 +40,16 @@ type LoggingFlags struct {
 
 // RegisterLoggingFlags registers the logging flags with the specified
 // flagset and with prefix prepepended to their flag names.
-//   --<prefix>v  NOTE, see below
-//   --<prefix>log_dir
-//   --<prefix>logtostderr
-//   --<prefix>alsologtostderr
-//   --<prefix>max_stack_buf_size
-//   --<prefix>stderrthreshold
-//   --<prefix>vmodule
-//   --<prefix>vpath
-//   --<prefix>log_backtrace_at
+//
+//	--<prefix>v  NOTE, see below
+//	--<prefix>log_dir
+//	--<prefix>logtostderr
+//	--<prefix>alsologtostderr
+//	--<prefix>max_stack_buf_size
+//	--<prefix>stderrthreshold
+//	--<prefix>vmodule
+//	--<prefix>vpath
+//	--<prefix>log_backtrace_at
 //
 // The verbosity flag is problematic with go test since it also uses --v
 // or --test.v when the test is compiled. If --test.v is already defined

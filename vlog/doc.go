@@ -24,9 +24,12 @@
 // - The use of interfaces and encapsulated state means that a single
 // function (V) can no longer be used for 'if guarded' and 'chained' logging.
 // That is:
-//   if vlog.V(1) { ... } and vlog.V(1).Infof( ... )
+//
+//	if vlog.V(1) { ... } and vlog.V(1).Infof( ... )
+//
 // becomes
-//   if logger.V(1) { ... }  and logger.VI(1).Infof( ... )
+//
+//	if logger.V(1) { ... }  and logger.VI(1).Infof( ... )
 //
 // vlog also creates a global instance of the Logger (vlog.Log) and
 // provides command line flags (see flags.go). Parsing of these flags is
@@ -69,5 +72,4 @@
 //		stack size will be grown exponentially until it exceeds the max.
 //		A min of 128K is enforced and any attempts to reduce this will
 //		be silently ignored.
-//
 package vlog

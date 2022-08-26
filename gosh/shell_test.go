@@ -16,7 +16,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -71,7 +70,7 @@ func neq(t *testing.T, got, notWant interface{}) {
 }
 
 func toString(t *testing.T, r io.Reader) string {
-	b, err := ioutil.ReadAll(r)
+	b, err := io.ReadAll(r)
 	ok(t, err)
 	return string(b)
 }
@@ -261,8 +260,8 @@ func TestMove(t *testing.T) {
 	// Foo files exist, bar files do not.
 	srcFoo, dstFoo := filepath.Join(src, "srcFoo"), filepath.Join(dst, "dstFoo")
 	srcBar, dstBar := filepath.Join(src, "srcBar"), filepath.Join(dst, "dstBar")
-	ioutil.WriteFile(srcFoo, []byte("srcFoo"), 0600)
-	ioutil.WriteFile(dstFoo, []byte("dstFoo"), 0600)
+	os.WriteFile(srcFoo, []byte("srcFoo"), 0600)
+	os.WriteFile(dstFoo, []byte("dstFoo"), 0600)
 
 	// Move should fail if source does not exist.
 	setsErr(t, sh, func() { sh.Move(srcBar, dstBar) })
@@ -284,7 +283,7 @@ func TestMove(t *testing.T) {
 	if _, err := os.Stat(srcFoo); !os.IsNotExist(err) {
 		t.Fatalf("got %v, expected IsNotExist", err)
 	}
-	buf, err := ioutil.ReadFile(dstBar)
+	buf, err := os.ReadFile(dstBar)
 	ok(t, err)
 	eq(t, string(buf), "srcFoo")
 }
@@ -820,14 +819,14 @@ func TestOutputDir(t *testing.T) {
 	matches, err := filepath.Glob(filepath.Join(dir, "*.stdout"))
 	ok(t, err)
 	eq(t, len(matches), 1)
-	stdout, err := ioutil.ReadFile(matches[0])
+	stdout, err := os.ReadFile(matches[0])
 	ok(t, err)
 	eq(t, string(stdout), "AA")
 
 	matches, err = filepath.Glob(filepath.Join(dir, "*.stderr"))
 	ok(t, err)
 	eq(t, len(matches), 1)
-	stderr, err := ioutil.ReadFile(matches[0])
+	stderr, err := os.ReadFile(matches[0])
 	ok(t, err)
 	eq(t, string(stderr), "BB")
 }

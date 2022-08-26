@@ -7,7 +7,6 @@ package gosh
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"strings"
 	"testing"
 )
@@ -24,7 +23,7 @@ func TestBufferedPipeReadWriteAfterClose(t *testing.T) {
 		t.Errorf("close failed: %v", err)
 	}
 	// Read after close returns all data terminated by EOF.
-	if b, err := ioutil.ReadAll(p); string(b) != "foobarbaz" || err != nil {
+	if b, err := io.ReadAll(p); string(b) != "foobarbaz" || err != nil {
 		t.Errorf("read got (%s, %v), want (foobarbaz, <nil>)", b, err)
 	}
 	// Write after close fails.

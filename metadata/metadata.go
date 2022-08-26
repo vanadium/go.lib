@@ -28,12 +28,12 @@
 // metadata package must still be made aware of it.  Call the Insert function in
 // an init function to accomplish this:
 //
-//   package mypkg
-//   import "v.io/x/lib/metadata"
+//	package mypkg
+//	import "v.io/x/lib/metadata"
 //
-//   func init() {
-//     metadata.Insert("myproject.myid", "value")
-//   }
+//	func init() {
+//	  metadata.Insert("myproject.myid", "value")
+//	}
 //
 // The built-in metadata comes pre-populated with the Go architecture, operating
 // system and version.
@@ -142,14 +142,14 @@ func FromXML(data []byte) (*T, error) {
 
 // ToXML returns the XML encoding of x, using the schema described below.
 //
-//   <metadata>
-//     <md id="A">a value</md>
-//     <md id="B"><![CDATA[
-//       foo
-//       bar
-//     ]]></md>
-//     <md id="C">c value</md>
-//   </metadata>
+//	<metadata>
+//	  <md id="A">a value</md>
+//	  <md id="B"><![CDATA[
+//	    foo
+//	    bar
+//	  ]]></md>
+//	  <md id="C">c value</md>
+//	</metadata>
 func (x *T) ToXML() string {
 	return x.toXML(true)
 }
@@ -254,9 +254,9 @@ func LDFlag(x *T) string {
 // the flag through the go toolchain.  An example of using the result to install
 // a Go binary with metadata x:
 //
-//   LDFlagExternal("main", "myvar", x) == "-X main.myvar=eJwBAAD//wAAAAE="
+//	LDFlagExternal("main", "myvar", x) == "-X main.myvar=eJwBAAD//wAAAAE="
 //
-//   $ go install -ldflags="-X main.myvar=eJwBAAD//wAAAAE=" mypackage
+//	$ go install -ldflags="-X main.myvar=eJwBAAD//wAAAAE=" mypackage
 func LDFlagExternal(pkgpath, variable string, x *T) string {
 	return fmt.Sprintf("-X %s.%s=%s", pkgpath, variable, x.ToBase64())
 }
