@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -3135,14 +3134,4 @@ func createCommandTree(flagConfigs []fc) []*Command {
 	}
 
 	return result
-}
-
-func gofmt(input string) string {
-	cmd := exec.Command(filepath.Join(runtime.GOROOT(), "bin", "gofmt"), "-s")
-	cmd.Stdin = bytes.NewBufferString(input)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		panic(fmt.Errorf("failed to run %v: %v", strings.Join(cmd.Args, " "), err))
-	}
-	return string(output)
 }
