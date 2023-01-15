@@ -34,7 +34,6 @@ jobs:
       - name: Test
         run: |
           which go
-          echo "path $Path"
-          echo %PATH%
+          which go.exe
           cd github.com/vanadium/go.lib
           go test --race --covermode=atomic ./...
