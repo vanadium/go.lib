@@ -14,13 +14,6 @@ jobs:
         os: [windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Set up Go
-        uses: actions/setup-go@v3
-        with:
-          go-version: ${{ matrix.go-version }}
-          cache: true
-          cache-dependency-path: ./go.sum
-
       - name: Set git to use LF
         run: |
           git config --global core.autocrlf false
@@ -28,6 +21,13 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+          cache-dependency-path: ./go.sum
 
       - name: Test
         run: go test --race --covermode=atomic ./...
