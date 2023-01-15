@@ -318,7 +318,7 @@ var vRegexps = map[string]bool{
 	".l.*=2":         true,
 	"...._.*=2":      true,
 	"..[mno]?_.*t=2": true,
-	"m.*=2":          true, // assumes that the filename for this package contains 'm'
+	"g.*=2":          true, // assumes that the filename for this package contains 'g'
 	"llog.*=2":       true, // llog is not always llog/ with go modules
 	".._.*=2":        true,
 	// These all use 2 and check the patterns. All are false.

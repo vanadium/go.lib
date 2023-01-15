@@ -29,5 +29,8 @@ jobs:
           cache: true
           cache-dependency-path: ./go.sum
 
+      - name: env
+        run: which go; echo $PATH; pwd;
+
       - name: Test
         run: go test --race --covermode=atomic ./...
