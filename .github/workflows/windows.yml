@@ -29,7 +29,6 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
           cache: true
-          cache-dependency-path: ./go.sum
 
       - name: Test
         run: |
