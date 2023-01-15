@@ -21,6 +21,8 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          path: github.com/vanadium/go.lib
 
       - name: Set up Go
         uses: actions/setup-go@v3
@@ -29,15 +31,8 @@ jobs:
           cache: true
           cache-dependency-path: ./go.sum
 
-      - name: env
-        run: |
-          echo 1; which go echo
-          echo 2; echo $PATH
-          echo 3; echo $GOBIN
-          echo 4; go version
-          echo 5; pwd
-
       - name: Test
         run: |
           which go
+          echo "path $PATH"
           go test --race --covermode=atomic ./...
