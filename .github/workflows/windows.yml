@@ -30,7 +30,12 @@ jobs:
           cache-dependency-path: ./go.sum
 
       - name: env
-        run: which go; echo $PATH; pwd;
+        run: |
+          echo 1; which go echo
+          echo 2; echo $PATH
+          echo 3; echo $GOBIN
+          echo 4; go version
+          echo 5; pwd
 
       - name: Test
         run: go test --race --covermode=atomic ./...
