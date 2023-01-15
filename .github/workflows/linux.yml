@@ -24,6 +24,9 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
           cache: true
+          cache-dependency-path: github.com/vanadium/go.lib/go.sum
 
       - name: Test
-        run: go test --race --covermode=atomic ./...
+        run: |
+          cd github.com/vanadium/go.lib
+          go test --race --covermode=atomic ./...
