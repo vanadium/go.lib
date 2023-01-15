@@ -14,15 +14,17 @@ jobs:
         os: [macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Set up Go
-        uses: actions/setup-go@v3
-        with:
-          go-version: ${{ matrix.go-version }}
-
       - name: Checkout code
         uses: actions/checkout@v3
         with:
           path: github.com/vanadium/go.lib
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+          cache-dependency-path: github.com/vanadium/go.lib/go.sum
 
       - name: Test
         run: |
