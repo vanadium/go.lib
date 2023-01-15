@@ -38,4 +38,6 @@ jobs:
           echo 5; pwd
 
       - name: Test
-        run: go test --race --covermode=atomic ./...
+        run: |
+          which go
+          go test --race --covermode=atomic ./...
