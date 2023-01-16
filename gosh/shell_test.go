@@ -502,25 +502,15 @@ func TestFuncCmd(t *testing.T) {
 // relative names.
 func TestLookPath(t *testing.T) {
 	sh := gosh.NewShell(t)
-
-	fmt.Printf("NEW SHELL: PATH: %v, Path: %v\n", len(sh.Vars["PATH"]), len(sh.Vars["Path"]))
-
 	defer sh.Cleanup()
 
-	fmt.Println(strings.Repeat("=", 40))
-
 	binDir := sh.MakeTempDir()
-
-	fmt.Printf("NEW SHELL: MakeTempDir: PATH: %v, Path: %v\n", len(sh.Vars["PATH"]), len(sh.Vars["Path"]))
-
-	sh.Vars["PATH"] = binDir + string(filepath.ListSeparator) + sh.Vars[lookpath.PathEnvVar]
+	sh.Vars["PATH"] = binDir + string(filepath.ListSeparator) + lookpath.PathFromVars(sh.Vars)
 	relName := "hw"
 	absName := filepath.Join(binDir, relName)
 	gosh.BuildGoPkg(sh, "", helloWorldPkg, "-o", absName)
 	c := sh.Cmd(relName)
 	eq(t, c.Stdout(), helloWorldStr)
-
-	fmt.Println(strings.Repeat("+", 40))
 
 	// Test the case where we cannot find the executable.
 	sh.Vars["PATH"] = ""

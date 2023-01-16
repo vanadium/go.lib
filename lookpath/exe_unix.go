@@ -35,7 +35,16 @@ func isExecutable(info fs.FileInfo) bool {
 
 // PathEnvVar is the system specific environment variable name for command
 // paths; commonly PATH on UNIX systems.
+// Deprecated: use PathFromVars instead.
 const PathEnvVar = "PATH"
+
+// PathFromVars returns the system specific path from the given environment.
+// It is preferable to use this function rather than directly accessing the
+// environment variables using PathEnvVar since on some systems, such as
+// Windows, PATH or Path maybe used apparently arbitrarilly.
+func PathFromVars(vars map[string]string) string {
+	return vars[PathEnvVar]
+}
 
 // ExecutableFilename returns a system specific filename for executable
 // files. On UNIX systems the filename is unchanged.

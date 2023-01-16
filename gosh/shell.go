@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -300,10 +299,6 @@ func (sh *Shell) cmd(vars map[string]string, name string, args ...string) (*Cmd,
 	}
 	c, err := newCmd(sh, mergeMaps(sh.Vars, vars), name, append(args, sh.Args...)...)
 	if err != nil {
-		fmt.Printf("# sh.Vars %v\n", len(sh.Vars))
-		for k, v := range sh.Vars {
-			fmt.Printf("%s=%s\n", k, v)
-		}
 		return nil, err
 	}
 	c.PropagateOutput = sh.PropagateChildOutput
@@ -625,7 +620,6 @@ func buildGoPkg(sh *Shell, binDir, pkg string, flags ...string) (string, error) 
 		return "", err
 	}
 	if err := c.run(); err != nil {
-		fmt.Printf("FAIL: %v\n", strings.Join(c.Args, " "))
 		return "", err
 	}
 	// Create target directory, if needed.
