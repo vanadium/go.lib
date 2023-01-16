@@ -300,7 +300,7 @@ func (sh *Shell) cmd(vars map[string]string, name string, args ...string) (*Cmd,
 	}
 	c, err := newCmd(sh, mergeMaps(sh.Vars, vars), name, append(args, sh.Args...)...)
 	if err != nil {
-		fmt.Printf("# sh.Varts %v\n", len(sh.Vars))
+		fmt.Printf("# sh.Vars %v\n", len(sh.Vars))
 		for k, v := range sh.Vars {
 			fmt.Printf("%s=%s\n", k, v)
 		}
