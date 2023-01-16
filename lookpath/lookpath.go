@@ -51,6 +51,9 @@ func Look(env map[string]string, name string) (string, error) {
 		}
 	}
 	fmt.Printf("Failed to find %v in %v\n", name, dirs)
+	if name == "go" {
+		panic("x")
+	}
 	return "", &exec.Error{Name: name, Err: exec.ErrNotFound}
 }
 
