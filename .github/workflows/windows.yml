@@ -1,19 +1,24 @@
-name: macos
+name: windows
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+    branches: [main]
 
 jobs:
-  test:
+  build:
     strategy:
       matrix:
         go-version: [1.19.x]
-        os: [macos-latest]
+        os: [windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
+      - name: Set git to use LF
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
       - name: Checkout code
         uses: actions/checkout@v3
         with:
@@ -29,4 +34,4 @@ jobs:
       - name: Test
         run: |
           cd github.com/vanadium/go.lib
-          go test -failfast --covermode=atomic -race ./...
+          go test --race --covermode=atomic ./...
