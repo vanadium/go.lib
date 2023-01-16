@@ -33,7 +33,6 @@ jobs:
 
       - name: Test
         run: |
-          which go
-          which go.exe
+          set
           cd github.com/vanadium/go.lib
           go test --race --covermode=atomic ./gosh/...
