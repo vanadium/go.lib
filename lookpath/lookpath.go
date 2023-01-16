@@ -44,16 +44,14 @@ func Look(env map[string]string, name string) (string, error) {
 	} else {
 		dirs = []string{filepath.Dir(name)}
 	}
-	fmt.Printf("DIRS: %v: %v\n", dirs, name)
 	for _, dir := range dirs {
-		fmt.Printf("DIR: %v\n", dir)
 		if file, ok := isExecutablePath(dir, base); ok {
-			fmt.Printf("YES... File: %v: %v\n", file, ok)
+			fmt.Printf("Found: %v as %v\n", name, file)
 			return ExecutableBasename(file), nil
-		} else {
-			fmt.Printf("File: %v: %v\n", file, ok)
 		}
 	}
+	fmt.Printf("Failed to find %v in %v\n", name, dirs)
+	panic("x")
 	return "", &exec.Error{Name: name, Err: exec.ErrNotFound}
 }
 
