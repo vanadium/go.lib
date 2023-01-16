@@ -16,13 +16,17 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          path: github.com/vanadium/go.lib
 
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
           go-version: ${{ matrix.go-version }}
           cache: true
-          cache-dependency-path: ./go.sum
+          cache-dependency-path: github.com/vanadium/go.lib/go.sum
 
       - name: Test
-        run: go test --race --covermode=atomic ./...
+        run: |
+          cd github.com/vanadium/go.lib
+          go test --race --covermode=atomic ./...
