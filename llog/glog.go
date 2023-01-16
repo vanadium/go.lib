@@ -97,6 +97,7 @@ import (
 	"fmt"
 	"io"
 	stdLog "log"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -159,7 +160,9 @@ func (s *Severity) Set(value string) error {
 		if err != nil {
 			return err
 		}
-		threshold = Severity(v)
+		if v > 0 && v < numSeverity {
+			threshold = Severity(v)
+		}
 	}
 	*s = threshold
 	return nil
@@ -237,7 +240,9 @@ func (l *Level) Set(value string) error {
 	if err != nil {
 		return err
 	}
-	*l = Level(v)
+	if v >= 0 && v <= math.MaxInt {
+		*l = Level(v)
+	}
 	return nil
 }
 
@@ -439,8 +444,8 @@ func (t *TraceLocation) Set(value string) error {
 	if err != nil {
 		return errTraceSyntax
 	}
-	if v <= 0 {
-		return errors.New("negative or zero value for level")
+	if v <= 0 || v > math.MaxInt {
+		return errors.New("negative, zero or too large a value for level")
 	}
 	t.line = v
 	t.file = file

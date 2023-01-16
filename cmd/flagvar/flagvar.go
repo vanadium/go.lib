@@ -17,6 +17,7 @@ package flagvar
 import (
 	"flag"
 	"fmt"
+	"math"
 	"reflect"
 	"strconv"
 	"time"
@@ -166,13 +167,21 @@ func literalDefault(typeName, literal string, initialValue interface{}) (value i
 	switch typeName {
 	case "int":
 		tmp, err = strconv.ParseInt(literal, 10, 64)
-		value = int(tmp)
+		if tmp > math.MaxInt {
+			value = tmp
+		} else {
+			value = int(tmp)
+		}
 	case "int64":
 		tmp, err = strconv.ParseInt(literal, 10, 64)
 		value = tmp
 	case "uint":
 		utmp, err = strconv.ParseUint(literal, 10, 64)
-		value = uint(utmp)
+		if utmp > math.MaxUint {
+			value = utmp
+		} else {
+			value = uint(utmp)
+		}
 	case "uint64":
 		utmp, err = strconv.ParseUint(literal, 10, 64)
 		value = utmp
