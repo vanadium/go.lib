@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -619,7 +620,10 @@ func buildGoPkg(sh *Shell, binDir, pkg string, flags ...string) (string, error) 
 	if err != nil {
 		return "", err
 	}
+	c.addStderrWriter(os.Stderr)
+	c.addStdoutWriter(os.Stderr)
 	if err := c.run(); err != nil {
+		fmt.Printf("FAIL: %v\n", strings.Join(c.Args, " "))
 		return "", err
 	}
 	// Create target directory, if needed.

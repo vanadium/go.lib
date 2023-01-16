@@ -6,6 +6,7 @@
 package lookpath
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -43,9 +44,14 @@ func Look(env map[string]string, name string) (string, error) {
 	} else {
 		dirs = []string{filepath.Dir(name)}
 	}
+	fmt.Printf("DIRS: %v: %v\n", dirs, name)
 	for _, dir := range dirs {
+		fmt.Printf("DIR: %v\n", dir)
 		if file, ok := isExecutablePath(dir, base); ok {
+			fmt.Printf("YES... File: %v: %v\n", file, ok)
 			return ExecutableBasename(file), nil
+		} else {
+			fmt.Printf("File: %v: %v\n", file, ok)
 		}
 	}
 	return "", &exec.Error{Name: name, Err: exec.ErrNotFound}
