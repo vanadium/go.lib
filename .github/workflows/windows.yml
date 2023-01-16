@@ -33,6 +33,6 @@ jobs:
 
       - name: Test
         run: |
-          echo $SHELL
+          ls env:
           cd github.com/vanadium/go.lib
           go test --race --covermode=atomic ./gosh/...

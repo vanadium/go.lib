@@ -508,7 +508,7 @@ func TestLookPath(t *testing.T) {
 
 	binDir := sh.MakeTempDir()
 	fmt.Printf("XXXX %v -- %c -- %v -- %v -- %v\n", binDir, filepath.ListSeparator, lookpath.PathEnvVar, sh.Vars[lookpath.PathEnvVar], sh.Vars["PATH"])
-	sh.Vars["PATH"] = binDir + string(filepath.ListSeparator) + sh.Vars[lookpath.PathEnvVar]
+	sh.Vars["PATH"] = binDir + string(filepath.ListSeparator) + lookpath.PathFromVars(sh.Vars)
 	relName := "hw"
 	absName := filepath.Join(binDir, relName)
 	gosh.BuildGoPkg(sh, "", helloWorldPkg, "-o", absName)
