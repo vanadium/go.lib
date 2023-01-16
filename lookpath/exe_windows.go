@@ -39,7 +39,7 @@ const PathEnvVar = "Path"
 // PathFromVars returns the system specific path from the given environment.
 // It is preferable to use this function rather than directly accessing the
 // environment variables using PathEnvVar since on some systems, such as
-// Windows, PATH or Path maybe used apparently arbitrarilly.
+// Windows, PATH or Path maybe used apparently arbitrarily.
 func PathFromVars(vars map[string]string) string {
 	if p, ok := vars[PathEnvVar]; ok {
 		return p
