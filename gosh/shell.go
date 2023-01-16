@@ -298,11 +298,11 @@ func (sh *Shell) cmd(vars map[string]string, name string, args ...string) (*Cmd,
 	if vars == nil {
 		vars = make(map[string]string)
 	}
-	for k, v := range sh.Vars {
-		fmt.Printf("%s=%s\n", k, v)
-	}
 	c, err := newCmd(sh, mergeMaps(sh.Vars, vars), name, append(args, sh.Args...)...)
 	if err != nil {
+		for k, v := range sh.Vars {
+			fmt.Printf("%s=%s\n", k, v)
+		}
 		return nil, err
 	}
 	c.PropagateOutput = sh.PropagateChildOutput
