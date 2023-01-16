@@ -502,13 +502,18 @@ func TestFuncCmd(t *testing.T) {
 // relative names.
 func TestLookPath(t *testing.T) {
 	sh := gosh.NewShell(t)
+
+	fmt.Printf("NEW SHELL: PATH: %v, Path: %v\n", len(sh.Vars["PATH"]), len(sh.Vars["Path"]))
+
 	defer sh.Cleanup()
 
 	fmt.Println(strings.Repeat("=", 40))
 
 	binDir := sh.MakeTempDir()
-	fmt.Printf("XXXX %v -- %c -- %v -- %v -- %v\n", binDir, filepath.ListSeparator, lookpath.PathEnvVar, sh.Vars[lookpath.PathEnvVar], sh.Vars["PATH"])
-	sh.Vars["PATH"] = binDir + string(filepath.ListSeparator) + lookpath.PathFromVars(sh.Vars)
+
+	fmt.Printf("NEW SHELL: MakeTempDir: PATH: %v, Path: %v\n", len(sh.Vars["PATH"]), len(sh.Vars["Path"]))
+
+	sh.Vars["PATH"] = binDir + string(filepath.ListSeparator) + sh.Vars[lookpath.PathEnvVar]
 	relName := "hw"
 	absName := filepath.Join(binDir, relName)
 	gosh.BuildGoPkg(sh, "", helloWorldPkg, "-o", absName)
