@@ -1,4 +1,4 @@
-![linux](https://github.com/vandium/go.lib/actions/workflows/linux.yml/badge.svg)
+![linux](https://github.com/vanadium/go.lib/actions/workflows/linux.yml/badge.svg)
 ![macos](https://github.com/vanadium/go.lib/actions/workflows/macos.yml/badge.svg)
 ![windows](https://github.com/vanadium/go.lib/actions/workflows/windows.yml/badge.svg)
 ![lint-govuln](https://github.com/vanadium/go.lib/actions/workflows/lint-govuln.yml/badge.svg)
