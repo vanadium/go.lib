@@ -1,5 +1,7 @@
-[![CircleCI](https://circleci.com/gh/vanadium/go.lib.svg?style=shield)](https://circleci.com/gh/vanadium/go.lib/)
-![GithubActions](https://github.com/cosnicolaou/pbzip2/actions/workflows/macos.yml/badge.svg)
+![linux](https://github.com/cloudengio/go.pkgs/actions/workflows/linux.yml/badge.svg)
+![macos](https://github.com/cloudengio/go.pkgs/actions/workflows/macos.yml/badge.svg)
+![windows](https://github.com/cloudengio/go.pkgs/actions/workflows/windows.yml/badge.svg)
+![lint-govuln](https://github.com/cloudengio/go.pkgs/actions/workflows/lint-govuln.yml/badge.svg)![CodeQL](https://github.com/cloudengio/go.pkgs/actions/workflows/codeql.yml/badge.svg)
 
 
 This repository contains general purpose libraries created by and used by the
