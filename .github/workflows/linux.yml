@@ -50,6 +50,7 @@ jobs:
         uses: golangci/golangci-lint-action@v3
         with:
           version: latest
+          working-directory: github.com/vanadium/go.lib
 
       - name: Vulnerabilities
         run: |
