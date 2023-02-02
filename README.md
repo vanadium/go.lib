@@ -1,7 +1,6 @@
 ![linux](https://github.com/vanadium/go.lib/actions/workflows/linux.yml/badge.svg)
 ![macos](https://github.com/vanadium/go.lib/actions/workflows/macos.yml/badge.svg)
 ![windows](https://github.com/vanadium/go.lib/actions/workflows/windows.yml/badge.svg)
-![lint-govuln](https://github.com/vanadium/go.lib/actions/workflows/lint-govuln.yml/badge.svg)
 ![CodeQL](https://github.com/vanadium/go.lib/actions/workflows/codeql.yml/badge.svg)
 
 This repository contains general purpose libraries created by and used by the
