@@ -244,7 +244,7 @@ const headTailCapacity = 1 << 15
 
 func newCmdInternal(sh *Shell, vars map[string]string, path string, args []string) (*Cmd, error) {
 	c := &Cmd{
-		Path:           path,
+		Path:           ExecutableFilename(path),
 		Vars:           vars,
 		Args:           append([]string{path}, args...),
 		sh:             sh,
@@ -272,7 +272,7 @@ func newCmd(sh *Shell, vars map[string]string, name string, args ...string) (*Cm
 		if err != nil {
 			return nil, fmt.Errorf("gosh: failed to locate executable: %s", name)
 		}
-		name = ExecutableFilename(lp)
+		name = lp
 	}
 	return newCmdInternal(sh, vars, name, args)
 }
