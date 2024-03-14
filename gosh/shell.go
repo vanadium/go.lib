@@ -615,7 +615,9 @@ func buildGoPkg(sh *Shell, binDir, pkg string, flags ...string) (string, error) 
 	args := []string{"build", "-o", tempBinPath}
 	args = append(args, flags...)
 	args = append(args, pkg)
-	c, err := sh.cmd(nil, ExecutableFilename("go"), args...)
+	goexe := ExecutableFilename("go")
+	fmt.Printf("GOexe : %s\n", goexe)
+	c, err := sh.cmd(nil, goexe, args...)
 	if err != nil {
 		return "", err
 	}

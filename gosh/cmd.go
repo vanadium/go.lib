@@ -273,6 +273,7 @@ func newCmd(sh *Shell, vars map[string]string, name string, args ...string) (*Cm
 			return nil, fmt.Errorf("gosh: failed to locate executable: %s", name)
 		}
 		name = lp
+		fmt.Printf("NAME... %v %v\n", lp, name)
 	}
 	return newCmdInternal(sh, vars, name, args)
 }
