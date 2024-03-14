@@ -244,7 +244,7 @@ const headTailCapacity = 1 << 15
 
 func newCmdInternal(sh *Shell, vars map[string]string, path string, args []string) (*Cmd, error) {
 	c := &Cmd{
-		Path:           path,
+		Path:           ExecutableFilename(path),
 		Vars:           vars,
 		Args:           append([]string{path}, args...),
 		sh:             sh,
