@@ -597,7 +597,9 @@ func buildGoPkg(sh *Shell, binDir, pkg string, flags ...string) (string, error) 
 	default:
 		binPath = filepath.Join(binDir, outputFlag)
 	}
+	o := binPath
 	binPath = ExecutableFilename(binPath)
+	fmt.Printf("binpath: %v -> %v\n", o, binPath)
 	// If the binary already exists at the target location, don't rebuild it.
 	if _, err := os.Stat(binPath); err == nil {
 		return binPath, nil
