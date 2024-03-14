@@ -272,8 +272,10 @@ func newCmd(sh *Shell, vars map[string]string, name string, args ...string) (*Cm
 		if err != nil {
 			return nil, fmt.Errorf("gosh: failed to locate executable: %s", name)
 		}
+		fmt.Printf("NAME... %v -> %v\n", name, lp)
 		name = lp
-		fmt.Printf("NAME... %v %v\n", lp, name)
+	} else {
+		fmt.Printf("LEFT ALONE %v\n", name)
 	}
 	return newCmdInternal(sh, vars, name, args)
 }
