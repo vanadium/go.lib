@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"go/doc"
+	"go/doc/comment"
 	"io"
 	"path/filepath"
 	"regexp"
@@ -165,12 +165,11 @@ func godocHeader(path, short string) string {
 	// We try our best to create a header that includes both the command path and
 	// the short description, but if godoc won't extract a header out of the line,
 	// we fall back to just returning the command path.
-	//
-	// For more details see the comments and implementation of doc.ToHTML:
-	// http://golang.org/pkg/go/doc/#ToHTML
 	header := firstRuneToUpper(path + " - " + short)
 	var buf bytes.Buffer
-	doc.ToHTML(&buf, "before\n\n"+header+"\n\nafter", nil)
+	var p comment.Parser
+	d := p.Parse("before\n\n" + header + "\n\nafter")
+	buf.Write(new(comment.Printer).HTML(d))
 	if !bytes.Contains(buf.Bytes(), []byte("<h")) {
 		return firstRuneToUpper(path)
 	}
