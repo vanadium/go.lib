@@ -38,6 +38,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # Workaround for Go 1.21 compatibility.
+      # TODO: Remove when GitHub Action runners Support Go 1.21+.
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          cache: false
+
       # Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3

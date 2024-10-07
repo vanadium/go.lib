@@ -9,7 +9,6 @@
 package nsync_test
 
 import (
-	"fmt"
 	"math/rand"
 	"testing"
 	"time"
@@ -135,7 +134,7 @@ func TestCVTimeoutStress(t *testing.T) {
 	}
 	s.mu.AssertHeld()
 	if s.refs != 0 {
-		t.Fatalf(fmt.Sprintf("s.refs == %d; expected 0 at end of TestCVWaitStress", s.refs))
+		t.Fatalf("s.refs == %d; expected 0 at end of TestCVWaitStress", s.refs)
 	}
 
 	s.mu.AssertHeld()
